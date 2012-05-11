@@ -421,6 +421,45 @@ Commands.push({
 });
 
 Commands.push({
+  name: "build",
+  help: "Build this project",
+  func: function (argv) {
+    if (argv.help || argv._.length != 1) {
+      process.stdout.write(
+"Usage: meteor build <output_dir>\n" +
+"\n" +
+"Build this project up for deployment. The output is a build dir that\n" +
+"includes everything necessary to run the application. See README in\n" +
+"the for details.\n");
+      process.exit(1);
+    }
+
+    // XXX output, to stderr, the name of the file written to (for
+    // human comfort, especially since we might change the name)
+
+    // XXX name the root directory in the bundle based on the basename
+    // of the file, not a constant 'bundle' (a bit obnoxious for
+    // machines, but worth it for humans)
+
+    var app_dir = path.resolve(require_project("bundle"));
+    var build_dir = path.join(app_dir, '.meteor/');
+    var bundle_path = path.join(build_dir, argv._[0]);
+    
+
+    var bundler = require('../lib/bundler.js');
+    var errors = bundler.bundle(app_dir, bundle_path);
+    if (errors) {
+      process.stdout.write("Errors prevented bundling:\n");
+      _.each(errors, function (e) {
+        process.stdout.write(e + "\n");
+      });
+      files.rm_recursive(bundle_dir);
+      process.exit(1);
+    }
+  }
+});
+
+Commands.push({
   name: "mongo",
   help: "Connect to the Mongo database for the specified site",
   func: function (argv) {
