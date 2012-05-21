@@ -1,4 +1,4 @@
-METEOR_VERSION = "0.3.3";
+METEOR_VERSION = "0.3.6";
 
 Meteor.startup(function () {
   // XXX this is broken by the new multi-page layout.  Also, it was
@@ -6,6 +6,12 @@ Meteor.startup(function () {
   // colors. Just turn it off for now. We'll fix it and turn it on
   // later.
   // prettyPrint();
+
+  // returns a jQuery object suitable for setting scrollTop to
+  // scroll the page, either directly for via animate()
+  var scroller = function() {
+    return $("html, body").stop();
+  };
 
   var sections = [];
   _.each($('#main h1, #main h2, #main h3'), function (elt) {
@@ -22,7 +28,17 @@ Meteor.startup(function () {
     sections[i].next = sections[i+1] || sections[i];
     $(sections[i]).waypoint({offset: 30});
   }
-  Session.set('section', document.location.hash.substr(1) || sections[0].id);
+  var section = document.location.hash.substr(1) || sections[0].id;
+  Session.set('section', section);
+  if (section) {
+    // WebKit will scroll down to the #id in the URL asynchronously
+    // after the page is rendered, but Firefox won't.
+    Meteor.setTimeout(function() {
+      var elem = $('#'+section);
+      if (elem.length)
+        scroller().scrollTop(elem.offset().top);
+    }, 0);
+  }
 
   var ignore_waypoints = false;
   $('body').delegate('h1, h2, h3', 'waypoint.reached', function (evt, dir) {
@@ -37,7 +53,7 @@ Meteor.startup(function () {
     var sel = $(this).attr('href');
     ignore_waypoints = true;
     Session.set("section", sel.substr(1));
-    $('body').stop().animate({
+    scroller().animate({
       scrollTop: $(sel).offset().top
     }, 500, 'swing', function () {
       window.location.hash = sel;
@@ -172,6 +188,7 @@ var toc = [
   "Packages", [ [
     "amplify",
     "backbone",
+    "bootstrap",
     "coffeescript",
     "jquery",
     "less",
@@ -301,6 +318,11 @@ Handlebars.registerHelper('better_markdown', function(fn) {
     return result;
   };
 
+  input = input.replace(/<!--.*?-->/g, '\n\n$&\n\n');
+
+  var hashedBlocks = {};
+  var numHashedBlocks = 0;
+
   var nestedTags = [];
   while (idx < input.length) {
     var blockTag = rcall(rOpenBlockTag, false);
@@ -326,24 +348,25 @@ Handlebars.registerHelper('better_markdown', function(fn) {
         }
       }
       var newBlock = blockBuf.join('');
+      var openTagFinish = newBlock.indexOf('>') + 1;
       var closeTagLoc = newBlock.lastIndexOf('<');
-      var firstMatchingClose = newBlock.indexOf('</'+blockTag+'>');
-      var shouldIndent =
-            (firstMatchingClose >= 0 && firstMatchingClose < closeTagLoc);
-      // Put final close tag at beginning of line, indent other lines if necessary.
-      // Not indenting unless necessary saves us from indenting in a <pre> tag.
-      var part1 = newBlock.substring(0, closeTagLoc);
-      var part2 = newBlock.substring(closeTagLoc);
-      if (shouldIndent)
-        part1 = part1.replace(/\n/g, '\n  ');
-      newBlock = part1 + '\n' + part2;
-      newParts.push(newBlock);
+
+      var key = ++numHashedBlocks;
+      hashedBlocks[key] = newBlock.slice(openTagFinish, closeTagLoc);
+      newParts.push(newBlock.slice(0, openTagFinish),
+                    '!!!!HTML:'+key+'!!!!',
+                    newBlock.slice(closeTagLoc));
       blockBuf.length = 0;
     }
   }
 
   var newInput = newParts.join('');
   var output = converter.makeHtml(newInput);
+
+  output = output.replace(/!!!!HTML:(.*?)!!!!/g, function(z, a) {
+    return hashedBlocks[a];
+  });
+
   return output;
 });
 

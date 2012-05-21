@@ -96,6 +96,25 @@ var start_proxy = function (outer_port, inner_port, callback) {
     }
   });
 
+  // Proxy websocket requests using same buffering logic as for regular HTTP requests
+  p.on('upgrade', function(req, socket, head) {
+    if (Status.listening) {
+      // server is listening. things are hunky dory!
+      p.proxy.proxyWebSocketRequest(req, socket, head, {
+        host: '127.0.0.1', port: inner_port
+      });
+    } else {
+      // Not listening yet. Queue up request.
+      var buffer = httpProxy.buffer(req);
+      request_queue.push(function () {
+        p.proxy.proxyWebSocketRequest(req, socket, head, {
+          host: '127.0.0.1', port: inner_port,
+          buffer: buffer
+        });
+      });
+    }
+  });
+
   p.on('error', function (err) {
     if (err.code == 'EADDRINUSE') {
       process.stderr.write("Can't listen on port " + outer_port
@@ -190,6 +209,12 @@ var start_server = function (bundle_path, port, mongo_url,
 
     on_exit_callback();
   });
+
+  // this happens sometimes when we write a keepalive after the app is
+  // dead. If we don't register a handler, we get a top level exception
+  // and the whole app dies.
+  // http://stackoverflow.com/questions/2893458/uncatchable-errors-in-node-js
+  proc.stdin.on('error', function () {});
 
   // Keepalive so server can detect when we die
   var timer = setInterval(function () {

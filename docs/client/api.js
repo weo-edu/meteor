@@ -43,7 +43,7 @@ Template.api.subscription_set = {
   id: "publish_set",
   name: "<i>this</i>.set(collection, id, name, value)",
   locus: "Server",
-  descr: ["Call inside publish function.  Queues a command to set an attribute value."],
+  descr: ["Call inside publish function.  Queues a command to set attributes."],
   args: [
     {name: "collection",
      type: "String",
@@ -53,22 +53,18 @@ Template.api.subscription_set = {
      type: "String",
      descr: "The ID of the document that should be affected."
     },
-    {name: "name",
-     type: "String",
-     descr: "The name of the attribute."
-    },
-    {name: "value",
-     type: "JSON",
-     descr: "The new value of the attribute."
+    {name: "attributes",
+     type: "Object",
+     descr: "Dictionary of attribute keys and their values."
     }
   ]
 };
 
 Template.api.subscription_unset = {
   id: "publish_unset",
-  name: "<i>this</i>.unset(collection, id, name)",
+  name: "<i>this</i>.unset(collection, id, keys)",
   locus: "Server",
-  descr: ["Call inside publish function.  Queues a command to unset an attribute."],
+  descr: ["Call inside publish function.  Queues a command to unset attributes."],
   args: [
     {name: "collection",
      type: "String",
@@ -78,9 +74,9 @@ Template.api.subscription_unset = {
      type: "String",
      descr: "The ID of the document that should be affected."
     },
-    {name: "name",
-     type: "String",
-     descr: "The name of the attribute."
+    {name: "keys",
+     type: "Array",
+     descr: "Array of attribute keys."
     }
   ]
 };
@@ -399,7 +395,7 @@ Template.api.insert = {
      descr: "The document to insert. Should not yet have an _id attribute."},
     {name: "callback",
      type: "Function",
-     descr: "Optional.  If present, called with an error object as the first argument and the _id as the second."}
+     descr: "Optional.  If present, called with an error object as the first argument and, if no error, the _id as the second."}
   ]
 };
 
@@ -419,7 +415,7 @@ Template.api.update = {
      descr: "Specifies how to modify the documents"},
     {name: "callback",
      type: "Function",
-     descr: "Optional.  If present, called with an error object as the first argument and the result as the second."}
+     descr: "Optional.  If present, called with an error object as its argument."}
   ],
   options: [
     {name: "multi",
@@ -440,7 +436,7 @@ Template.api.remove = {
      descr: "Specifies which documents to remove"},
     {name: "callback",
      type: "Function",
-     descr: "Optional.  If present, called with an error object as the first argument and the result as the second."}
+     descr: "Optional.  If present, called with an error object as its argument."}
   ]
 };
 
