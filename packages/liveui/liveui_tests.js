@@ -495,7 +495,7 @@ Tinytest.add("liveui - copied attributes", function(test) {
     }));
     var maybe_focus = function(div) {
       if (with_focus) {
-        div.node().style.display = "block"; // make visible
+        div.show();
         focusElement(div.node().firstChild);
       }
     };
@@ -1430,9 +1430,7 @@ var make_input_tester = function(render_func, events) {
       R.get(); // create dependency
       return render_func();
     }, { events: events, event_data: buf }));
-  div.node().style.display = "block"; // make visible
-  div.node().style.height = 0;
-  div.node().style.overflow = 'hidden';
+  div.show(true);
 
   var getbuf = function() {
     var ret = buf.slice();
@@ -1696,6 +1694,121 @@ testAsyncMulti(
       }
     ];
   })());
+
+Tinytest.add("liveui - controls", function(test) {
+
+  // Radio buttons
+
+  var R = ReactiveVar("");
+  var change_buf = [];
+  var div = OnscreenDiv(Meteor.ui.render(function() {
+    var buf = [];
+    buf.push("Band: ");
+    _.each(["AM", "FM", "XM"], function(band) {
+      var checked = (R.get() === band) ? 'checked="checked"' : '';
+      buf.push('<input type="radio" name="bands" '+
+               'value="'+band+'" '+checked+'/>');
+    });
+    buf.push(R.get());
+    return buf.join('');
+  }, {events: {
+    'change input': function(event) {
+      // IE 7 is known to fire change events on all
+      // the radio buttons with checked=false, as if
+      // each button were deselected before selecting
+      // the new one.
+      // However, browsers are consistent if we are
+      // getting a checked=true notification.
+      var btn = event.target;
+      if (btn.checked) {
+        var band = btn.value;
+        change_buf.push(band);
+        R.set(band);
+      }
+    }
+  }}));
+
+  Meteor.flush();
+
+  // get the three buttons; they should be considered 'labeled'
+  // by the patcher and not change identities!
+  var btns = _.toArray(div.node().getElementsByTagName("INPUT"));
+
+  test.equal(_.pluck(btns, 'checked'), [false, false, false]);
+  test.equal(div.text(), "Band: ");
+
+  clickElement(btns[0]);
+  test.equal(change_buf, ['AM']);
+  change_buf.length = 0;
+  Meteor.flush();
+  test.equal(_.pluck(btns, 'checked'), [true, false, false]);
+  test.equal(div.text(), "Band: AM");
+
+  clickElement(btns[1]);
+  test.equal(change_buf, ['FM']);
+  change_buf.length = 0;
+  Meteor.flush();
+  test.equal(_.pluck(btns, 'checked'), [false, true, false]);
+  test.equal(div.text(), "Band: FM");
+
+  clickElement(btns[2]);
+  test.equal(change_buf, ['XM']);
+  change_buf.length = 0;
+  Meteor.flush();
+  test.equal(_.pluck(btns, 'checked'), [false, false, true]);
+  test.equal(div.text(), "Band: XM");
+
+  clickElement(btns[1]);
+  test.equal(change_buf, ['FM']);
+  change_buf.length = 0;
+  Meteor.flush();
+  test.equal(_.pluck(btns, 'checked'), [false, true, false]);
+  test.equal(div.text(), "Band: FM");
+
+  div.kill();
+
+  // Textarea
+
+  R = ReactiveVar("test");
+  div = OnscreenDiv(Meteor.ui.render(function() {
+    return '<textarea id="mytextarea">This is a '+
+      R.get()+'</textarea>';
+  }));
+  div.show(true);
+
+  var textarea = div.node().firstChild;
+  test.equal(textarea.nodeName, "TEXTAREA");
+  test.equal(textarea.value, "This is a test");
+
+  // value updates reactively
+  R.set("fridge");
+  Meteor.flush();
+  test.equal(textarea.value, "This is a fridge");
+
+  // ...unless focused
+  focusElement(textarea);
+  R.set("frog");
+  Meteor.flush();
+  test.equal(textarea.value, "This is a fridge");
+
+  // blurring and re-setting works
+  blurElement(textarea);
+  Meteor.flush();
+  test.equal(textarea.value, "This is a fridge");
+  R.set("frog");
+  Meteor.flush();
+  test.equal(textarea.value, "This is a frog");
+
+  // Setting a value (similar to user typing) should
+  // not prevent value from being updated reactively.
+  textarea.value = "foobar";
+  R.set("photograph");
+  Meteor.flush();
+  test.equal(textarea.value, "This is a photograph");
+
+
+  div.kill();
+});
 
 // TO TEST:
 // - events
