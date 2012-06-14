@@ -90,7 +90,6 @@ Meteor.Collection = function (name, manager, driver) {
     var m = {};
     // XXX what if name has illegal characters in it?
     self._prefix = '/' + name + '/';
-    console.log('prefix',self._prefix)
     m[self._prefix + 'insert'] = function (/* selector, options */) {
       self._maybe_snapshot();
       // insert returns nothing.  allow exceptions to propagate.
