@@ -272,8 +272,11 @@ var DependencyWatcher = function (deps, app_dir, on_change) {
   self.specific_files = {};
   for (var pkg in (deps.packages || {})) {
     _.each(deps.packages[pkg], function (file) {
-      self.specific_files[path.join(files.get_package_dir(), pkg, file)]
-        = true;
+      var fullpath = path.join(files.get_package_dir(), pkg, file)
+      if(!path.existsSync(fullpath)){
+        fullpath = path.join(files.get_user_package_dir(), pkg, file);
+      }
+      self.specific_files[fullpath] = true;
     });
   };
 

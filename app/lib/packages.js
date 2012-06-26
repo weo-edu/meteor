@@ -109,7 +109,6 @@ _.extend(Package.prototype, {
   },
 
   init_from_app_dir: function (app_dir, ignore_files) {
-    console.log('init from app dir');
     var self = this;
     self.name = null;
     self.source_root = app_dir;
