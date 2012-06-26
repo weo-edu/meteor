@@ -143,6 +143,7 @@ Meteor.ui = Meteor.ui || {};
 
     // Call "added to DOM" callbacks to wire up all sub-chunks.
     _.each(rangesCreated, function(x) {
+
       var range = x[0];
       var id = x[1];
       if (rangeCallbacks[id])
@@ -150,6 +151,18 @@ Meteor.ui = Meteor.ui || {};
     });
 
     Meteor.ui._wire_up(cx, range, html_func, react_data);
+
+    _.each(rangesCreated,function(x) {
+      var range = x[0];
+      for(var n = range.firstNode(), after = range.lastNode().nextSibling;
+          n && n !== after;
+          n = n.nextSibling) {
+        var evt = document.createEvent("HTMLEvents");
+        evt.initEvent('insert', true, true);
+        n.dispatchEvent(evt);
+      }
+    });
+    
 
     return (in_range ? null : frag);
 
@@ -404,6 +417,8 @@ Meteor.ui = Meteor.ui || {};
     killContext(range);
     range.context = cx;
 
+   
+
     // wire update
     cx.on_invalidate(function(old_cx) {
       if (old_cx.killed)
@@ -575,8 +590,8 @@ Meteor.ui = Meteor.ui || {};
     _.each(range.event_handlers.types, function(t) {
       for(var n = range.firstNode(), after = range.lastNode().nextSibling;
           n && n !== after;
-          n = n.nextSibling)
-        Meteor.ui._event.registerEventType(t, n);
+          n = n.nextSibling) 
+         Meteor.ui._event.registerEventType(t, n);
     });
   };
 
