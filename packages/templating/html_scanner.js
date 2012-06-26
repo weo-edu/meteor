@@ -1,3 +1,4 @@
+var path = require('path');
 
 var html_scanner = {
   // Scan a template file for <head>, <body>, and <template>
@@ -95,7 +96,7 @@ var html_scanner = {
 
       // act on the tag
       html_scanner._handleTag(results, tagName, tagAttribs, tagContents,
-                              parseError);
+                              parseError, source_name);
     }
 
     return results;
@@ -109,7 +110,7 @@ var html_scanner = {
     return results;
   },
 
-  _handleTag: function (results, tag, attribs, contents, parseError) {
+  _handleTag: function (results, tag, attribs, contents, parseError, source_name) {
 
     // trim the tag contents
     contents = contents.match(/^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$/)[1];
@@ -139,7 +140,7 @@ var html_scanner = {
       if (! name)
         throw parseError("Template has no 'name' attribute");
 
-      results.js += "Meteor._def_template(" + JSON.stringify(name) + ","
+      results.js += "Meteor._def_template(" + JSON.stringify(path.basename(source_name, '.html') + '_' + name) + ","
         + code + ");\n";
     } else {
       // <body>
