@@ -278,7 +278,7 @@ var packages = module.exports = {
         ret[name] = packages.get(name);
     });
 
-    var my_dir = '/Users/joshrtay/packages'
+    var my_dir = files.get_user_package_dir();
     _.each(fs.readdirSync(my_dir), function (name) {
       console.log('name',name);
       // skip .meteor directory
