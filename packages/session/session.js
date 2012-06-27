@@ -1,7 +1,9 @@
-Session = _.extend({}, {
-  keys: [],
-  data: {},
-  
+function _Session() {
+  this.keys = [];
+  this.data = {};
+}
+
+_.extend(_Session.prototype, {
   // XXX remove debugging method (or improve it, but anyway, don't
   // ship it in production)
   dump_state: function () {
@@ -50,6 +52,8 @@ Session = _.extend({}, {
     }
   }
 });
+
+Session = new _Session;
 
 
 if (Meteor._reload) {
