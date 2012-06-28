@@ -23,7 +23,7 @@ Package.on_use(function (api) {
   // XXX this is a huge hack. using handlebars causes a Handlebars
   // symbol to be slammed into the global environment, which
   // html_scanner needs. refactor.
-  api.use('handlebars', 'client');
+  api.use('handlebars', ['client','server']);
 });
 
 Package.register_extension(

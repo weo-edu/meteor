@@ -82,6 +82,10 @@ var run = function (bundle_dir) {
     res.end();
   });
 
+  app.post('/upload', function(req,res) {
+    console.log(req.files);
+  });
+
   // read bundle config file
   var info_raw =
     fs.readFileSync(path.join(bundle_dir, 'app.json'), 'utf8');
