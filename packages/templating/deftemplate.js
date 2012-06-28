@@ -15,7 +15,7 @@
   };
 
 
-  Meteor._def_template = function (name, raw_func) {
+  Meteor._def_template = function (name, raw_func, attrs) {
     Meteor._hook_handlebars_each();
 
     window.Template = window.Template || {};
@@ -53,6 +53,7 @@
       Meteor._partials[name] = partial;
     }
 
+    partial.attrs = attrs;
     // useful for unnamed templates, like body
     return partial;
   };
