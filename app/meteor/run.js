@@ -502,7 +502,7 @@ exports.run = function (app_dir, bundle_opts, port) {
     var errors = [];
 
     var ignore = [];
-    if(path.existsSync(path.join(app_dir, '.meteor/routes'))){
+    /*if(path.existsSync(path.join(app_dir, '.meteor/routes'))){
       var dirs = fs.readdirSync('./');
       _.each(dirs, function(val, key){
         if(val[0] != '.' && val != 'root'){
@@ -514,7 +514,8 @@ exports.run = function (app_dir, bundle_opts, port) {
     }
 
     bundle_opts.subapp = 'root';
-    errors.concat(bundler.bundle(app_dir, bundle_path, bundle_opts));
+    errors.concat(bundler.bundle(app_dir, bundle_path, bundle_opts));*/
+    errors = bundler.bundle(app_dir, bundle_path, bundle_opts);
 
 
 

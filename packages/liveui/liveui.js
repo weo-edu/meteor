@@ -151,15 +151,15 @@ Meteor.ui = Meteor.ui || {};
     });
 
     Meteor.ui._wire_up(cx, range, html_func, react_data);
-
     _.each(rangesCreated,function(x) {
       var range = x[0];
       for(var n = range.firstNode(), after = range.lastNode().nextSibling;
           n && n !== after;
           n = n.nextSibling) {
-        var evt = document.createEvent("HTMLEvents");
-        evt.initEvent('insert', true, true);
-        n.dispatchEvent(evt);
+        if(!(n instanceof HTMLDivElement)) continue;
+        var evt = document.createEvent("Events");
+        evt.initEvent('insert', true, false);
+        setTimeout(n.dispatchEvent.bind(n,evt), 0);
       }
     });
     
@@ -590,8 +590,8 @@ Meteor.ui = Meteor.ui || {};
     _.each(range.event_handlers.types, function(t) {
       for(var n = range.firstNode(), after = range.lastNode().nextSibling;
           n && n !== after;
-          n = n.nextSibling) 
-         Meteor.ui._event.registerEventType(t, n);
+          n = n.nextSibling)
+        Meteor.ui._event.registerEventType(t, n);
     });
   };
 
