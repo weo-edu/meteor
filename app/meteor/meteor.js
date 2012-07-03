@@ -670,10 +670,9 @@ Commands.push({
 
 
     function nameToApp(name){
-      if(!meteors.hasOwnProperty(name)){
-        name = 'root';
+      if(meteors.hasOwnProperty(name)){
+        return meteors[name];
       }
-      return meteors[name];
     }
 
     function getAppNameFromPath(p){
@@ -682,16 +681,16 @@ Commands.push({
     }
 
     function getAppForReq(req){
-      var appName;
-      if(typeof req.headers.referer !== 'undefined'){
+      var app = nameToApp(getAppNameFromPath(req.url));
+      if(!app && typeof req.headers.referer !== 'undefined'){
         var refpath = require('url').parse(req.headers.referer).pathname;
-        appName = getAppNameFromPath(refpath);
+        app = nameToApp(getAppNameFromPath(refpath));
       }
-      else{
-        appName = getAppNameFromPath(req.url);
-      }
+      
+      if(!app)
+        app = nameToApp('root');
 
-      return nameToApp(appName);
+      return app;
     }
 
     function stripAppFromUrl(url, appName){
