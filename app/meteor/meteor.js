@@ -112,9 +112,6 @@ Commands.push({
 
     var app_dir = require_project("run", true); // app or package
     var bundle_opts = { no_minify: !new_argv.production, symlink_dev_bundle: true };
-    if(argv.subapp)
-      bundle_opts.subapp = argv.subapp;
-
     require('./run.js').run(app_dir, bundle_opts, new_argv.port);
   }
 });
@@ -607,10 +604,13 @@ Commands.push({
   }
 });
 
+
 Commands.push({
   name: "router",
   help: "starts up router from subdirs",
-  func: function() {
+  func: function(argv) {
+    var subapp_prefix = 'app!';
+
     process.on('uncaughtException', function(e){
       _.each(childProcesses, function(p, idx){
         p.kill();
@@ -630,9 +630,19 @@ Commands.push({
       var meteors = {};
       _.each(fs.readdirSync(process.cwd()),function(p) {
         if (p[0] !== '.' && path.existsSync(path.join(p,'.meteor'))) {
-          meteors[p] = {
-            name: p,
-            port: 3000+4*nMeteors+1
+          var dir = p;
+          var name = p;
+          if(p !== 'root'){
+            if(argv.prefix)
+              name = argv.prefix + '-' + p;
+
+            name = subapp_prefix + name;
+          }
+
+          meteors[name] = {
+            name: name,
+            port: 3000+4*nMeteors+1,
+            dir: dir
           }
           nMeteors++;
         }
@@ -641,9 +651,13 @@ Commands.push({
       return meteors;
     }
 
+    console.log('Initializing subapps...', meteors);
+
     var childProcesses = [];
     _.each(meteors,function(app, appName) {
-      var p = spawn('meteor',['--port',app.port, '--subapp', appName],{cwd: appName, env: process.env});
+      var env = _.clone(process.env);
+      env.METEOR_SUBAPP_PREFIX = subapp_prefix;
+      var p = spawn('meteor',['--port',app.port],{cwd: app.dir, env: env});
       childProcesses.push(p);
 
       p.stdout.on('data',function(data) {
