@@ -641,8 +641,6 @@ Commands.push({
       return meteors;
     }
 
-    console.log('subapps', meteors);
-
     var childProcesses = [];
     _.each(meteors,function(app, appName) {
       var p = spawn('meteor',['--port',app.port, '--subapp', appName],{cwd: appName, env: process.env});
