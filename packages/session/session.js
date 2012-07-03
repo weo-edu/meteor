@@ -65,7 +65,7 @@ _.extend(_Session.prototype, {
     var self = this;
 
     var old_value = self.keys[key];
-    if (value === old_value)
+    if (_.equal(value,old_value))
       return;
     self.keys[key] = value;
 
