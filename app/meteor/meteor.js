@@ -114,7 +114,7 @@ Commands.push({
     var bundle_opts = { no_minify: !new_argv.production, symlink_dev_bundle: true };
     if(argv.subapp)
       bundle_opts.subapp = argv.subapp;
-    
+
     require('./run.js').run(app_dir, bundle_opts, new_argv.port);
   }
 });
@@ -611,60 +611,94 @@ Commands.push({
   name: "router",
   help: "starts up router from subdirs",
   func: function() {
+    process.on('uncaughtException', function(e){
+      _.each(childProcesses, function(p, idx){
+        p.kill();
+      });
+      console.error(e.stack);
+      process.exit();
+    });
+
     var fs = require('fs');
     var path = require('path');
     var spawn = require('child_process').spawn;
     var httpProxy = require('http-proxy');
 
-    var meteors = ['root'];
-    _.each(fs.readdirSync(process.cwd()),function(p) {
-      if (p !== 'root' && p[0] !== '.' && 
-          path.existsSync(path.join(p,'.meteor'))) {
-        meteors.push(p);
-      }
-    })
+    var meteors = collectSubapps();
+    function collectSubapps(){
+      var nMeteors = 0;
+      var meteors = {};
+      _.each(fs.readdirSync(process.cwd()),function(p) {
+        if (p[0] !== '.' && path.existsSync(path.join(p,'.meteor'))) {
+          meteors[p] = {
+            name: p,
+            port: 3000+4*nMeteors+1
+          }
+          nMeteors++;
+        }
+      });
 
-    _.each(meteors,function(app,idx) {
-      var p = spawn('meteor',['--port',3000+4*idx+1, '--subapp', app],{cwd: app, env: process.env});
+      return meteors;
+    }
+
+    console.log('subapps', meteors);
+
+    var childProcesses = [];
+    _.each(meteors,function(app, appName) {
+      var p = spawn('meteor',['--port',app.port, '--subapp', appName],{cwd: appName, env: process.env});
+      childProcesses.push(p);
+
       p.stdout.on('data',function(data) {
-        console.log(app+': '+data);
+        console.log(appName+': '+data);
       });
       p.stderr.on('data',function(data) {
-        console.error(app+': '+data);
+        console.error(appName+': '+data);
       });
     });
 
+
+    function nameToApp(name){
+      if(!meteors.hasOwnProperty(name)){
+        name = 'root';
+      }
+      return meteors[name];
+    }
+
+    function getAppNameFromPath(p){
+      var parts = p.split('/');
+      return parts[1];
+    }
+
+    function getAppForReq(req){
+      var appName;
+      if(typeof req.headers.referer !== 'undefined'){
+        var refpath = require('url').parse(req.headers.referer).pathname;
+        appName = getAppNameFromPath(refpath);
+      }
+      else{
+        appName = getAppNameFromPath(req.url);
+      }
+
+      return nameToApp(appName);
+    }
+
+    function stripAppFromUrl(url, appName){
+      //  The trailing slash in the check is important so that files such as
+      //  /root.css still work correctly.
+      if(url.indexOf('/' + appName + '/') === 0)
+        return url.slice(appName.length + 1);
+      return url;
+    }
+
     var p = httpProxy.createServer(function(req,res,proxy) {
-      _.each(meteors,function(app,idx) {
-        if (app == 'root') return;
-        console.log([req.url]);
-        console.log(req.url.indexOf('/'+app+'/'));
-        if (req.url.indexOf('/'+app) == 0) {
-          req.url.slice(app.length+1);
-          proxy.proxyRequest(req,res,{
-            host: '127.0.0.1', port: 3000+4*idx+1
-          });
-          return;
-        }
-      });
-      proxy.proxyRequest(req,res,{
-        host: '127.0.0.1', port: 3001
-      });
+      var app = getAppForReq(req);
+      req.url = stripAppFromUrl(req.url, app.name);
+      proxy.proxyRequest(req, res, {host: '127.0.0.1', port: app.port});
     });
+
     p.on('upgrade', function(req, socket, head) {
-      _.each(meteors,function(app,idx) {
-        if (app == 'root') return;
-        if (req.url.indexOf('/'+app) == 0) {
-          req.url.slice(app.length+1);
-          p.proxy.proxyWebSocketRequest(req,socket,head,{
-            host: '127.0.0.1', port: 3000+4*idx+1
-          });
-          return;
-        }
-      });
-      p.proxy.proxyWebSocketRequest(req, socket, head, {
-        host: '127.0.0.1', port: 3001
-      });
+      var app = getAppForReq(req);
+      p.proxy.proxyWebSocketRequest(req, socket, head, {host: '127.0.0.1', port: app.port});
     });
     p.listen(3000,function(){});
 

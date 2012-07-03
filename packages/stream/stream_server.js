@@ -16,7 +16,8 @@ Meteor._StreamServer = function () {
 
   // set up sockjs
   var sockjs = __meteor_bootstrap__.require('sockjs');
-  var sockPath = __meteor_bootstrap__.require('path').join(Meteor.base, 'sockjs');
+  var sockPath = __meteor_bootstrap__.require('path').join('/', 'sockjs');
+  console.log('starting sockjs server', sockPath);
   self.server = sockjs.createServer({
     prefix: sockPath, log: function(){},
     // this is the default, but we code it explicitly because we depend

@@ -546,18 +546,6 @@ _.extend(Bundle.prototype, {
       return file;
     };
 
-    var i = 0;
-    _.each(self.js.client, function(val){
-      self.js.client[i] = '/' + path.join(subapp, val);
-      i++;
-    });
-
-    i = 0;
-    _.each(self.css, function(val){
-      self.css[i] = '/' + path.join(subapp, val);
-      i++;
-    });
-
     self.js.client = _.map(self.js.client, add_query_param);
     self.css = _.map(self.css, add_query_param);
 
@@ -679,27 +667,6 @@ exports.bundle = function (project_dir, output_path, options) {
             options.symlink_dev_bundle ? "symlink" : "copy");
     bundle.write_to_directory(output_path, project_dir, dev_bundle_mode, options.subapp);
 
-    if(options.subapp){
-      var envPath = path.join(output_path, 'static', 'packages', 'meteor', 'client_environment.js');
-      if(path.existsSync(envPath)){
-        var data = {
-          is_client: true,
-          is_server: false,
-          base: '/' + options.subapp + '/'
-        };
-        fs.writeFileSync(envPath, 'var Meteor = ' + JSON.stringify(data) + ';');
-      }
-
-      var serverEnv = path.join(output_path, 'app', 'packages', 'meteor', 'server_environment.js');
-      if(path.existsSync(serverEnv)){
-        var data = {
-          is_client: false,
-          is_server: true,
-          base: '/' + options.subapp + '/'
-        };
-        fs.writeFileSync(serverEnv, 'var Meteor = ' + JSON.stringify(data) + ';');
-      }
-    }
 
     if (bundle.errors.length)
       return bundle.errors;

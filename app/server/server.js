@@ -5,13 +5,12 @@ require("fibers");
 var fs = require("fs");
 var path = require("path");
 
-var express = require('express');
+var connect = require('express');
 var gzippo = require('gzippo');
 var argv = require('optimist').argv;
 var mime = require('mime');
 var handlebars = require('handlebars');
 var useragent = require('useragent');
-//var bundler = require(path.resolve('lib/bundler'));
 
 // this is a copy of underscore that will be shipped just for use by
 // this file, server.js.
@@ -48,118 +47,87 @@ var supported_browser = function (user_agent) {
   // return !(agent.family === 'IE' && +agent.major <= 5);
 };
 
-var buildRouteTable = function(){
-  var dirs = fs.readdirSync('.');
-  if(dirs && dirs.length > 0){
-    var routes = {};
+// add any runtime configuration options needed to app_html
+var runtime_config = function (app_html) {
+  var insert = '';
+  if (process.env.DEFAULT_DDP_ENDPOINT)
+    insert += "__meteor_runtime_config__.DEFAULT_DDP_ENDPOINT = '" +
+      process.env.DEFAULT_DDP_ENDPOINT + "';";
 
-    // Collect folder -> route mappings
-    _.each(dirs, function(val){
-      if(val[0] != '.'){
-        routes[val] = val;
-      }
-    });
+  app_html = app_html.replace("// ##RUNTIME_CONFIG##", insert);
 
-    //  Collect route aliases/overrides
-    var app_dir = path.join(__dirname, '../../../..');
-    var routesPath = path.join(app_dir, '.meteor/routes');
-    if(path.existsSync(routesPath)){
-      var aliases = fs.readFileSync(path.join(app_dir, '.meteor/routes'));
-      aliases = JSON.parse(aliases);
-
-      _.each(aliases, function(val, key){
-        routes[key] = val;
-      });
-
-      //  Validate routes, ensure the folder exists and is a meteor app
-      _.each(routes, function(val, key){
-        if(!path.existsSync(path.join('./', val)) || !path.existsSync(path.join('./', val, '.meteor'))){
-          throw new Error("Route file contains a path that does not exist");
-        }
-      });
-    }
-
-    return routes;
-  }
+  return app_html;
 };
 
-var get_html = function(app, bundle_dir) {
-  var app_html = fs.readFileSync(path.join(bundle_dir, 'app.html'));
-  var unsupported_html = fs.readFileSync(path.join(bundle_dir, 'unsupported.html'));
-  return {app: app_html, unsupported: unsupported_html };
-}
-
-
-function serveRoute(req, res, bundle){
-    res.writeHead(200, {'Content-Type': 'text/html'});
-    if (supported_browser(req.headers['user-agent']))
-      res.write(bundle.app);
-    else
-      res.write(bundle.unsupported);
-    res.end();
-}
-
-var run = function (bundle_dir) {
-  var routes = buildRouteTable();
-
+var run = function () {
   var bundle_dir = path.join(__dirname, '..');
-  if(routes){
-    bundle_dir = getBundleDir(routes.root);
-    //delete routes.root;
-  }
 
   // check environment
   var port = process.env.PORT ? parseInt(process.env.PORT) : 80;
+  var mongo_url = process.env.MONGO_URL;
+  if (!mongo_url)
+    throw new Error("MONGO_URL must be set in environment");
 
   // webserver
-  var app = express.createServer();
-  var staticPath = path.join(__dirname, '..', 'static');
-  app.use(express.bodyParser());
-  _.each(routes, function(val, key){
-    staticPath = path.join(getBundleDir(val), 'static');
-    app.use('/' + val + '/', gzippo.staticGzip(staticPath));
-  });
-  app.use(app.router);
+  var app = connect.createServer();
+  var static_cacheable_path = path.join(bundle_dir, 'static_cacheable');
+  if (path.existsSync(static_cacheable_path))
+    app.use(gzippo.staticGzip(static_cacheable_path, {clientMaxAge: 1000 * 60 * 60 * 24 * 365}));
+  app.use('/', gzippo.staticGzip(path.join(bundle_dir, 'static')));
 
-  var rootBundle = get_html(app, bundle_dir);
+
+  var app_html = fs.readFileSync(path.join(bundle_dir, 'app.html'), 'utf8');
+  var unsupported_html = fs.readFileSync(path.join(bundle_dir, 'unsupported.html'));
+
+  app_html = runtime_config(app_html);
+
   app.use(function (req, res) {
     // prevent favicon.ico and robots.txt from returning app_html
+    console.log(req.url);
     if (_.indexOf(['/favicon.ico', '/robots.txt'], req.url) !== -1) {
       res.writeHead(404);
       res.end();
       return;
     }
 
-    serveRoute(req, res, rootBundle);
+    res.writeHead(200, {'Content-Type': 'text/html'});
+    if (supported_browser(req.headers['user-agent']))
+      res.write(app_html);
+    else
+      res.write(unsupported_html);
+    res.end();
   });
 
+  // read bundle config file
+  var info_raw =
+    fs.readFileSync(path.join(bundle_dir, 'app.json'), 'utf8');
+  var info = JSON.parse(info_raw);
+
+  // start up app
   __meteor_bootstrap__ = {require: require, startup_hooks: [], app: app};
-    // start up app
-  var mongo_url = process.env.MONGO_URL;
-  if (!mongo_url)
-    throw new Error("MONGO_URL must be set in environment");
-
-  if(routes){
-    _.each(routes, function(val, key){
-      var bundle = get_html(app, getBundleDir(val));
-      app.get('/' + val + '/*', function(req, res){
-        serveRoute(req, res, bundle);
-      });
-    })
-  }
-
   Fiber(function () {
     // (put in a fiber to let Meteor.db operations happen during loading)
 
     // pass in database info
     __meteor_bootstrap__.mongo_url = mongo_url;
-    runServerCode(app, bundle_dir);
 
-    if(routes){
-      _.each(routes, function(val, key){
-        runServerCode(app, getBundleDir(val));
-      });
-    }
+    // load app code
+    _.each(info.load, function (filename) {
+      var code = fs.readFileSync(path.join(bundle_dir, filename));
+      // it's tempting to run the code in a new context so we can
+      // precisely control the enviroment the user code sees. but,
+      // this is harder than it looks. you get a situation where []
+      // created in one runInContext invocation fails 'instanceof
+      // Array' if tested in another (reusing the same context each
+      // time fixes it for {} and Object, but not [] and Array.) and
+      // we have no pressing need to do this, so punt.
+      //
+      // the final 'true' is an undocumented argument to
+      // runIn[Foo]Context that causes it to print out a descriptive
+      // error message on parse error. it's what require() uses to
+      // generate its errors.
+      require('vm').runInThisContext(code, filename, true);
+    });
 
     // run the user startup hooks.
     _.each(__meteor_bootstrap__.startup_hooks, function (x) { x(); });
@@ -169,44 +137,11 @@ var run = function (bundle_dir) {
       if (argv.keepalive)
         console.log("LISTENING"); // must match run.js
     });
-  }).run();
 
+  }).run();
 
   if (argv.keepalive)
     init_keepalive();
 };
-
-
-function runServerCode(app, bundle_dir){
-    // read bundle config file
-  var info_raw =
-    fs.readFileSync(path.join(bundle_dir, 'app.json'), 'utf8');
-  var info = JSON.parse(info_raw);
-
-  var vm = require('vm');
-  var ctx = vm.createContext(
-    {
-      console: console,
-      process: process,
-      setInterval: setInterval,
-      setTimeout: setTimeout,
-      clearTimeout: clearTimeout,
-      clearInterval: clearInterval,
-      Fiber: Fiber,
-      __meteor_bootstrap__: __meteor_bootstrap__
-    }
-  );
-
-  // load app code
-  _.each(info.load, function (filename) {
-    var code = fs.readFileSync(path.join(bundle_dir, filename));
-    vm.runInContext(code, ctx, filename, true);
-  });
-}
-
-
-function getBundleDir(subapp){
-  return bundle_dir = path.join(__dirname, '../../../..', subapp, '.meteor/local/build');
-}
 
 run();
