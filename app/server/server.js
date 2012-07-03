@@ -5,7 +5,7 @@ require("fibers");
 var fs = require("fs");
 var path = require("path");
 
-var express = require('express');
+var connect = require('express');
 var gzippo = require('gzippo');
 var argv = require('optimist').argv;
 var mime = require('mime');
@@ -47,7 +47,24 @@ var supported_browser = function (user_agent) {
   // return !(agent.family === 'IE' && +agent.major <= 5);
 };
 
-var run = function (bundle_dir) {
+// add any runtime configuration options needed to app_html
+var runtime_config = function (app_html) {
+  var insert = '';
+  if (process.env.DEFAULT_DDP_ENDPOINT)
+    insert += "__meteor_runtime_config__.DEFAULT_DDP_ENDPOINT = '" +
+      process.env.DEFAULT_DDP_ENDPOINT + "';";
+
+  _.each(process.env, function(val, key){
+    if(key.indexOf('METEOR_') === 0)
+      insert += "__meteor_runtime_config__." + key + " = '" + val + "';";
+  });
+
+  app_html = app_html.replace("// ##RUNTIME_CONFIG##", insert);
+
+  return app_html;
+};
+
+var run = function () {
   var bundle_dir = path.join(__dirname, '..');
 
   // check environment
@@ -57,17 +74,17 @@ var run = function (bundle_dir) {
     throw new Error("MONGO_URL must be set in environment");
 
   // webserver
-  var app = express.createServer();
+  var app = connect.createServer();
   var static_cacheable_path = path.join(bundle_dir, 'static_cacheable');
   if (path.existsSync(static_cacheable_path))
     app.use(gzippo.staticGzip(static_cacheable_path, {clientMaxAge: 1000 * 60 * 60 * 24 * 365}));
-  app.use(gzippo.staticGzip(path.join(bundle_dir, 'static')));
+  app.use('/', gzippo.staticGzip(path.join(bundle_dir, 'static')));
 
-  var app_html = fs.readFileSync(path.join(bundle_dir, 'app.html'));
+
+  var app_html = fs.readFileSync(path.join(bundle_dir, 'app.html'), 'utf8');
   var unsupported_html = fs.readFileSync(path.join(bundle_dir, 'unsupported.html'));
 
-  app.use(express.bodyParser());
-  app.use(app.router);
+  app_html = runtime_config(app_html);
 
   app.use(function (req, res) {
     // prevent favicon.ico and robots.txt from returning app_html
@@ -84,8 +101,6 @@ var run = function (bundle_dir) {
       res.write(unsupported_html);
     res.end();
   });
-
-  
 
   // read bundle config file
   var info_raw =

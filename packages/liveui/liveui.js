@@ -143,15 +143,14 @@ Meteor.ui = Meteor.ui || {};
 
     // Call "added to DOM" callbacks to wire up all sub-chunks.
     _.each(rangesCreated, function(x) {
-
       var range = x[0];
       var id = x[1];
       if (rangeCallbacks[id])
         rangeCallbacks[id](range);
     });
 
-
     Meteor.ui._wire_up(cx, range, html_func, react_data);
+
     return (in_range ? null : frag);
 
   };
@@ -404,8 +403,6 @@ Meteor.ui = Meteor.ui || {};
     // Kill old context from previous update.
     killContext(range);
     range.context = cx;
-
-   
 
     // wire update
     cx.on_invalidate(function(old_cx) {

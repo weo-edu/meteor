@@ -1,5 +1,5 @@
 _.extend(Meteor, {
-  default_connection: Meteor.connect('/', true /* restart_on_update */),
+  default_connection: Meteor.connect(Meteor.base || '/', true /* restart_on_update */),
 
   refresh: function (notification) {
   }

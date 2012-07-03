@@ -499,7 +499,25 @@ exports.run = function (app_dir, bundle_opts, port) {
 
     server_log = [];
 
-    var errors = bundler.bundle(app_dir, bundle_path, bundle_opts);
+    var errors = [];
+
+    var ignore = [];
+    /*if(path.existsSync(path.join(app_dir, '.meteor/routes'))){
+      var dirs = fs.readdirSync('./');
+      _.each(dirs, function(val, key){
+        if(val[0] != '.' && val != 'root'){
+          bundle_opts.subapp = val;
+          errors.concat(bundler.bundle(path.join(app_dir, val), path.join(app_dir, val, '.meteor/local/build'), bundle_opts));
+          bundler.ignore_files.push('/^' + val + '$/');
+        }
+      });
+    }
+
+    bundle_opts.subapp = 'root';
+    errors.concat(bundler.bundle(app_dir, bundle_path, bundle_opts));*/
+    errors = bundler.bundle(app_dir, bundle_path, bundle_opts);
+
+
 
     var deps_raw;
     try {
@@ -516,7 +534,7 @@ exports.run = function (app_dir, bundle_opts, port) {
     if (deps_raw)
       deps_info = JSON.parse(deps_raw.toString());
 
-    if (errors) {
+    if (errors && errors.length != 0) {
       log_to_clients({stdout: "Errors prevented startup:\n"});
       _.each(errors, function (e) {
         log_to_clients({stdout: e + "\n"});

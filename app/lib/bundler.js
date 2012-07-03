@@ -35,12 +35,14 @@ var cleanCSS = require('clean-css');
 var _ = require('./third/underscore.js');
 
 // files to ignore when bundling. node has no globs, so use regexps
-var ignore_files = [
+exports.ignore_files = [
     /~$/, /^\.#/, /^#.*#$/,
     /^\.DS_Store$/, /^ehthumbs\.db$/, /^Icon.$/, /^Thumbs\.db$/,
     /^\.meteor$/, /* avoids scanning N^2 files when bundling all packages */
     /^\.git$/ /* often has too many files to watch */
 ];
+
+var ignore_files = exports.ignore_files;
 
 ///////////////////////////////////////////////////////////////////////////////
 // PackageInstance
@@ -462,7 +464,7 @@ _.extend(Bundle.prototype, {
   },
 
   // dev_bundle_mode should be "skip", "symlink", or "copy"
-  write_to_directory: function (output_path, project_dir, dev_bundle_mode) {
+  write_to_directory: function (output_path, project_dir, dev_bundle_mode, subapp) {
     var self = this;
     var app_json = {};
     var dependencies_json = {core: [], app: [], packages: {}};
@@ -543,6 +545,7 @@ _.extend(Bundle.prototype, {
       // er? file we don't know how to serve? thats not right...
       return file;
     };
+
     self.js.client = _.map(self.js.client, add_query_param);
     self.css = _.map(self.css, add_query_param);
 
@@ -662,7 +665,8 @@ exports.bundle = function (project_dir, output_path, options) {
     var dev_bundle_mode =
           options.skip_dev_bundle ? "skip" : (
             options.symlink_dev_bundle ? "symlink" : "copy");
-    bundle.write_to_directory(output_path, project_dir, dev_bundle_mode);
+    bundle.write_to_directory(output_path, project_dir, dev_bundle_mode, options.subapp);
+
 
     if (bundle.errors.length)
       return bundle.errors;
