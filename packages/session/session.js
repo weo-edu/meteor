@@ -1,8 +1,13 @@
 // XXX could use some tests
-_Session = function() {
+_Session = function(obj) {
+  var self = this;
   this.keys = {};
   this.key_deps = {};
   this.key_value_deps = {};
+
+  _.each(obj,function(val,key) {
+    self.set(key,val);
+  })
 }
 
 _.extend(_Session.prototype, {
@@ -26,6 +31,34 @@ _.extend(_Session.prototype, {
         console.log(key + "(" + value + "): " + _.reject(ids, function (x) {return x === "_once";}).join(' '));
       }
     }
+  },
+
+  setMulti: function(obj) {
+    var self = this;
+    var contexts = {};
+    _.each(obj,function(value,key) {
+      var old_value = self.keys[key];
+      if (value === old_value)
+        return;
+      self.keys[key] = value;
+
+      var invalidate = function (map) {
+        if (map)
+          for (var id in map) 
+            contexts[id] = map[id];
+      };
+
+      self._ensureKey(key);
+      invalidate(self.key_deps[key]);
+      invalidate(self.key_value_deps[key][old_value]);
+      invalidate(self.key_value_deps[key][value]);
+
+    });
+
+    _.each(contexts,function(context) {
+      context.invalidate();
+    });
+
   },
 
   set: function (key, value) {

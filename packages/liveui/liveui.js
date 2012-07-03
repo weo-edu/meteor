@@ -16,7 +16,6 @@ Meteor.ui = Meteor.ui || {};
     if (Meteor.ui._render_mode)
       throw new Error("Can't nest Meteor.ui.render.");
 
-    console.log('render');
     var cx = new Meteor.deps.Context;
 
     Meteor.ui._render_mode = {callbacks: {_count: 0}};
@@ -153,21 +152,6 @@ Meteor.ui = Meteor.ui || {};
 
 
     Meteor.ui._wire_up(cx, range, html_func, react_data);
-    _.each(rangesCreated,function(x) {
-      var range = x[0];
-      for(var n = range.firstNode(), after = range.lastNode().nextSibling;
-          n && n !== after;
-          n = n.nextSibling) {
-
-        if(!(n instanceof HTMLDivElement)) continue;
-        console.log(n);
-        var evt = document.createEvent("Events");
-        evt.initEvent('insert', true, false);
-        setTimeout(n.dispatchEvent.bind(n,evt), 0);
-      }
-    });
-    
-
     return (in_range ? null : frag);
 
   };
@@ -594,11 +578,8 @@ Meteor.ui = Meteor.ui || {};
     _.each(range.event_handlers.types, function(t) {
       for(var n = range.firstNode(), after = range.lastNode().nextSibling;
           n && n !== after;
-          n = n.nextSibling) {
+          n = n.nextSibling)
         Meteor.ui._event.registerEventType(t, n);
-        console.log('attach event',t,n)
-      }
-        
     });
   };
 
@@ -681,7 +662,7 @@ Meteor.ui = Meteor.ui || {};
           event.preventDefault();
         }
         if (event.isImmediatePropagationStopped())
-          break; // stop handling by this and other event maps
+          return; // stop handling by this and other event maps
       }
     }
 
