@@ -62,11 +62,13 @@ _.extend(_Session.prototype, {
   },
 
   set: function (key, value) {
+    console.log('set',key,value);
     var self = this;
 
     var old_value = self.keys[key];
-    if (_.equal(value,old_value))
+    if (_.isEqual(value,old_value))
       return;
+    console.log('not equal');
     self.keys[key] = value;
 
     var invalidate = function (map) {
