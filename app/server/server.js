@@ -5,7 +5,7 @@ require("fibers");
 var fs = require("fs");
 var path = require("path");
 
-var connect = require('express');
+var express = require('express');
 var gzippo = require('gzippo');
 var argv = require('optimist').argv;
 var mime = require('mime');
@@ -74,7 +74,7 @@ var run = function () {
     throw new Error("MONGO_URL must be set in environment");
 
   // webserver
-  var app = connect.createServer();
+  var app = express.createServer();
   var static_cacheable_path = path.join(bundle_dir, 'static_cacheable');
   if (path.existsSync(static_cacheable_path))
     app.use(gzippo.staticGzip(static_cacheable_path, {clientMaxAge: 1000 * 60 * 60 * 24 * 365}));
@@ -85,6 +85,9 @@ var run = function () {
   var unsupported_html = fs.readFileSync(path.join(bundle_dir, 'unsupported.html'));
 
   app_html = runtime_config(app_html);
+
+  app.use(express.bodyParser());
+  app.use(app.router);
 
   app.use(function (req, res) {
     // prevent favicon.ico and robots.txt from returning app_html
