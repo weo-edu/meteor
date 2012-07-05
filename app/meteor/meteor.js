@@ -619,6 +619,7 @@ Commands.push({
       httpProxy = require('http-proxy'),
       subapp_prefix = 'app!';
 
+    var new_argv = opt.argv;
     var meteors = (function collectSubapps(){
       var nMeteors = 0;
       var meteors = {};
@@ -637,7 +638,7 @@ Commands.push({
 
           meteors[name] = {
             name: name,
-            port: argv.port+portsPerApp*nMeteors+1,
+            port: new_argv.port+portsPerApp*nMeteors+1,
             dir: dir
           }
           nMeteors++;
@@ -654,7 +655,7 @@ Commands.push({
       _.each(meteors,function(app, appName) {
         var env = _.clone(process.env);
         env.METEOR_SUBAPP_PREFIX = subapp_prefix;
-        
+
         var p = spawn('meteor',['--port',app.port],{cwd: app.dir, env: env});
         children.push(p);
 
@@ -717,7 +718,7 @@ Commands.push({
       var app = getAppForReq(req);
       p.proxy.proxyWebSocketRequest(req, socket, head, {host: '127.0.0.1', port: app.port});
     });
-    p.listen(argv.port,function(){});
+    p.listen(new_argv.port,function(){});
 
   }
 });
