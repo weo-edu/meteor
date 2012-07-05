@@ -682,16 +682,38 @@ Commands.push({
       }
     }
 
+    var stylesheets = {};
     function getAppNameFromPath(p){
-      var parts = p.split('/');
-      return parts[1];
+      if(p){
+        var parts = p.split('/');
+
+        if(parts[1].indexOf(subapp_prefix) === 0)
+         return parts[1];
+      }
+    }
+
+
+    function isStylesheet(path){
+      var parts = path.split('/');
+      var file  = parts[parts.length-1];
+      return /[\w+]\.css.*/.test(file);
     }
 
     function getAppForReq(req){
       var app = nameToApp(getAppNameFromPath(req.url));
       if(!app && typeof req.headers.referer !== 'undefined'){
-        var refpath = require('url').parse(req.headers.referer).pathname;
-        app = nameToApp(getAppNameFromPath(refpath));
+        var parsedref = require('url').parse(req.headers.referer);
+        var refpath = parsedref.pathname;
+
+        if(isStylesheet(req.url))
+          stylesheets[req.url] = refpath;
+
+        if(isStylesheet(parsedref.path))
+          refpath = stylesheets[parsedref.path];
+
+        var appName = getAppNameFromPath(refpath);
+
+        app = nameToApp(appName);
       }
       
       if(!app)
