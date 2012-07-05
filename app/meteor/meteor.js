@@ -609,25 +609,21 @@ Commands.push({
   name: "router",
   help: "starts up router from subdirs",
   func: function(argv) {
-    var subapp_prefix = 'app!';
+    var opt = require('optimist')
+    .alias('port', 'p').default('port', 3000)
+    .describe('port', 'Set the base port of your router proxy.  Each subsequent subapp will consume the next 4 following ports.')
+    .describe('prefix', 'Set an additional routing prefix for your subapps, defaults to none (when set, path will look like "app!<prefix>-<subapp>"'),
+      fs = require('fs'),
+      path = require('path'),
+      spawn = require('child_process').spawn,
+      httpProxy = require('http-proxy'),
+      subapp_prefix = 'app!';
 
-    process.on('uncaughtException', function(e){
-      _.each(childProcesses, function(p, idx){
-        p.kill();
-      });
-      console.error(e.stack);
-      process.exit();
-    });
-
-    var fs = require('fs');
-    var path = require('path');
-    var spawn = require('child_process').spawn;
-    var httpProxy = require('http-proxy');
-
-    var meteors = collectSubapps();
-    function collectSubapps(){
+    var meteors = (function collectSubapps(){
       var nMeteors = 0;
       var meteors = {};
+      var portsPerApp = 4;
+
       _.each(fs.readdirSync(process.cwd()),function(p) {
         if (p[0] !== '.' && path.existsSync(path.join(p,'.meteor'))) {
           var dir = p;
@@ -641,7 +637,7 @@ Commands.push({
 
           meteors[name] = {
             name: name,
-            port: 3000+4*nMeteors+1,
+            port: argv.port+portsPerApp*nMeteors+1,
             dir: dir
           }
           nMeteors++;
@@ -649,25 +645,35 @@ Commands.push({
       });
 
       return meteors;
-    }
+    })();
 
     console.log('Initializing subapps...', meteors);
 
-    var childProcesses = [];
-    _.each(meteors,function(app, appName) {
-      var env = _.clone(process.env);
-      env.METEOR_SUBAPP_PREFIX = subapp_prefix;
-      var p = spawn('meteor',['--port',app.port],{cwd: app.dir, env: env});
-      childProcesses.push(p);
+    var childProcesses = (function spawnSubapps(){
+      var children = [];
+      _.each(meteors,function(app, appName) {
+        var env = _.clone(process.env);
+        env.METEOR_SUBAPP_PREFIX = subapp_prefix;
+        
+        var p = spawn('meteor',['--port',app.port],{cwd: app.dir, env: env});
+        children.push(p);
 
-      p.stdout.on('data',function(data) {
-        console.log(appName+': '+data);
+        p.stdout.on('data',function(data) {
+          console.log(appName+': '+data);
+        });
+        p.stderr.on('data',function(data) {
+          console.error(appName+': '+data);
+        });
       });
-      p.stderr.on('data',function(data) {
-        console.error(appName+': '+data);
-      });
+    })();
+
+    //  Make sure we don't leave a bunch of headless subapps hanging around
+    //  if our router dies.
+    process.on('uncaughtException', function(e) {
+      _.invoke(childProcesses, 'kill');
+      console.error(e.stack);
+      process.exit();
     });
-
 
     function nameToApp(name){
       if(meteors.hasOwnProperty(name)){
@@ -711,7 +717,7 @@ Commands.push({
       var app = getAppForReq(req);
       p.proxy.proxyWebSocketRequest(req, socket, head, {host: '127.0.0.1', port: app.port});
     });
-    p.listen(3000,function(){});
+    p.listen(argv.port,function(){});
 
   }
 });
