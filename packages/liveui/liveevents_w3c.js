@@ -118,12 +118,16 @@ Meteor.ui._event._loadW3CImpl = function() {
     Meteor.ui._event._handleEventFunc(
       Meteor.ui._event._fixEvent(event));
 
+
+    function isChild(parent, child){
+      return $(parent).find(child).length;
+    }
+
     // fire mouseleave after mouseout
-    if (simulateMouseEnterLeave &&
-        (event.currentTarget === event.target)) {
-      if (event.type === 'mouseover')
+    if (simulateMouseEnterLeave) {
+      if (event.type === 'mouseover' && (event.currentTarget === event.target || isChild(event.currentTarget, event.relatedTarget)))
         sendUIEvent('mouseenter', event.target, false);
-      else if (event.type === 'mouseout' && $(event.target).find(event.relatedTarget).length === 0) {
+      else if (event.type === 'mouseout' && (event.currentTarget === event.target || isChild(event.currentTarget, event.relatedTarget))) {
         sendUIEvent('mouseleave', event.target, false);
       }
     }
