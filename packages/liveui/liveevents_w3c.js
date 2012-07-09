@@ -123,7 +123,7 @@ Meteor.ui._event._loadW3CImpl = function() {
         (event.currentTarget === event.target)) {
       if (event.type === 'mouseover')
         sendUIEvent('mouseenter', event.target, false);
-      else if (event.type === 'mouseout') {
+      else if (event.type === 'mouseout' && !$(event.target).find(event.relatedTarget)) {
         sendUIEvent('mouseleave', event.target, false);
       }
     }
