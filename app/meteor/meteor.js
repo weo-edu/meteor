@@ -610,14 +610,21 @@ Commands.push({
   help: "starts up router from subdirs",
   func: function(argv) {
     var opt = require('optimist')
-    .alias('port', 'p').default('port', 3000)
-    .describe('port', 'Set the base port of your router proxy.  Each subsequent subapp will consume the next 4 following ports.')
-    .describe('prefix', 'Set an additional routing prefix for your subapps, defaults to none (when set, path will look like "app!<prefix>-<subapp>"'),
-      fs = require('fs'),
+      .alias('port', 'p').default('port', 3000)
+      .describe('port', 'Set the base port of your router proxy.  Each subsequent subapp will consume the next 4 following ports.')
+      .describe('prefix', 'Set an additional routing prefix for your subapps, defaults to none (when set, path will look like "app!<prefix>-<subapp>"');
+
+    var fs = require('fs'),
       path = require('path'),
       spawn = require('child_process').spawn,
       httpProxy = require('http-proxy'),
       subapp_prefix = 'app!';
+
+    if(argv.prefix)
+      subapp_prefix += argv.prefix + '-';
+
+    process.env.METEOR_SUBAPP_PREFIX = subapp_prefix;
+    var utils = require(process.env.PACKAGE_DIR + '/utilities/utilities.js').utils;
 
     var new_argv = opt.argv;
     var meteors = (function collectSubapps(){
@@ -630,9 +637,6 @@ Commands.push({
           var dir = p;
           var name = p;
           if(p !== 'root'){
-            if(argv.prefix)
-              name = argv.prefix + '-' + p;
-
             name = subapp_prefix + name;
           }
 
@@ -655,7 +659,7 @@ Commands.push({
       _.each(meteors,function(app, appName) {
         var env = _.clone(process.env);
         env.METEOR_SUBAPP_PREFIX = subapp_prefix;
-
+        env.METEOR_SUBAPP_NAME = appName;
         var p = spawn('meteor',['--port',app.port],{cwd: app.dir, env: env});
         children.push(p);
 
@@ -683,15 +687,6 @@ Commands.push({
     }
 
     var stylesheets = {};
-    function getAppNameFromPath(p){
-      if(p){
-        var parts = p.split('/');
-
-        if(parts[1].indexOf(subapp_prefix) === 0)
-         return parts[1];
-      }
-    }
-
 
     function isStylesheet(path){
       var parts = path.split('/');
@@ -700,7 +695,7 @@ Commands.push({
     }
 
     function getAppForReq(req){
-      var app = nameToApp(getAppNameFromPath(req.url));
+      var app = nameToApp(utils.getAppFromPath(req.url));
       if(!app && typeof req.headers.referer !== 'undefined'){
         var parsedref = require('url').parse(req.headers.referer);
         var refpath = parsedref.pathname;
@@ -711,7 +706,7 @@ Commands.push({
         if(isStylesheet(parsedref.path))
           refpath = stylesheets[parsedref.path];
 
-        var appName = getAppNameFromPath(refpath);
+        var appName = utils.getAppFromPath(refpath);
 
         app = nameToApp(appName);
       }
@@ -722,23 +717,22 @@ Commands.push({
       return app;
     }
 
-    function stripAppFromUrl(url, appName){
-      //  The trailing slash in the check is important so that files such as
-      //  /root.css still work correctly.
-      if(url.indexOf('/' + appName + '/') === 0)
-        return url.slice(appName.length + 1);
-      return url;
-    }
-
     var p = httpProxy.createServer(function(req,res,proxy) {
       var app = getAppForReq(req);
-      req.url = stripAppFromUrl(req.url, app.name);
+      req.url = utils.stripAppFromUrl(req.url);
       proxy.proxyRequest(req, res, {host: '127.0.0.1', port: app.port});
-    });
+    }, {enable: {xforward: true}});
 
     p.on('upgrade', function(req, socket, head) {
-      var app = getAppForReq(req);
-      console.log('upgrade');
+      var url = require('url').parse(req.url);
+      var parts = url.pathname.split('/');
+      var app = nameToApp(parts[2]);
+      parts.splice(2, 1);
+      req.url = parts.join('/');
+
+      //  Need to set this because http-proxy expects it
+      //  not sure if this is a bug or not
+      req.connection.socket = socket;
       p.proxy.proxyWebSocketRequest(req, socket, head, {host: '127.0.0.1', port: app.port});
     });
     p.listen(new_argv.port,function(){});

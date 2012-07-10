@@ -305,7 +305,7 @@ _.extend(Meteor._Stream.prototype, {
       debug: false, protocols_whitelist: [
         // only allow polling protocols. no websockets or streaming.
         // streaming makes safari spin, and websockets hurt chrome.
-        'xdr-polling', 'xhr-polling', 'iframe-xhr-polling', 'jsonp-polling'
+        'websocket', 'xdr-polling', 'xhr-polling', 'iframe-xhr-polling', 'jsonp-polling'
       ]});
     self.socket.onmessage = function (data) {
       // first message we get when we're connecting goes to _connected,
