@@ -727,6 +727,9 @@ Commands.push({
       var url = require('url').parse(req.url);
       var parts = url.pathname.split('/');
       var app = nameToApp(parts[2]);
+      if(!app)
+        nameToApp('root');
+      
       parts.splice(2, 1);
       req.url = parts.join('/');
 
