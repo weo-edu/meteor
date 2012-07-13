@@ -736,6 +736,7 @@ Commands.push({
       //  Need to set this because http-proxy expects it
       //  not sure if this is a bug or not
       req.connection.socket = socket;
+      p.proxy.changeOrigin = true;
       p.proxy.proxyWebSocketRequest(req, socket, head, {host: '127.0.0.1', port: app.port});
     });
     p.listen(new_argv.port,function(){});

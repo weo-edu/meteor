@@ -164,7 +164,7 @@ Meteor.ui._event._loadW3CImpl = function() {
       return sendUIEvent('click', this, true);
     }
   }
-  if(!HTMLElement.blur)
+  if(!HTMLElement.blur){
     HTMLElement.prototype.blur = function(){
       return sendUIEvent('blur', this, true);
     }
