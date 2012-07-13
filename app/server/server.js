@@ -51,17 +51,13 @@ var supported_browser = function (user_agent) {
 var runtime_config = function (app_html) {
   var insert = '';
   if (process.env.DEFAULT_DDP_ENDPOINT)
-    insert += "__meteor_runtime_config__.DEFAULT_DDP_ENDPOINT = '" +
-      process.env.DEFAULT_DDP_ENDPOINT + "';";
+    insert += "__meteor_runtime_config__.DEFAULT_DDP_ENDPOINT = '" + process.env.DEFAULT_DDP_ENDPOINT + "';";
 
-<<<<<<< HEAD
   _.each(process.env, function(val, key){
     if(key.indexOf('METEOR_') === 0)
       insert += "__meteor_runtime_config__." + key + " = '" + val + "';";
   });
 
-=======
->>>>>>> 670d923815b1718ba6f47eed2ec0eda0a85e2ce5
   app_html = app_html.replace("// ##RUNTIME_CONFIG##", insert);
 
   return app_html;
@@ -91,15 +87,6 @@ var run = function () {
 
   app.use(express.bodyParser());
   app.use(app.router);
-
-  app.use(function (req, res) {
-    // prevent favicon.ico and robots.txt from returning app_html
-    if (_.indexOf(['/favicon.ico', '/robots.txt'], req.url) !== -1) {
-      res.writeHead(404);
-      res.end();
-      return;
-    }
-
 
   // read bundle config file
   var info_raw =

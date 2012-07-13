@@ -159,6 +159,16 @@ Meteor.ui._event._loadW3CImpl = function() {
   };
 
   var eventsCaptured = {};
+  if(!HTMLElement.click){
+    HTMLElement.prototype.click = function(){
+      return sendUIEvent('click', this, true);
+    }
+  }
+  if(!HTMLElement.blur)
+    HTMLElement.prototype.blur = function(){
+      return sendUIEvent('blur', this, true);
+    }
+  }
 
   Meteor.ui._event.registerEventTypeImpl = function(eventType, subtreeRoot) {
     // We capture on the entire document, so don't actually care
