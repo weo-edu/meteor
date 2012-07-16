@@ -40,6 +40,7 @@
     Meteor.default_connection.setUserId(userId);
     Meteor.default_connection.onReconnect = function() {
       Meteor.apply('login', [{resume: token}], {wait: true}, function(error, result) {
+        console.log('client resume attempt', error, result);
         if (error) {
           Meteor.accounts.makeClientLoggedOut();
           throw error;
@@ -57,7 +58,7 @@
 // methods will have different callbacks. Standardize this.
 Meteor.loginWithToken = function (token, errorCallback) {
   Meteor.apply('login', [{resume: token}], {wait: true}, function(error, result) {
-    if (error) {
+    if (error && errorCallback) {
       errorCallback();
       throw error;
     }

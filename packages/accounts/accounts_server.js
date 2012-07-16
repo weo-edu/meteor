@@ -58,8 +58,10 @@
   // support reconnecting using a meteor login token
   Meteor.accounts.registerLoginHandler(function(options) {
     if (options.resume) {
+      console.log('attempting to resume user with token: ', options.resume);
       var loginToken = Meteor.accounts._loginTokens
             .findOne({_id: options.resume});
+      console.log(loginToken);
       if (!loginToken)
         throw new Meteor.Error("Couldn't find login token");
 
