@@ -58,5 +58,15 @@ _.extend(Meteor, {
     // function, indicating the "actual lateness." It's non-standard,
     // so for defer, standardize on not having it.
     Meteor.setTimeout(function () {f();}, 0);
+  },
+  deferOnceQueue: [],
+  deferOnce: function(f){
+    if(_.indexOf(Meteor.deferOnceQueue, f) === -1){
+      Meteor.deferOnceQueue.push(f);
+      Meteor.defer(function(){
+        f();
+        Meteor.deferOnceQueue = _.without(Meteor.deferOnceQueue, [f]);
+      });
+    }
   }
 });
