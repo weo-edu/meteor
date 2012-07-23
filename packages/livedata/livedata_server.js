@@ -342,7 +342,7 @@ _.extend(Meteor._LivedataSession.prototype, {
       // XXX generalize
       if (Meteor._RemoteCollectionDriver && (res instanceof Meteor._Mongo.Cursor))
         sub._publishCursor(res);
-      else if ('_publish' in res) {
+      else if (res && '_publish' in res) {
         res._publish(sub);
       }
     };
