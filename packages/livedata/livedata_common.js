@@ -1,7 +1,7 @@
 // XXX namespacing
 
 Meteor._MethodInvocation = function (is_simulation, userId,
-                                     globallySetUserId, unblock) {
+                                     globallySetUserId, sub, unblock) {
   var self = this;
 
   // true if we're running not the actual method, but a stub (that is,
@@ -24,6 +24,9 @@ Meteor._MethodInvocation = function (is_simulation, userId,
   // sets current user id in all appropriate server contexts and
   // reruns subscriptions
   this._setUserId = globallySetUserId || function () {};
+
+  // access to subscriptions by name
+  this.sub = sub;
 };
 
 _.extend(Meteor._MethodInvocation.prototype, {

@@ -275,8 +275,12 @@ _.extend(Meteor._LivedataSession.prototype, {
         self._setUserId(userId);
       };
 
+      var sub = function(name) {
+        return self.named_subs[name];
+      }
+
       var invocation = new Meteor._MethodInvocation(
-        false /* is_simulation */, self.userId, setUserId, unblock);
+        false /* is_simulation */, self.userId, setUserId, sub, unblock);
       try {
         var ret =
           Meteor._CurrentWriteFence.withValue(fence, function () {
