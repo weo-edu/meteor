@@ -20,6 +20,10 @@ Meteor._MethodInvocation = function (is_simulation, userId,
 
   // current user id
   this._userId = userId;
+  this._user = Meteor.users.findOne({_id: this._userId});
+  this.user = function(){
+    return this._user;
+  };
 
   // sets current user id in all appropriate server contexts and
   // reruns subscriptions
@@ -34,9 +38,16 @@ _.extend(Meteor._MethodInvocation.prototype, {
     return this._userId;
   },
 
+  user: function(){
+    return this._user;
+  },
+
   setUserId: function(userId) {
     this._userId = userId;
     this._setUserId(userId);
+    console.log('user id', userId);
+    this._user = Meteor.users.findOne({_id: this._userId});
+    console.log(this._user);
   }
 });
 
