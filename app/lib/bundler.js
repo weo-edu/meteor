@@ -101,6 +101,12 @@ var PackageInstance = function (pkg, bundle) {
       });
     },
 
+    add_dir: function(dir,where) {
+      this.add_files(_.map(fs.readdirSync(dir),function(file) {
+        return path.join(dir,file);
+      }),where);
+    },
+
     // Return a list of all of the extension that indicate source files
     // inside this package, INCLUDING leading dots.
     registered_extensions: function () {
@@ -126,6 +132,8 @@ var PackageInstance = function (pkg, bundle) {
         self.bundle.include_tests(pkg);
       });
     },
+
+    test_in_browser: true,
 
     // Report an error. It should be a single human-readable
     // string. If any errors are reported, the bundling is considered
@@ -653,8 +661,10 @@ exports.bundle = function (project_dir, output_path, options) {
     // Include tests if requested
     if (options.include_tests) {
       // in the future, let use specify the driver, instead of hardcoding?
-      bundle.use(packages.get('test-in-browser'));
       bundle.include_tests(project);
+      var inst = bundle._get_instance(project);
+      if (inst.api.test_in_browser) bundle.use(packages.get('test-in-browser'));
+
     }
 
     // Minify, if requested

@@ -51,8 +51,6 @@ LocalCollection._compileSort = function (spec) {
       LocalCollection._bracketize(keys[i]) + ");";
   }
   code += "return x;};})";
-console.log(code);
-
   eval(code);
   return _func(LocalCollection._f._cmp);
 };
