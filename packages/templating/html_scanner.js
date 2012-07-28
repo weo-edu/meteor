@@ -7,8 +7,6 @@ var html_scanner = {
   // and ignores top-level HTML comments.
 
   scan: function (contents, source_name) {
-     
-
     var rest = contents;
     var index = 0;
 
@@ -23,8 +21,6 @@ var html_scanner = {
       var info = "line "+lineNumber+", file "+source_name + "\n" + line;
       return new Error((msg || "Parse error")+" - "+info);
     };
-
-   
 
     var results = html_scanner._initResults();
 
@@ -117,29 +113,6 @@ var html_scanner = {
     // trim the tag contents
     contents = contents.match(/^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$/)[1];
 
-    var rString = '\{\{\s*\>\s*\w+\s+\w+\s+((?:\w+\s+)*\w+\s*)\}\}';
-
-    var rPartialArgs = /\{\{\s*\>\s*\w+\s+((?:\w+\s+)*\w+\s*)\}\}/
-    var rgPartialArgs = /\{\{\s*\>\s*\w+\s+((?:\w+\s+)*\w+\s*)\}\}/g
-    var curried_helpers = [];
-
-    var m = contents.match(rgPartialArgs);
-    if (m) {
-      m.forEach(function(match) {
-        var args = rPartialArgs.exec(match)[1]
-        var args_split = args.split(/\s+/);
-
-        var helper = {
-          helper: args_split[0],
-          args: args_split.slice(1),
-          name: args_split.join('__')
-        };
-        contents = contents.replace(match,match.replace(args,helper.name));
-        if (args_split.length > 1) curried_helpers.push(helper);
-      });
-    }
-
-
     // do we have 1 or more attribs?
     var hasAttribs = false;
     for(var k in attribs) {
@@ -166,17 +139,6 @@ var html_scanner = {
         throw parseError("Template has no 'name' attribute");
 
       results.js += "Meteor._def_template(" + JSON.stringify(name) + "," + code + ");\n";
-      curried_helpers.forEach(function(val){
-        var argList = [];
-        val.args.forEach(function(arg){
-          argList.push('"' + arg + '"');
-        });
-        argList = argList.join(',');
-        var tmp = 'Meteor.startup(function(){'
-        tmp += '\nTemplate["' + name + '"]["' + val.name + '"] = (Template["' + name + '"]["' + val.helper + '"] || Handlebars._default_helpers["' + val.helper + '"]).bind(window, ' +argList+ ');\n';
-        tmp += '});';
-        results.js = tmp + results.js;
-      });
     } else {
       // <body>
       if (hasAttribs)
