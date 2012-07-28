@@ -20,7 +20,7 @@
 
     window.Template = window.Template || {};
 
-    var partial = function(data) {
+    var partial = function(data, event_data) {
       var getHtml = function() {
         return raw_func(data, {
           helpers: partial,
@@ -30,9 +30,8 @@
 
 
       var react_data = { events: (name ? _.extend(_.clone(Template[name].events || {}), Template.events) : {}),
-                         event_data: data,
+                         event_data: event_data || data,
                          template_name: name };
-
       return Meteor.ui.chunk(getHtml, react_data);
     };
 

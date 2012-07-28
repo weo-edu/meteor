@@ -119,28 +119,26 @@ var html_scanner = {
 
     var rString = '\{\{\s*\>\s*\w+\s+\w+\s+((?:\w+\s+)*\w+\s*)\}\}';
 
-      var rPartialArgs = /\{\{\s*\>\s*\w+\s+((?:\w+\s+)*\w+\s*)\}\}/
-      var rgPartialArgs = /\{\{\s*\>\s*\w+\s+((?:\w+\s+)*\w+\s*)\}\}/g
-      var curried_helpers = [];
+    var rPartialArgs = /\{\{\s*\>\s*\w+\s+((?:\w+\s+)*\w+\s*)\}\}/
+    var rgPartialArgs = /\{\{\s*\>\s*\w+\s+((?:\w+\s+)*\w+\s*)\}\}/g
+    var curried_helpers = [];
 
-      var m = contents.match(rgPartialArgs);
-      if (m) {
-        m.forEach(function(match) {
-          var args = rPartialArgs.exec(match)[1]
-          var args_split = args.split(/\s+/);
+    var m = contents.match(rgPartialArgs);
+    if (m) {
+      m.forEach(function(match) {
+        var args = rPartialArgs.exec(match)[1]
+        var args_split = args.split(/\s+/);
 
-          var helper = {
-            helper: args_split[0],
-            args: args_split.slice(1),
-            name: args_split.join('__')
-          };
-          contents = contents.replace(match,match.replace(args,helper.name));
-          if (args_split.length > 1) curried_helpers.push(helper);
-        });
-      }
+        var helper = {
+          helper: args_split[0],
+          args: args_split.slice(1),
+          name: args_split.join('__')
+        };
+        contents = contents.replace(match,match.replace(args,helper.name));
+        if (args_split.length > 1) curried_helpers.push(helper);
+      });
+    }
 
-      console.log(contents);
-      console.log(curried_helpers);
 
     // do we have 1 or more attribs?
     var hasAttribs = false;
@@ -174,9 +172,10 @@ var html_scanner = {
           argList.push('"' + arg + '"');
         });
         argList = argList.join(',');
-        results.js += 'Meteor.startup(function(){'
-        results.js += '\nTemplate["' + name + '"]["' + val.name + '"] = Template["' + name + '"]["' + val.helper + '"].bind(Template["'+name+'"], ' +argList+ ');\n';
-        results.js += '});';
+        var tmp = 'Meteor.startup(function(){'
+        tmp += '\nTemplate["' + name + '"]["' + val.name + '"] = (Template["' + name + '"]["' + val.helper + '"] || Handlebars._default_helpers["' + val.helper + '"]).bind(window, ' +argList+ ');\n';
+        tmp += '});';
+        results.js = tmp + results.js;
       });
     } else {
       // <body>

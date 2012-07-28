@@ -102,7 +102,7 @@ var PackageInstance = function (pkg, bundle) {
     },
 
     add_dir: function(dir,where) {
-      this.add_files(_.map(fs.readdirSync(dir),function(file) {
+      this.add_files(_.map(fs.readdirSync(path.join(self.pkg.source_root, dir)),function(file) {
         return path.join(dir,file);
       }),where);
     },
