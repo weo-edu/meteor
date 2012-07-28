@@ -45,9 +45,7 @@ _.extend(Meteor._MethodInvocation.prototype, {
   setUserId: function(userId) {
     this._userId = userId;
     this._setUserId(userId);
-    console.log('user id', userId);
     this._user = Meteor.users.findOne({_id: this._userId});
-    console.log(this._user);
   }
 });
 

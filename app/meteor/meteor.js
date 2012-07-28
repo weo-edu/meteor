@@ -752,36 +752,96 @@ Commands.push({
       return app;
     }
 
-    var p = httpProxy.createServer(function(req,res,proxy) {
+    _.each(meteors, function(val, key){
+      meteors[key].proxy = new httpProxy.HttpProxy({
+        target: {
+          host: 'localhost',
+          port: val.port
+        }
+      });
+      //meteors[key].proxy.changeOrigin = true;
+    })
+
+    var p = httpProxy.createServer(function(req,res, proxy) {
       var app = getAppForReq(req);
       req.url = utils.stripAppFromUrl(req.url);
-      proxy.proxyRequest(req, res, {host: '127.0.0.1', port: app.port});
-    }, {enable: {xforward: true}});
+      app.proxy.proxyRequest(req, res);
+    });//, {enable: {xforward: true}, source: {host: '127.0.0.1', port: parseInt(new_argv.port, 10)}});
+    
+    p.on('upgrade', function(req, socket, head){
+      var url = require('url').parse(req.url);
+      var parts = url.pathname.split('/');
+      var app = nameToApp(parts[parts.length-1]);
+      if(!app)
+        app = nameToApp('root');
 
+      //console.log('upgrade received for ' + app.name);
+      parts.pop();
+      var oldUrl = _.clone(req.url);
+      req.url = parts.join('/');
+      req.connection.socket = socket;
+
+      //  XXX Hack - this exists only to modify the returning headers
+      //  to match what was sent, in order to pass IOS security check.
+      //  Hopefully they will update to a more recent websocket standard
+      //  soon
+      var _write = socket.write;
+      socket.write = function(data){
+        socket.write = _write;
+
+        var sdata = data.toString();
+        sdata = sdata.substr(0, sdata.search('\r\n\r\n'));
+        if(~sdata.search(req.url)){
+          var bdata = data.slice(Buffer.byteLength(sdata), data.length);
+          sdata = sdata.replace(req.url, oldUrl);
+          data = new Buffer(Buffer.byteLength(sdata) + bdata.length);
+          data.write(sdata, 0, Buffer.byteLength(sdata), 'utf8');
+          bdata.copy(data, Buffer.byteLength(sdata), 0, bdata.length);
+          socket.write = _write;
+          arguments[0] = data;
+        }
+
+        return _write.apply(this, arguments);
+      };
+
+      app.proxy.proxyWebSocketRequest(req, socket, head);
+    });
+    /*
     p.on('upgrade', function(req, socket, head) {
       var url = require('url').parse(req.url);
       var parts = url.pathname.split('/');
-      var app = nameToApp(parts[2]);
+      var app = nameToApp(parts[parts.length-1]);
       if(!app)
         app = nameToApp('root');
 
       var oldUrl = _.clone(req.url);
-      parts.splice(2, 1);
+      //parts.splice(parts.length-1, 1);
+      console.log(_.clone(parts), _.clone(req.url));
+      parts.pop();
       req.url = parts.join('/');
+      //console.log(parts, req.url);
+
 
       var _write = socket.write;
       socket.write = function(data){
         if(typeof data === 'string')
           data = data.replace(req.url, oldUrl);
 
+//        console.log(app.name, 'socket data', data);
         return _write.call(this, data);
       };
 
+      socket.on('end', function(){
+        var stack = new Error().stack;
+        console.log(stack);
+        //throw new Error;
+      });
+
       //  Need to set this because http-proxy expects it
       //  not sure if this is a bug or not
-      req.connection.socket = socket;
+      //req.connection.socket = _.clone(socket);
       p.proxy.proxyWebSocketRequest(req, socket, head, {host: '127.0.0.1', port: app.port});
-    });
+    });*/
     p.listen(new_argv.port,function(){});
 
   }

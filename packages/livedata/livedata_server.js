@@ -276,7 +276,6 @@ _.extend(Meteor._LivedataSession.prototype, {
       };
 
       var sub = function(name) {
-        console.log(self.named_subs);
         return self.named_subs[name];
       }
 
