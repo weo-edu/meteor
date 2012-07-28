@@ -1107,11 +1107,7 @@ SockJS.prototype._try_next_protocol = function(close_event) {
             });
 
             var connid = utils.random_string(8);
-            var trans_url = that._base_url;
-            if(__meteor_runtime_config__.METEOR_SUBAPP_NAME && protocol === 'websocket')
-                trans_url += '/' + __meteor_runtime_config__.METEOR_SUBAPP_NAME;
-
-            trans_url += '/' + that._server + '/' + connid;
+            var trans_url = that._base_url + '/' + that._server + '/' + connid;
 
             that._debug('Opening transport:', protocol, ' url:'+trans_url,
                         ' RTO:'+that._options.rto);
@@ -1169,6 +1165,10 @@ SockJS.prototype._applyInfo = function(info, rtt, protocols_whitelist) {
 var WebSocketTransport = SockJS.websocket = function(ri, trans_url) {
     var that = this;
     var url = trans_url + '/websocket';
+
+    if(__meteor_runtime_config__.METEOR_SUBAPP_NAME)
+        url += '/' + __meteor_runtime_config__.METEOR_SUBAPP_NAME;
+
     if (url.slice(0, 5) === 'https') {
         url = 'wss' + url.slice(5);
     } else {

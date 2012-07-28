@@ -172,8 +172,6 @@
   Meteor._XXX_server.unserialize = function (data) {
     var self = new Meteor._XXX_server(data.verifier);
 
-    console.log(data);
-
     self.Astr = data.A;
     self.A = new Meteor._BigInteger(data.A, 16);
     self.Bstr = data.B;
