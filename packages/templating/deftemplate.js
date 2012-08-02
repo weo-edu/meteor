@@ -23,7 +23,6 @@
     var partial = function(data, bind) {
       var getHtml = function() {
         var helpers;
-        var partials;
         if (bind) {
           helpers = {};
           _.each(_.keys(partial),function(key) {
@@ -31,23 +30,13 @@
               helpers[key] = partial[key].bind(bind);
             }
           });
-
-          partials = {};
-          _.each(_.keys(Meteor._partials),function(key) {
-            partials[key] = function(d,b) {
-              if (!b) b = bind;
-              Meteor._partials[key](d,b);
-            }
-          });
-
         } else {
           helpers = partial
-          partials = Meteor._partials;
         }
         //console.log('helpers',helpers);
         return raw_func(data, {
           helpers: helpers,
-          partials: partials
+          partials: Meteor._partials
         });
       };
 
