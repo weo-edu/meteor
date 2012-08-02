@@ -20,17 +20,40 @@
 
     window.Template = window.Template || {};
 
-    var partial = function(data, event_data) {
+    var partial = function(data, bind) {
       var getHtml = function() {
+        var helpers;
+        var partials;
+        if (bind) {
+          helpers = {};
+          _.each(_.keys(partial),function(key) {
+            if ('function' == typeof partial[key]) {
+              helpers[key] = partial[key].bind(bind);
+            }
+          });
+
+          partials = {};
+          _.each(_.keys(Meteor._partials),function(key) {
+            partials[key] = function(d,b) {
+              if (!b) b = bind;
+              Meteor._partials[key](d,b);
+            }
+          });
+
+        } else {
+          helpers = partial
+          partials = Meteor._partials;
+        }
+        //console.log('helpers',helpers);
         return raw_func(data, {
-          helpers: partial,
-          partials: Meteor._partials
+          helpers: helpers,
+          partials: partials
         });
       };
 
 
       var react_data = { events: (name ? _.extend(_.clone(Template[name].events || {}), Template.events) : {}),
-                         event_data: event_data || data,
+                         event_data: bind || data,
                          template_name: name };
       return Meteor.ui.chunk(getHtml, react_data);
     };
