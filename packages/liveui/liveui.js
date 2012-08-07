@@ -591,6 +591,7 @@ Meteor.ui = Meteor.ui || {};
     // Implementations of LiveEvents that use whole-document event capture
     // (all except old IE) don't actually need any of this; this function
     // could be a no-op.
+
     for(var r = range; r; r = r.findParent()) {
       if (r === range)
         continue;
@@ -605,6 +606,7 @@ Meteor.ui = Meteor.ui || {};
           Meteor.ui._event.registerEventType(t, n);
       });
     }
+
   };
 
   // Handle a currently-propagating event on a particular node.

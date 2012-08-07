@@ -200,6 +200,7 @@ Meteor.ui = Meteor.ui || {};
   })();
 
   Meteor.ui._LiveRange._clean_node = function (tag, node, force) {
+    //console.log('_clean_nod',node);
     var data = node[tag];
     if (data && (!(data[0].length + data[1].length) || force)) {
       if (can_delete_expandos)
@@ -222,6 +223,8 @@ Meteor.ui = Meteor.ui || {};
   // Pass true for `recursive` to also destroy all descendent ranges.
   Meteor.ui._LiveRange.prototype.destroy = function (recursive) {
     var self = this;
+
+
 
     if (recursive) {
       // recursive case: destroy all descendent ranges too
