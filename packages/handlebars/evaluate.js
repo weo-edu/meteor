@@ -91,11 +91,19 @@ Handlebars.evaluate = function (ast, data, options) {
   // the user to capture their subtemplate rendering functions and
   // call them later, after we've finished running (for eg findLive.)
   // maybe revisit later.
-  console.log('evaluate', ast,data,options)
   var eval_value = function (stack, id) {
-    console.log('eval_value',stack,id,typeof(id));
-    if (typeof(id) !== "object")
-      return id;
+    if (typeof(id) !== "object") {
+      if (id === 'true') {
+        return true;
+      } else if (id === 'false') {
+        return false
+      } else if (!isNaN(parseInt(id))) {
+        return parseInt(id);
+      } else {
+        return id;
+      }
+    }
+      
 
     // follow '..' in {{../../foo.bar}}
     for (var i = 0; i < id[0]; i++) {
