@@ -102,9 +102,20 @@ var PackageInstance = function (pkg, bundle) {
     },
 
     add_dir: function(dir,where) {
-      this.add_files(_.map(fs.readdirSync(path.join(self.pkg.source_root, dir)),function(file) {
+      var files = _.map(fs.readdirSync(path.join(self.pkg.source_root, dir)),function(file) {
         return path.join(dir,file);
-      }),where);
+      });
+      var non_js = [];
+      var js = [];
+      _.each(files,function(file) {
+        if (!path.extname(file) === '.js') {
+          non_js.push(file);
+        } else {
+          js.push(file);
+        }
+      });
+      this.add_files(non_js,where);
+      this.add_files(js,where);
     },
 
     // Return a list of all of the extension that indicate source files
