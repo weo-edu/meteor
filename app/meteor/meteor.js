@@ -809,42 +809,7 @@ Commands.push({
 
       app.proxy.proxyWebSocketRequest(req, socket, head);
     });
-    /*
-    p.on('upgrade', function(req, socket, head) {
-      var url = require('url').parse(req.url);
-      var parts = url.pathname.split('/');
-      var app = nameToApp(parts[parts.length-1]);
-      if(!app)
-        app = nameToApp('root');
 
-      var oldUrl = _.clone(req.url);
-      //parts.splice(parts.length-1, 1);
-      console.log(_.clone(parts), _.clone(req.url));
-      parts.pop();
-      req.url = parts.join('/');
-      //console.log(parts, req.url);
-
-
-      var _write = socket.write;
-      socket.write = function(data){
-        if(typeof data === 'string')
-          data = data.replace(req.url, oldUrl);
-
-//        console.log(app.name, 'socket data', data);
-        return _write.call(this, data);
-      };
-
-      socket.on('end', function(){
-        var stack = new Error().stack;
-        console.log(stack);
-        //throw new Error;
-      });
-
-      //  Need to set this because http-proxy expects it
-      //  not sure if this is a bug or not
-      //req.connection.socket = _.clone(socket);
-      p.proxy.proxyWebSocketRequest(req, socket, head, {host: '127.0.0.1', port: app.port});
-    });*/
     p.listen(new_argv.port,function(){});
 
   }
