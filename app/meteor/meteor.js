@@ -775,6 +775,7 @@ Commands.push({
       if(parts.length > 1)
         var app = nameToApp(parts[1]);
 
+      var oldUrl = _.clone(req.url);
       if(!app)
         app = nameToApp('root');
       else{
@@ -787,7 +788,7 @@ Commands.push({
       //  to match what was sent, in order to pass IOS security check.
       //  Hopefully they will update to a more recent websocket standard
       //  soon
-      /*var _write = socket.write;
+      var _write = socket.write;
       socket.write = function(data){
         socket.write = _write;
 
@@ -804,7 +805,7 @@ Commands.push({
         }
 
         return _write.apply(this, arguments);
-      };*/
+      };
 
       app.proxy.proxyWebSocketRequest(req, socket, head);
     });
