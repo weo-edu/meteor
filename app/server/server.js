@@ -88,13 +88,17 @@ var run = function () {
   app.use(express.bodyParser());
   app.use(app.router);
 
+  io = require('socket.io');
+  io = io.listen(app);
+ io.set('log level', 1);
+
   // read bundle config file
   var info_raw =
     fs.readFileSync(path.join(bundle_dir, 'app.json'), 'utf8');
   var info = JSON.parse(info_raw);
 
   // start up app
-  __meteor_bootstrap__ = {require: require, startup_hooks: [], app: app};
+  __meteor_bootstrap__ = {require: require, startup_hooks: [], app: app, io: io};
   Fiber(function () {
     // (put in a fiber to let Meteor.db operations happen during loading)
 

@@ -669,7 +669,7 @@ Meteor._LivedataServer = function () {
       socket.send(JSON.stringify(msg));
     };
 
-    socket.on('data', function (raw_msg) {
+    socket.on('message', function (raw_msg) {
       try {
         try {
           var msg = JSON.parse(raw_msg);

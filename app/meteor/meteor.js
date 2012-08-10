@@ -718,7 +718,8 @@ Commands.push({
     function nameToApp(name){
       if(meteors.hasOwnProperty(name)){
         return meteors[name];
-      }
+      } else if(name === 'app!root')
+        return meteors['root'];
     }
 
     var stylesheets = {};
@@ -771,21 +772,22 @@ Commands.push({
     p.on('upgrade', function(req, socket, head){
       var url = require('url').parse(req.url);
       var parts = url.pathname.split('/');
-      var app = nameToApp(parts[parts.length-1]);
+      if(parts.length > 1)
+        var app = nameToApp(parts[1]);
+
       if(!app)
         app = nameToApp('root');
-
-      //console.log('upgrade received for ' + app.name);
-      parts.pop();
-      var oldUrl = _.clone(req.url);
-      req.url = parts.join('/');
-      req.connection.socket = socket;
+      else{
+        parts.shift();
+        parts.shift();
+        req.url = '/' + parts.join('/');
+      }
 
       //  XXX Hack - this exists only to modify the returning headers
       //  to match what was sent, in order to pass IOS security check.
       //  Hopefully they will update to a more recent websocket standard
       //  soon
-      var _write = socket.write;
+      /*var _write = socket.write;
       socket.write = function(data){
         socket.write = _write;
 
@@ -802,7 +804,7 @@ Commands.push({
         }
 
         return _write.apply(this, arguments);
-      };
+      };*/
 
       app.proxy.proxyWebSocketRequest(req, socket, head);
     });
