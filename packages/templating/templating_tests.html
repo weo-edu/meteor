@@ -183,3 +183,54 @@
   (biggie={{#get_arg helperListFour platypus thisTest fancyhelper.currentFruit fancyhelper.currentCountry.unicorns a=platypus b=thisTest c=fancyhelper.currentFruit d=fancyhelper.currentCountry.unicorns}}{{/get_arg}})
   (twoArgBlock={{#two_args "foo" "foo"}}{{/two_args}})
 </template>
+
+<template name="test_render_a">
+  {{foo}}<br><hr>
+</template>
+
+<template name="test_render_b">
+  {{#with 200}}{{foo}}<br><hr>{{/with}}
+</template>
+
+<template name="test_render_c">
+  <br><hr>
+</template>
+
+<template name="test_branches_a">
+  <span>{{var}}</span>
+  {{#myConstant}}<hr/>{{/myConstant}}
+  {{#if 1}}
+    {{#myConstant}}<hr/>{{/myConstant}}
+  {{/if}}
+  {{#myConstant}}<hr/>{{/myConstant}}
+</template>
+
+<template name="test_listmatching_a0">
+  <span>{{var}}</span>
+  <p>
+    {{#each c}}
+      {{> test_listmatching_a1}}
+    {{/each}}
+  </p>
+</template>
+
+<template name="test_listmatching_a1">
+  {{letter}}
+</template>
+
+<template name="test_isolate_a">
+  {{helper 1}}
+  {{#isolate}}
+    {{helper 2}}
+    {{#isolate}}
+      {{helper 3}}
+      {{#isolate}}
+        {{helper 4}}
+      {{/isolate}}
+    {{/isolate}}
+  {{/isolate}}
+</template>
+
+<template name="test_template_arg_a">
+  <b>Foo</b> <i>Bar</i> <u>Baz</u>
+</template>

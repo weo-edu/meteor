@@ -3,8 +3,8 @@ Tinytest.add("templating - assembly", function (test) {
 
   // Test for a bug that made it to production -- after a replacement,
   // we need to also check the newly replaced node for replacements
-  var frag = Meteor.ui.render(Template.test_assembly_a0);
-  test.equal(canonicalizeHtml(Meteor.ui._fragmentToHtml(frag)),
+  var frag = Meteor.render(Template.test_assembly_a0);
+  test.equal(canonicalizeHtml(DomUtils.fragmentToHtml(frag)),
                "Hi");
 
   // Another production bug -- we must use LiveRange to replace the
@@ -14,12 +14,12 @@ Tinytest.add("templating - assembly", function (test) {
     return Session.get("stuff");
   };
   var onscreen = DIV({style: "display: none"}, [
-    Meteor.ui.render(Template.test_assembly_b0)]);
+    Meteor.render(Template.test_assembly_b0)]);
   document.body.appendChild(onscreen);
   test.equal(canonicalizeHtml(onscreen.innerHTML), "xyhi");
   Session.set("stuff", false);
   Meteor.flush();
-  test.equal(canonicalizeHtml(onscreen.innerHTML), "xhi");
+  test.equal(canonicalizeHtml(onscreen.innerHTML), "x<!---->hi");
   document.body.removeChild(onscreen);
   Meteor.flush();
 });
@@ -41,7 +41,7 @@ Tinytest.add("templating - table assembly", function(test) {
 
   var table;
 
-  table = childWithTag(Meteor.ui.render(Template.test_table_a0), "TABLE");
+  table = childWithTag(Meteor.render(Template.test_table_a0), "TABLE");
 
   // table.rows is a great test, as it fails not only when TR/TD tags are
   // stripped due to improper html-to-fragment, but also when they are present
@@ -49,7 +49,7 @@ Tinytest.add("templating - table assembly", function(test) {
   test.equal(table.rows.length, 3);
 
   // this time with an explicit TBODY
-  table = childWithTag(Meteor.ui.render(Template.test_table_b0), "TABLE");
+  table = childWithTag(Meteor.render(Template.test_table_b0), "TABLE");
   test.equal(table.rows.length, 3);
 
   var c = new LocalCollection();
@@ -58,7 +58,7 @@ Tinytest.add("templating - table assembly", function(test) {
   c.insert({bar:'c'});
   var onscreen = DIV({style: "display: none;"});
   onscreen.appendChild(
-    Meteor.ui.render(_.bind(Template.test_table_each, null, {foo: c.find()})));
+    Meteor.render(_.bind(Template.test_table_each, null, {foo: c.find()})));
   document.body.appendChild(onscreen);
   table = childWithTag(onscreen, "TABLE");
 
@@ -82,15 +82,17 @@ Tinytest.add("templating - event handler this", function(test) {
 
   var event_buf = [];
   var tmpl = OnscreenDiv(
-    Meteor.ui.render(
-      function() {
-        return Template.test_event_data_with(
-          Template.test_event_data_with.ONE);
-      },
-      { events: { 'click': function() {
-        test.isTrue(this.str);
-        event_buf.push(this.str);
-      } }}));
+    Meteor.render(function () {
+      var html = Template.test_event_data_with(
+        Template.test_event_data_with.ONE);
+      html = Spark.attachEvents({
+        'click': function() {
+          test.isTrue(this.str);
+          event_buf.push(this.str);
+        }
+      }, html);
+      return html;
+    }));
 
   var divs = tmpl.node().getElementsByTagName("div");
   test.equal(3, divs.length);
@@ -312,4 +314,308 @@ Tinytest.add("templating - helpers and dots", function(test) {
   // can't pass > 1 positional arg to block helper
   test.equal(trials[5], "(twoArgBlock=true,false)");
   test.equal(trials.length, 6);
+});
+
+
+Tinytest.add("templating - rendered template", function(test) {
+  var R = ReactiveVar('foo');
+  Template.test_render_a.foo = function() {
+    R.get();
+    return this.x + 1;
+  };
+
+  Template.test_render_a.preserve = ['br'];
+
+  var div = OnscreenDiv(
+    Meteor.render(function () {
+      return Template.test_render_a({ x: 123 });
+    }));
+
+  test.equal(div.text().match(/\S+/)[0], "124");
+
+  var br1 = div.node().getElementsByTagName('br')[0];
+  var hr1 = div.node().getElementsByTagName('hr')[0];
+  test.isTrue(br1);
+  test.isTrue(hr1);
+
+  R.set('bar');
+  Meteor.flush();
+  var br2 = div.node().getElementsByTagName('br')[0];
+  var hr2 = div.node().getElementsByTagName('hr')[0];
+  test.isTrue(br2);
+  test.isTrue(br1 === br2);
+  test.isTrue(hr2);
+  test.isFalse(hr1 === hr2);
+
+  div.kill();
+  Meteor.flush();
+
+  /////
+
+  R = ReactiveVar('foo');
+
+  Template.test_render_b.foo = function() {
+    R.get();
+    return (+this) + 1;
+  };
+  Template.test_render_b.preserve = ['br'];
+
+  div = OnscreenDiv(
+    Meteor.render(function () {
+      return Template.test_render_b({ x: 123 });
+    }));
+
+  test.equal(div.text().match(/\S+/)[0], "201");
+
+  var br1 = div.node().getElementsByTagName('br')[0];
+  var hr1 = div.node().getElementsByTagName('hr')[0];
+  test.isTrue(br1);
+  test.isTrue(hr1);
+
+  R.set('bar');
+  Meteor.flush();
+  var br2 = div.node().getElementsByTagName('br')[0];
+  var hr2 = div.node().getElementsByTagName('hr')[0];
+  test.isTrue(br2);
+  test.isTrue(br1 === br2);
+  test.isTrue(hr2);
+  test.isFalse(hr1 === hr2);
+
+  div.kill();
+  Meteor.flush();
+
+  /////
+
+  var stuff = new LocalCollection();
+  stuff.insert({foo:'bar'});
+
+  Template.test_render_c.preserve = ['br'];
+
+  div = OnscreenDiv(
+    Meteor.renderList(
+      stuff.find(), function (data) {
+        return Template.test_render_c(data, 'blah');
+      }));
+
+  var br1 = div.node().getElementsByTagName('br')[0];
+  var hr1 = div.node().getElementsByTagName('hr')[0];
+  test.isTrue(br1);
+  test.isTrue(hr1);
+
+  stuff.update({foo:'bar'}, {$set: {foo: 'baz'}});
+  Meteor.flush();
+  var br2 = div.node().getElementsByTagName('br')[0];
+  var hr2 = div.node().getElementsByTagName('hr')[0];
+  test.isTrue(br2);
+  test.isTrue(br1 === br2);
+  test.isTrue(hr2);
+  test.isFalse(hr1 === hr2);
+
+  div.kill();
+  Meteor.flush();
+
+  /////
+
+  var stuff = new LocalCollection();
+  stuff.insert({foo:'bar'});
+
+  Template.test_render_c.preserve = ['br'];
+
+  div = OnscreenDiv(Meteor.renderList(stuff.find(),
+                                      Template.test_render_c));
+
+  var br1 = div.node().getElementsByTagName('br')[0];
+  var hr1 = div.node().getElementsByTagName('hr')[0];
+  test.isTrue(br1);
+  test.isTrue(hr1);
+
+  stuff.update({foo:'bar'}, {$set: {foo: 'baz'}});
+  Meteor.flush();
+  var br2 = div.node().getElementsByTagName('br')[0];
+  var hr2 = div.node().getElementsByTagName('hr')[0];
+  test.isTrue(br2);
+  test.isTrue(br1 === br2);
+  test.isTrue(hr2);
+  test.isFalse(hr1 === hr2);
+
+  div.kill();
+  Meteor.flush();
+
+});
+
+Tinytest.add("templating - branch labels", function(test) {
+  var R = ReactiveVar('foo');
+  Template.test_branches_a['var'] = function () {
+    return R.get();
+  };
+
+  var elems = [];
+
+  // use constant landmarks to test that each
+  // block helper invocation gets a different label
+  Template.test_branches_a.myConstant = function (options) {
+    var data = this;
+    var firstRender = true;
+    return Spark.createLandmark({ constant: true,
+                                  render: function () {
+                                    if (! firstRender)
+                                      return;
+                                    firstRender = false;
+                                    var hr = this.find('hr');
+                                    hr.myIndex = elems.length;
+                                    elems.push(this.find('hr'));
+                                  }},
+                                function () {
+                                  return options.fn(data);
+                                });
+  };
+
+  var div = OnscreenDiv(Meteor.render(Template.test_branches_a));
+  Meteor.flush();
+  test.equal(DomUtils.find(div.node(), 'span').innerHTML, 'foo');
+  test.equal(elems.length, 3);
+
+  R.set('bar');
+  Meteor.flush();
+  var elems2 = DomUtils.findAll(div.node(), 'hr');
+  elems2.sort(function(a, b) { return a.myIndex - b.myIndex; });
+  test.equal(elems[0], elems2[0]);
+  test.equal(elems[1], elems2[1]);
+  test.equal(elems[2], elems2[2]);
+  test.equal(DomUtils.find(div.node(), 'span').innerHTML, 'bar');
+
+  div.kill();
+  Meteor.flush();
+});
+
+Tinytest.add("templating - matching in list", function (test) {
+  var c = new LocalCollection();
+  c.insert({letter:'a'});
+  c.insert({letter:'b'});
+  c.insert({letter:'c'});
+
+  _.extend(Template.test_listmatching_a0, {
+    'var': function () { return R.get(); },
+    c: function () { return c.find(); }
+  });
+
+  var buf = [];
+  _.extend(Template.test_listmatching_a1, {
+    create: function () { buf.push('+'); },
+    render: function () {
+      var letter = DomUtils.rangeToHtml(this.firstNode,
+                                        this.lastNode).match(/\S+/)[0];
+      buf.push('*'+letter);
+    },
+    destroy: function () { buf.push('-'); }
+  });
+
+  var R = ReactiveVar('foo');
+  var div = OnscreenDiv(Spark.render(Template.test_listmatching_a0));
+  Meteor.flush();
+
+  test.equal(DomUtils.find(div.node(), 'span').innerHTML, 'foo');
+  test.equal(div.html().match(/<p>(.*?)<\/p>/)[1].match(/\S+/g), ['a','b','c']);
+  test.equal(buf.join(''), '+++*a*b*c');
+
+  buf.length = 0;
+  R.set('bar');
+  Meteor.flush();
+  test.equal(DomUtils.find(div.node(), 'span').innerHTML, 'bar');
+  test.equal(div.html().match(/<p>(.*?)<\/p>/)[1].match(/\S+/g), ['a','b','c']);
+  test.equal(buf.join(''), '*a*b*c');
+
+  div.kill();
+  Meteor.flush();
+
+});
+
+Tinytest.add("templating - isolate helper", function (test) {
+  var Rs = _.map(_.range(4), function () { return ReactiveVar(1); });
+  var touch = function (n) { Rs[n-1].get(); };
+  var bump = function (n) { Rs[n-1].set(Rs[n-1].get() + 1); };
+  var counts = _.map(_.range(4), function () { return 0; });
+  var tally = function (n) { return ++counts[n-1]; };
+
+  _.extend(Template.test_isolate_a, {
+    helper: function (n) {
+      touch(n);
+      return tally(n);
+    }
+  });
+
+  var div = OnscreenDiv(Meteor.render(Template.test_isolate_a));
+
+  var getTallies = function () {
+    return _.map(div.html().match(/\S+/g), Number);
+  };
+  var expect = function(str) {
+    test.equal(getTallies().join(','), str);
+  };
+
+  Meteor.flush();
+  expect("1,1,1,1");
+  bump(1);  Meteor.flush();  expect("2,2,2,2");
+  bump(2);  Meteor.flush();  expect("2,3,3,3");
+  bump(3);  Meteor.flush();  expect("2,3,4,4");
+  bump(4);  Meteor.flush();  expect("2,3,4,5");
+  Meteor.flush(); expect("2,3,4,5");
+  bump(3);  Meteor.flush();  expect("2,3,5,6");
+  bump(2);  Meteor.flush();  expect("2,4,6,7");
+  bump(1);  Meteor.flush();  expect("3,5,7,8");
+
+  div.kill();
+  Meteor.flush();
+
+});
+
+Tinytest.add("templating - template arg", function (test) {
+  Template.test_template_arg_a.events = {
+    click: function (event, template) {
+      template.firstNode.innerHTML = 'Hello';
+      template.lastNode.innerHTML = 'World';
+      template.find('i').innerHTML =
+        (template.findAll('*').length)+"-element";
+      template.lastNode.innerHTML += ' (the secret is '+
+        template.secret+')';
+    }
+  };
+
+  Template.test_template_arg_a.create = function() {
+    var self = this;
+    test.isFalse(self.firstNode);
+    test.isFalse(self.lastNode);
+    test.throws(function () { return self.find("*"); });
+    test.throws(function () { return self.findAll("*"); });
+  };
+
+  Template.test_template_arg_a.render = function () {
+    var template = this;
+    template.firstNode.innerHTML = 'Greetings';
+    template.lastNode.innerHTML = 'Line';
+    template.find('i').innerHTML =
+      (template.findAll('b').length)+"-bold";
+    template.secret = "strawberry "+template.data.food;
+  };
+
+  Template.test_template_arg_a.destroy = function() {
+    var self = this;
+    test.isFalse(self.firstNode);
+    test.isFalse(self.lastNode);
+    test.throws(function () { return self.find("*"); });
+    test.throws(function () { return self.findAll("*"); });
+  };
+
+  var div = OnscreenDiv(Spark.render(function () {
+    return Template.test_template_arg_a({food: "pie"});
+  }));
+
+  test.equal(div.text(), "Foo Bar Baz");
+  Meteor.flush();
+  test.equal(div.text(), "Greetings 1-bold Line");
+  clickElement(DomUtils.find(div.node(), 'i'));
+  test.equal(div.text(), "Hello 3-element World (the secret is strawberry pie)");
+
+  div.kill();
+  Meteor.flush();
 });
