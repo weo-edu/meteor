@@ -5,8 +5,10 @@
 
 underscore
 backbone
+spiderable
 accounts
-accounts-facebook
-accounts-google
 accounts-ui
-
+accounts-weibo
+accounts-google
+accounts-facebook
+accounts-passwords

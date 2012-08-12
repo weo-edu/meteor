@@ -275,12 +275,8 @@ _.extend(Meteor._LivedataSession.prototype, {
         self._setUserId(userId);
       };
 
-      var sub = function(name) {
-        return self.named_subs[name];
-      }
-
       var invocation = new Meteor._MethodInvocation(
-        false /* is_simulation */, self.userId, setUserId, sub, unblock);
+        false /* is_simulation */, self.userId, setUserId, unblock);
       try {
         var ret =
           Meteor._CurrentWriteFence.withValue(fence, function () {
@@ -346,9 +342,6 @@ _.extend(Meteor._LivedataSession.prototype, {
       // XXX generalize
       if (Meteor._RemoteCollectionDriver && (res instanceof Meteor._Mongo.Cursor))
         sub._publishCursor(res);
-      else if (res && '_publish' in res) {
-        res._publish(sub);
-      }
     };
 
     sub._runHandler();
