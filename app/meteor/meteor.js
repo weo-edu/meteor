@@ -652,42 +652,44 @@ Commands.push({
       return meteors;
     })();
 
-    var mongo_err_timer,
-      mongo_err_count = 0;
-    console.log('Initializing top-level mongo instance...');
-    var mongo_runner = require('../lib/mongo_runner.js');
-    var mongo_port = new_argv.port + 1;
-    (function launch() {
-      mongo_runner.launch_mongo(
-        meteors.root.dir,
-        mongo_port,
-        function () { // On Mongo startup complete
-        },
-        function (code, signal) { // On Mongo dead
-          console.log("Unexpected mongo exit code " + code + ". Restarting.");
+    if(!process.env.MONGO_URL){
+      var mongo_err_timer,
+        mongo_err_count = 0;
+      console.log('Initializing top-level mongo instance...');
+      var mongo_runner = require('../lib/mongo_runner.js');
+      var mongo_port = new_argv.port + 1;
+      (function launch() {
+        mongo_runner.launch_mongo(
+          meteors.root.dir,
+          mongo_port,
+          function () { // On Mongo startup complete
+          },
+          function (code, signal) { // On Mongo dead
+            console.log("Unexpected mongo exit code " + code + ". Restarting.");
 
-          // if mongo dies 3 times with less than 5 seconds between each,
-          // declare it failed and die.
-          mongo_err_count += 1;
+            // if mongo dies 3 times with less than 5 seconds between each,
+            // declare it failed and die.
+            mongo_err_count += 1;
 
-          if (mongo_err_count >= 3) {
-            console.log("Can't start mongod. Check for other processes listening on port " + mongo_port + " or other meteors running in the same project.");
-            process.exit(1);
-          }
-          if (mongo_err_timer)
-            clearTimeout(mongo_err_timer);
-          mongo_err_timer = setTimeout(function () {
-            mongo_err_count = 0;
-            mongo_err_timer = null;
-          }, 5000);
+            if (mongo_err_count >= 3) {
+              console.log("Can't start mongod. Check for other processes listening on port " + mongo_port + " or other meteors running in the same project.");
+              process.exit(1);
+            }
+            if (mongo_err_timer)
+              clearTimeout(mongo_err_timer);
+            mongo_err_timer = setTimeout(function () {
+              mongo_err_count = 0;
+              mongo_err_timer = null;
+            }, 5000);
 
-          // Wait a sec to restart.
-          setTimeout(launch, 1000);
-        })
-    })();
+            // Wait a sec to restart.
+            setTimeout(launch, 1000);
+          })
+      })();
+    }
 
     console.log('Initializing subapps...', meteors);
-    var mongo_url = "mongodb://127.0.0.1:" + mongo_port + "/meteor";
+    var mongo_url = process.env.MONGO_URL || "mongodb://127.0.0.1:" + mongo_port + "/meteor";
     var childProcesses = (function spawnSubapps(){
       var children = [];
       _.each(meteors,function(app, appName) {
