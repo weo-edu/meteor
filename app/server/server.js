@@ -104,6 +104,7 @@ var run = function () {
 
     // pass in database info
     __meteor_bootstrap__.mongo_url = mongo_url;
+    __meteor_bootstrap__.redis_url = process.env.REDIS_URL;
 
     // load app code
     _.each(info.load, function (filename) {
