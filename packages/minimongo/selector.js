@@ -33,7 +33,10 @@ LocalCollection._f = {
   },
 
   _in: function (x, qval) {
-    if (typeof x !== "object") {
+    if(!qval){
+      return false;
+    }
+    else if (typeof x !== "object") {
       // optimization: use scalar equality (fast)
       for (var i = 0; i < qval.length; i++)
         if (x === qval[i])

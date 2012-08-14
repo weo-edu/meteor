@@ -28,7 +28,6 @@
         });
       };
 
-
       var react_data = { events: (name ? _.extend(_.clone(Template[name].events || {}), Template.events) : {}),
                          event_data: data,
                          template_name: name };
