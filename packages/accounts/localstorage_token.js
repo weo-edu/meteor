@@ -57,7 +57,7 @@
 // methods will have different callbacks. Standardize this.
 Meteor.loginWithToken = function (token, errorCallback) {
   Meteor.apply('login', [{resume: token}], {wait: true}, function(error, result) {
-    if (error && errorCallback) {
+    if (error) {
       errorCallback();
       throw error;
     }

@@ -1,9 +1,10 @@
 Package.describe({
-  summary: "XXX SRP LIB",
+  summary: "Library for Secure Remote Password (SRP) exchanges",
   internal: true
 });
 
 Package.on_use(function (api) {
+  api.use('uuid', ['client', 'server']);
   api.add_files(['biginteger.js', 'sha256.js', 'srp.js'],
                 ['client', 'server']);
 });

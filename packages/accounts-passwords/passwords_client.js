@@ -1,62 +1,127 @@
 (function () {
 
-  // XXX options to add to new user
-  // XXX callback
-  Meteor.loginNewUser = function (username, password) {
-    var srp = new Meteor._XXX_client(username, password);
-    var verifier = srp.create();
+  Meteor.createUser = function (options, extra, callback) {
+    if (typeof extra === "function") {
+      callback = extra;
+      extra = {};
+    }
 
-    Meteor.apply('login', [
-      {newUser: {username: username, verifier: verifier}}
-    ], {wait: true}, function (error, result) {
-      if (error) {
-        console.log(error);
-        // XXX this hides the error! and we do it other places in auth
-        throw error;
-      }
+    if (!options.password)
+      throw new Error("Must set options.password");
+    var verifier = Meteor._srp.generateVerifier(options.password);
 
-      if (!result) {
-        return;
-      } else {
-        Meteor.accounts.makeClientLoggedIn(result.id, result.token);
-      }
+    // strip old password, replacing with the verifier object
+    delete options.password;
+    options.srp = verifier;
+
+    Meteor.apply('createUser', [options, extra], {wait: true},
+                 function (error, result) {
+                   if (error || !result) {
+                     error = error || new Error("No result");
+                     callback && callback(error);
+                     return;
+                   }
+
+      Meteor.accounts.makeClientLoggedIn(result.id, result.token);
+      callback && callback(undefined, {message: 'Success'});
     });
-
   };
 
-  Meteor.loginWithPassword = function (username, password) {
-    var srp = new Meteor._XXX_client(username, password);
-    var request = srp.start();
+  // @param selector {String|Object} One of the following:
+  //   - {username: (username)}
+  //   - {email: (email)}
+  //   - a string which may be a username or email, depending on whether
+  //     it contains "@".
+  // @param password {String}
+  // @param callback {Function(error|undefined)}
+  Meteor.loginWithPassword = function (selector, password, callback) {
+    var srp = new Meteor._srp.Client(password);
+    var request = srp.startExchange();
 
-    Meteor.apply('beginSrp', [request], function (error, result) {
-      if (error) {
-        console.log(error);
-        // XXX this hides the error! and we do it other places in auth
-        throw error;
+    if (typeof selector === 'string')
+      if (selector.indexOf('@') === -1)
+        selector = {username: selector};
+      else
+        selector = {email: selector};
+
+    request.user = selector;
+
+    Meteor.apply('beginPasswordExchange', [request], function (error, result) {
+      if (error || !result) {
+        error = error || new Error("No result from call to beginPasswordExchange");
+        callback && callback(error);
+        return;
       }
 
-      var response = srp.respond(result);
+      var response = srp.respondToChallenge(result);
       Meteor.apply('login', [
         {srp: response}
       ], {wait: true}, function (error, result) {
-        if (error) {
-          console.log(error);
-          // XXX this hides the error! and we do it other places in auth
-          throw error;
-        }
-
-        if (!result) {
+        if (error || !result) {
+          error = error || new Error("No result from call to login");
+          callback && callback(error);
           return;
         }
 
-        if (!srp.verify(result.srp)) {
-          console.log('no verify!');
-          throw new Meteor.Error("server is cheating!");
+        if (!srp.verifyConfirmation({HAMK: result.HAMK})) {
+          callback && callback(new Error("Server is cheating!"));
+          return;
         }
 
         Meteor.accounts.makeClientLoggedIn(result.id, result.token);
-
+        callback && callback();
       });
     });
+  };
+
+
+  // @param oldPassword {String|null}
+  // @param newPassword {String}
+  // @param callback {Function(error|undefined)}
+  Meteor.changePassword = function (oldPassword, newPassword, callback) {
+    if (!Meteor.user()) {
+      callback && callback(new Error("Must be logged in to change password."));
+      return;
+    }
+
+    var verifier = Meteor._srp.generateVerifier(newPassword);
+
+    if (!oldPassword) {
+      Meteor.apply('changePassword', [{srp: verifier}], function (error, result) {
+        if (error || !result) {
+          callback && callback(
+            error || new Error("No result from changePassword."));
+        } else {
+          callback();
+        }
+      });
+    } else { // oldPassword
+      var srp = new Meteor._srp.Client(oldPassword);
+      var request = srp.startExchange();
+      request.user = {id: Meteor.user()._id};
+      Meteor.apply('beginPasswordExchange', [request], function (error, result) {
+        if (error || !result) {
+          callback && callback(
+            error || new Error("No result from call to beginPasswordExchange"));
+          return;
+        }
+
+        var response = srp.respondToChallenge(result);
+        response.srp = verifier;
+        Meteor.apply('changePassword', [response], function (error, result) {
+          if (error || !result) {
+            callback && callback(
+              error || new Error("No result from changePassword."));
+          } else {
+            if (!srp.verifyConfirmation(result)) {
+              // Monkey business!
+              callback(new Error("Old password verification failed."));
+            } else {
+              callback();
+            }
+          }
+        });
+      });
+    }
   };
 })();

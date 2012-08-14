@@ -1,5 +1,10 @@
 /// METEOR WRAPPER
-Meteor._SHA256 = (function () {
+//
+// XXX this should get packaged and moved into the Meteor.crypto
+// namespace, along with other hash functions.
+if (typeof Meteor._srp === "undefined")
+  Meteor._srp = {};
+Meteor._srp.SHA256 = (function () {
 
 
 /**
