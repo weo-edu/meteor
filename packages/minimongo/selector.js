@@ -271,6 +271,8 @@ LocalCollection._compileSelector = function (selector) {
   // shorthand -- scalars match _id
   if ((typeof selector === "string") || (typeof selector === "number"))
     selector = {_id: selector};
+  else if(_.isArray(selector))
+    selector = {_id: {$in: selector}};
 
   // protect against dangerous selectors.  falsey and {_id: falsey}
   // are both likely programmer error, and not what you want,
