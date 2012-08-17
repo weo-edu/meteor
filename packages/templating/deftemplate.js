@@ -53,7 +53,7 @@
     Meteor._reload.on_migrate('templateStores',function() {
       var stores = {}
       _.each(templateInstanceData,function(template) {
-        stores[template.path()] = template.store;
+        stores[template.id()] = template.store;
       });
       return [true,stores];
     });
@@ -85,15 +85,19 @@
 
         store: ReactiveDict(),
 
-        path: function() {
-          return "/" + $(this.firstNode).parents().andSelf().map(function() {
-            var $this = $(this);
-            var tagName = this.nodeName;
-            if ($this.siblings(tagName).length > 0) {
-                tagName += "[" + $this.prevAll(tagName).length + "]";
-            }
-            return tagName;
-          }).get().join("/");
+        id: function() {
+          if ($(this.firstNode).attr('id')) return $(this.firstNode).attr('id');
+          else {
+            return "/" + $(this.firstNode).parents().andSelf().map(function() {
+              var $this = $(this);
+              var tagName = this.nodeName;
+              if ($this.siblings(tagName).length > 0) {
+                  tagName += "[" + $this.prevAll(tagName).length + "]";
+              }
+              return tagName;
+            }).get().join("/");
+          }
+          
         },
 
         set: function(key,value) {
@@ -104,13 +108,38 @@
           return this.store.get(key);
         },
 
-        firstRender: true
+        emitter: new Emitter(),
+
+        nextRender: function(cb) {
+          this.emitter.once('render',cb);
+        },
+
+        emitRender: function() {
+          this.emitter.emit('render');
+        },
+
+        onRender: function(cb) {
+          this.emitter.on('render',cb);
+        },
+
+        onDestroy: function(cb) {
+          this.emitter.on('destroy',cb);
+        },
+
+        emitDestroy: function() {
+          this.emitter.emit('destroy');
+        },
+
+        firstRender: true,
+
       });
     // set these each time
     template.firstNode = landmark.hasDom() ? landmark.firstNode() : null;
     template.lastNode = landmark.hasDom() ? landmark.lastNode() : null;
     return template;
   };
+
+  Meteor.templateFromLandmark = templateObjFromLandmark;
 
   Meteor._def_template = function (name, raw_func) {
     Meteor._hook_handlebars();
@@ -133,23 +162,34 @@
         render: function () {
           var template = templateObjFromLandmark(this);
           template.data = data;
-          tmpl.render && tmpl.render.call(template);
 
           //restore store
-          var path = template.path();
+          var path = template.id();
           if (template.firstRender && path in templateStoresByPath) {
-            template.store.setMany(templateStoresByPath[path]);
+            var store = templateStoresByPath[path]
+            delete templateStoresByPath[path];
+            template.store.setMany(store);
+            //return;
           }
+          tmpl.render && tmpl.render.call(template);
+          template.emitRender();
           template.firstRender = false;
         },
         destroy: function () {
+          var template = templateObjFromLandmark(this)
           tmpl.destroy &&
-            tmpl.destroy.call(templateObjFromLandmark(this));
+            tmpl.destroy.call(template);
+          template.emitDestroy();
           delete templateInstanceData[this.id];
         }
       }, function (landmark) {
+        //XXX is this right?
+        data = _.clone(data);
+        
         // make template accessible from within helpers
-        data.template = templateObjFromLandmark(landmark);
+        var template = templateObjFromLandmark(landmark);
+        data.template = template;
+        data.get = template.get.bind(template);
         
         var html = Spark.isolate(function () {
           // XXX Forms needs to run a hook before and after raw_func
@@ -160,6 +200,8 @@
             name: name
           });
         });
+
+        
 
         // take an event map with `function (event, template)` handlers
         // and produce one with `function (event, landmark)` handlers
@@ -180,6 +222,7 @@
         // landmark to get the template data
         if (tmpl.events)
           html = Spark.attachEvents(wrapEventMap(tmpl.events), html);
+
         return html;
       });
 
@@ -204,7 +247,6 @@
       Meteor._partials[name] = partial;
     }
 
-    partial.attrs = attrs;
     // useful for unnamed templates, like body
     return partial;
   };

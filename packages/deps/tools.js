@@ -42,8 +42,7 @@ ReactiveVar.prototype.set = function(newValue) {
   var oldValue = self._value;
   // detect equality and don't invalidate dependers
   // when value is a primitive.
-  if ((typeof newValue !== 'object') && self._value === newValue)
-    return;
+  if (_.isEqual(oldValue,newValue)) return;
 
   self._value = newValue;
 
@@ -108,10 +107,14 @@ ReactiveDict.prototype.set = function(key, value) {
   return this._vars[key].set(value);
 }
 
-ReactiveDict.prototype.setMany = function(values) {
+ReactiveDict.prototype.setMany = function(values,quiet) {
   var self = this;
   _.each(values,function(value,key) {
-    self.set(key,value);
+    if (!quiet) self.set(key,value);
+    else {
+      self._ensureKey(key);
+      self._vars[key]._value = value;
+    }
   });
 }
 
@@ -123,6 +126,14 @@ ReactiveDict.prototype.equals = function(key, value) {
 ReactiveDict.prototype._ensureKey = function(key) {
   if (!(key in this._vars))
     this._vars[key] = ReactiveVar();
+}
+
+ReactiveDict.prototype.all = function() {
+  var obj = {};
+  _.each(this._vars,function(v,key) {
+    obj[key] = v.get();
+  });
+  return obj;
 }
 
 ReactiveDict.prototype.toJSON = function() {

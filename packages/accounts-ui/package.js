@@ -3,7 +3,7 @@ Package.describe({
 });
 
 Package.on_use(function (api) {
-  api.use(['accounts', 'underscore', 'liveui', 'templating'], 'client');
+  api.use(['accounts', 'underscore', 'spark', 'templating'], 'client');
 
   api.add_files([
     'login_buttons.css',
