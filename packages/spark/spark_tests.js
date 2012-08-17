@@ -2264,6 +2264,37 @@ Tinytest.add("spark - cleanup", function(test) {
   Meteor.flush();
   test.equal(R.numListeners(), 0);
 
+  //// list stopped if not materialized
+
+  var observeCount = 0;
+  var stopCount = 0;
+  var cursor = {
+    observe: function (callbacks) {
+      observeCount++;
+      return {
+        stop: function () {
+          stopCount++;
+        }
+      };
+    }
+  };
+
+  div = OnscreenDiv(Spark.render(function () {
+    var html = Spark.list(cursor,
+                          function () { return ''; });
+    // don't return html
+    return 'hi';
+  }));
+  // we expect that the implementation of Spark.list observed the
+  // cursor in order to generate HTML, and then stopped it when
+  // it saw that the annotation wasn't materialized.  Other acceptable
+  // implementations of Spark.list might avoid observing the cursor
+  // altogether, resulting in [0, 0], or might defer the stopping to
+  // flush time.
+  test.equal([observeCount, stopCount], [1, 1]);
+
+  div.kill();
+  Meteor.flush();
 });
 
 
@@ -3343,12 +3374,19 @@ Tinytest.add("spark - bubbling render", function (test) {
 Tinytest.add("spark - landmark arg", function (test) {
   var div = OnscreenDiv(Spark.render(function () {
     return Spark.createLandmark({
+      create: function () {
+        test.isFalse(this.hasDom());
+      },
       render: function () {
         var landmark = this;
         landmark.firstNode().innerHTML = 'Greetings';
         landmark.lastNode().innerHTML = 'Line';
         landmark.find('i').innerHTML =
           (landmark.findAll('b').length)+"-bold";
+        test.isTrue(landmark.hasDom());
+      },
+      destroy: function () {
+        test.isFalse(this.hasDom());
       }
     }, function () {
       return Spark.attachEvents({

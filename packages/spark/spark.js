@@ -4,8 +4,6 @@
 // XXX rename isolate to reflect that it is the only root of
 // deps-based reactivity ('track'? 'compute'? 'sync'?)
 
-// XXX s/render/rendered/ (etc) in landmarks?
-
 // XXX specify flush order someday (context dependencies? is this in
 // the domain of spark -- overdraw concerns?)
 
@@ -18,8 +16,6 @@
 
 // XXX should functions with an htmlFunc use try/finally inside?
 
-// XXX test that lists are cleaned up if not materialized
-
 // XXX test that non-Spark.render case works for each function (eg,
 // list() returns the expected HTML, Spark.createLandmark creates and
 // then destroys a landmark -- may already be tested?)
@@ -28,8 +24,6 @@
 // then it is never called again, even if you push the 'create a
 // timer' button again. the problem is almost certainly in atFlushTime
 // (not hard to see what it is.)
-
-// XXX test hasDom().  Test `template` object more.
 
 (function() {
 
@@ -874,6 +868,18 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
   if (! renderer)
     cleanup();
 
+  // Called by `removed` and `moved` in order to cause render callbacks on
+  // parent landmarks.
+  // XXX This is not the final solution.  1) This code should be unified
+  // with the code in scheduleOnscreenSetup.  2) In general, lists are
+  // going to cause a lot of callbacks (one per collection callback).
+  // Maybe that will make sense if we give render callbacks subrange info.
+  var notifyParentsRendered = function () {
+    var walk = outerRange;
+    while ((walk = findParentOfType(Spark._ANNOTATION_LANDMARK, walk)))
+      walk.renderCallback.call(walk.landmark);
+  };
+
   // The DOM update callbacks.
   _.extend(callbacks, {
     added: function (item, beforeIndex) {
@@ -904,6 +910,8 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
           Spark.finalize(itemRanges[atIndex].extract());
 
         itemRanges.splice(atIndex, 1);
+
+        notifyParentsRendered();
       });
     },
 
@@ -920,6 +928,8 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
           itemRanges[newIndex].insertBefore(frag);
 
         itemRanges.splice(newIndex, 0, range);
+
+        notifyParentsRendered();
       });
     },
 
@@ -1008,7 +1018,7 @@ Spark.createLandmark = function (options, htmlFunc) {
 
   // Normalize preserve map
   var preserve = {};
-  if (options.preserve instanceof Array)
+  if (_.isArray(options.preserve))
     _.each(options.preserve, function (selector) {
       preserve[selector] = true;
     });

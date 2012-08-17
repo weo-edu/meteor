@@ -2,6 +2,25 @@
 
   Meteor._partials = {};
 
+  var landmarkOptionsHooks = [];
+  Templating = {};
+
+  // Extension point. When the top-level landmark for a template is
+  // created, call f, which may return additional options to merge
+  // into the landmark. The returned options can also include a
+  // special pseudo-option, 'aroundHtml'. If provided, it's a function
+  // that takes two arguments, landmark and next. The function is
+  // called around rendering the template body and should return the
+  // return value of next(). You can use this to do any necessary set
+  // up for running helpers / teardown after running helpers.
+  //
+  // XXX note that this could be possibly be accomplished more
+  // elegantly by just using the template's public interface to set up
+  // preservations and callbacks
+  Templating.optionsForTemplateLandmark = function (f) {
+    landmarkOptionsHooks.push(f);
+  };
+
   // XXX Handlebars hooking is janky and gross
 
   Meteor._hook_handlebars = function () {
@@ -9,7 +28,9 @@
 
     var orig = Handlebars._default_helpers.each;
     Handlebars._default_helpers.each = function (arg, options) {
-      if (!(arg instanceof LocalCollection.Cursor))
+      // if arg isn't an observable (like LocalCollection.Cursor),
+      // don't use this reactive implementation of #each.
+      if (!(arg && 'observe' in arg))
         return orig.call(this, arg, options);
 
       return Spark.list(
@@ -47,27 +68,6 @@
   // create/render/destroy callbacks on templates
   var templateInstanceData = {};
 
-  //setup migration for template stores
-  var templateStoresByPath = {};
-  if (Meteor._reload) {
-    Meteor._reload.on_migrate('templateStores',function() {
-      var stores = {}
-      _.each(templateInstanceData,function(template) {
-        stores[template.id()] = template.store;
-      });
-      return [true,stores];
-    });
-    (function() {
-      var migration_data = Meteor._reload.migration_data('templateStores');
-      if (migration_data) {
-        templateStoresByPath = migration_data;
-
-        // should delete all template stores after first render ?
-        
-      }
-    })();
-  }
-
   var templateObjFromLandmark = function (landmark) {
     var template = templateInstanceData[landmark.id] || (
       templateInstanceData[landmark.id] = {
@@ -81,57 +81,7 @@
           if (! landmark.hasDom())
             throw new Error("Template not in DOM");
           return landmark.findAll(selector);
-        },
-
-        store: ReactiveDict(),
-
-        id: function() {
-          if ($(this.firstNode).attr('id')) return $(this.firstNode).attr('id');
-          else {
-            return "/" + $(this.firstNode).parents().andSelf().map(function() {
-              var $this = $(this);
-              var tagName = this.nodeName;
-              if ($this.siblings(tagName).length > 0) {
-                  tagName += "[" + $this.prevAll(tagName).length + "]";
-              }
-              return tagName;
-            }).get().join("/");
-          }
-          
-        },
-
-        set: function(key,value) {
-          return this.store.set(key,value);
-        },
-
-        get: function(key) {
-          return this.store.get(key);
-        },
-
-        emitter: new Emitter(),
-
-        nextRender: function(cb) {
-          this.emitter.once('render',cb);
-        },
-
-        emitRender: function() {
-          this.emitter.emit('render');
-        },
-
-        onRender: function(cb) {
-          this.emitter.on('render',cb);
-        },
-
-        onDestroy: function(cb) {
-          this.emitter.on('destroy',cb);
-        },
-
-        emitDestroy: function() {
-          this.emitter.emit('destroy');
-        },
-
-        firstRender: true,
-
+        }
       });
     // set these each time
     template.firstNode = landmark.hasDom() ? landmark.firstNode() : null;
@@ -139,7 +89,29 @@
     return template;
   };
 
-  Meteor.templateFromLandmark = templateObjFromLandmark;
+  // XXX forms hooks into this to add "fields". should be a public
+  // interface for that.
+  Meteor._template_decl_methods = {
+    // methods store data here (event map, etc.).  initialized per template.
+    _tmpl_data: null,
+    // these functions must be generic (i.e. use `this`)
+    events: function (eventMap) {
+      var events =
+            (this._tmpl_data.events = (this._tmpl_data.events || {}));
+      _.extend(events, eventMap);
+    },
+    preserve: function (preserveMap) {
+      var preserves =
+            (this._tmpl_data.preserves = (this._tmpl_data.preserves || []));
+      preserves.push(preserveMap);
+    },
+    helpers: function (helperMap) {
+      var helpers =
+            (this._tmpl_data.helpers = (this._tmpl_data.helpers || {}));
+      for(var h in helperMap)
+        helpers[h] = helperMap[h];
+    }
+  };
 
   Meteor._def_template = function (name, raw_func) {
     Meteor._hook_handlebars();
@@ -149,63 +121,71 @@
     // Define the function assigned to Template.<name>.
 
     var partial = function (data) {
-      data = data || {};
       var tmpl = name && Template[name] || {};
+      var tmplData = tmpl._tmpl_data || {};
 
-      var html = Spark.createLandmark({
-        preserve: tmpl.preserve || {},
-        create: function () {
-          var template = templateObjFromLandmark(this);
-          template.data = data;
-          tmpl.create && tmpl.create.call(template);
-        },
-        render: function () {
-          var template = templateObjFromLandmark(this);
-          template.data = data;
-
-          //restore store
-          var path = template.id();
-          if (template.firstRender && path in templateStoresByPath) {
-            var store = templateStoresByPath[path]
-            delete templateStoresByPath[path];
-            template.store.setMany(store);
-            //return;
+      var allOptions = {
+        preserve: _.clone(tmplData.preserves || []),
+        create: [
+          function () {
+            var template = templateObjFromLandmark(this);
+            template.data = data;
+            tmpl.create && tmpl.create.call(template);
           }
-          tmpl.render && tmpl.render.call(template);
-          template.emitRender();
-          template.firstRender = false;
-        },
-        destroy: function () {
-          var template = templateObjFromLandmark(this)
-          tmpl.destroy &&
-            tmpl.destroy.call(template);
-          template.emitDestroy();
-          delete templateInstanceData[this.id];
-        }
-      }, function (landmark) {
-        //XXX is this right?
-        data = _.clone(data);
-        
-        // make template accessible from within helpers
-        var template = templateObjFromLandmark(landmark);
-        data.template = template;
-        data.get = template.get.bind(template);
-        
+        ],
+        render: [
+          function () {
+            var template = templateObjFromLandmark(this);
+            template.data = data;
+            tmpl.render && tmpl.render.call(template);
+          }
+        ],
+        destroy: [
+          function () {
+            // template.data is already set from previous callbacks
+            tmpl.destroy &&
+              tmpl.destroy.call(templateObjFromLandmark(this));
+            delete templateInstanceData[this.id];
+          }
+        ],
+        aroundHtml: []
+      };
+
+      // Run any extensions
+      _.each(landmarkOptionsHooks, function (hook) {
+        var newOptions = hook(tmpl);
+        for (option in newOptions)
+          allOptions[option].push(newOptions[option]);
+      });
+
+      // Merge all provided preserve instructions
+      var preserve = {};
+      _.each(allOptions.preserve, function (p) {
+        if (_.isArray(p))
+          _.each(p, function (selector) {
+            preserve[selector] = true;
+          });
+        else
+          _.extend(preserve, p);
+      });
+
+      // Function to render the body of the template (everything
+      // inside the landmark)
+      var htmlFunc = function (landmark) {
         var html = Spark.isolate(function () {
           // XXX Forms needs to run a hook before and after raw_func
           // (and receive 'landmark')
           return raw_func(data, {
-            helpers: partial,
+            helpers: _.extend({}, partial, tmplData.helpers || {}),
             partials: Meteor._partials,
             name: name
           });
         });
 
-        
-
-        // take an event map with `function (event, template)` handlers
-        // and produce one with `function (event, landmark)` handlers
-        // for Spark, by inserting logic to create the template object.
+        // take an event map with `function (event, template)`
+        // handlers and produce one with `function (event,
+        // landmark)` handlers for Spark, by inserting logic to
+        // create the template object.
         var wrapEventMap = function (oldEventMap) {
           var newEventMap = {};
           _.each(oldEventMap, function (handler, key) {
@@ -217,14 +197,41 @@
           return newEventMap;
         };
 
+        // support old Template.foo.events = {...} format
+        var events =
+          (tmpl.events !== Meteor._template_decl_methods.events ?
+           tmpl.events : tmplData.events);
         // events need to be inside the landmark, not outside, so
         // that when an event fires, you can retrieve the enclosing
         // landmark to get the template data
         if (tmpl.events)
-          html = Spark.attachEvents(wrapEventMap(tmpl.events), html);
-
+          html = Spark.attachEvents(wrapEventMap(events), html);
         return html;
+      };
+
+      // Wrap htmlFunc with any extensions
+      _.each(allOptions.aroundHtml, function (f) {
+        var oldHtmlFunc = htmlFunc;
+        htmlFunc = function (landmark) {
+          return f(landmark, _.bind(oldHtmlFunc, null, landmark));
+        };
       });
+
+      var callAll = function (what) {
+        return function () {
+          var self = this;
+          _.each(allOptions[what], function (f) {
+            f.call(self);
+          });
+        };
+      };
+
+      var html = Spark.createLandmark({
+        create: callAll("create"),
+        render: callAll("render"),
+        destroy: callAll("destroy"),
+        preserve: preserve
+      }, htmlFunc);
 
       html = Spark.setDataContext(data, html);
       return html;
@@ -243,6 +250,8 @@
                         "'. Each template needs a unique name.");
 
       Template[name] = partial;
+      _.extend(partial, Meteor._template_decl_methods);
+      partial._tmpl_data = {};
 
       Meteor._partials[name] = partial;
     }
