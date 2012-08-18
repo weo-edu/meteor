@@ -152,27 +152,34 @@
       data = data || {};
       var tmpl = name && Template[name] || {};
 
+      console.log('create Landmark',name);
       var html = Spark.createLandmark({
         preserve: tmpl.preserve || {},
         create: function () {
           var template = templateObjFromLandmark(this);
           template.data = data;
           tmpl.create && tmpl.create.call(template);
+          console.log('range',this);
         },
         render: function () {
           var template = templateObjFromLandmark(this);
           template.data = data;
 
-          //restore store
-          var path = template.id();
-          if (template.firstRender && path in templateStoresByPath) {
-            var store = templateStoresByPath[path]
-            delete templateStoresByPath[path];
-            template.store.setMany(store);
-            //return;
-          }
+
           tmpl.render && tmpl.render.call(template);
           template.emitRender();
+
+          var path = template.id();
+          if (template.firstRender && path in templateStoresByPath) {
+            //restore store
+            Meteor.defer(function() {
+              console.log('defer');
+              var store = templateStoresByPath[path]
+              delete templateStoresByPath[path];
+              console.log('set many',store);;
+              if(store) template.store.setMany(store);
+            });
+          }
           template.firstRender = false;
         },
         destroy: function () {
