@@ -9,7 +9,9 @@
 
     var orig = Handlebars._default_helpers.each;
     Handlebars._default_helpers.each = function (arg, options) {
-      if (!(arg instanceof LocalCollection.Cursor))
+      // if arg isn't an observable (like LocalCollection.Cursor),
+      // don't use this reactive implementation of #each.
+      if (!(arg && 'observe' in arg))
         return orig.call(this, arg, options);
 
       return Spark.list(
@@ -141,19 +143,50 @@
 
   Meteor.templateFromLandmark = templateObjFromLandmark;
 
+   // XXX forms hooks into this to add "bind"?
+  Meteor._template_decl_methods = {
+    // methods store data here (event map, etc.).  initialized per template.
+    _tmpl_data: null,
+    // these functions must be generic (i.e. use `this`)
+    events: function (eventMap) {
+      var events =
+            (this._tmpl_data.events = (this._tmpl_data.events || {}));
+      _.extend(events, eventMap);
+    },
+    preserve: function (preserveMap) {
+      var preserve =
+            (this._tmpl_data.preserve = (this._tmpl_data.preserve || {}));
+
+      if (_.isArray(preserveMap))
+        _.each(preserveMap, function (selector) {
+          preserve[selector] = true;
+        });
+      else
+        _.extend(preserve, preserveMap);
+    },
+    helpers: function (helperMap) {
+      var helpers =
+            (this._tmpl_data.helpers = (this._tmpl_data.helpers || {}));
+      for(var h in helperMap)
+        helpers[h] = helperMap[h];
+    }
+  };
 
   Meteor._def_template = function (name, raw_func) {
     Meteor._hook_handlebars();
 
     window.Template = window.Template || {};
 
+
     // Define the function assigned to Template.<name>.
 
     var partial = function (data) {
       data = data || {};
       var tmpl = name && Template[name] || {};
+      var tmplData = tmpl._tmpl_data || {};
+
       var html = Spark.createLandmark({
-        preserve: tmpl.preserve || {},
+        preserve: tmplData.preserve || {},
         create: function () {
           var template = templateObjFromLandmark(this);
           template.data = data;
@@ -197,13 +230,11 @@
           // XXX Forms needs to run a hook before and after raw_func
           // (and receive 'landmark')
           return raw_func(data, {
-            helpers: partial,
+            helpers: _.extend({}, partial, tmplData.helpers || {}),
             partials: Meteor._partials,
             name: name
           });
         });
-
-        
 
         // take an event map with `function (event, template)` handlers
         // and produce one with `function (event, landmark)` handlers
@@ -219,6 +250,10 @@
           return newEventMap;
         };
 
+        // support old Template.foo.events = {...} format
+        var events =
+              (tmpl.events !== Meteor._template_decl_methods.events ?
+               tmpl.events : tmplData.events);
         // events need to be inside the landmark, not outside, so
         // that when an event fires, you can retrieve the enclosing
         // landmark to get the template data
@@ -245,6 +280,8 @@
                         "'. Each template needs a unique name.");
 
       Template[name] = partial;
+      _.extend(partial, Meteor._template_decl_methods);
+      partial._tmpl_data = {};
 
       Meteor._partials[name] = partial;
     }

@@ -80,18 +80,19 @@ Tinytest.add("templating - event handler this", function(test) {
   Template.test_event_data_with.TWO = {str: "two"};
   Template.test_event_data_with.THREE = {str: "three"};
 
+  Template.test_event_data_with.events({
+    'click': function(event, template) {
+      test.isTrue(this.str);
+      test.equal(template.data.str, "one");
+      event_buf.push(this.str);
+    }
+  });
+
   var event_buf = [];
   var tmpl = OnscreenDiv(
     Meteor.render(function () {
-      var html = Template.test_event_data_with(
+      return Template.test_event_data_with(
         Template.test_event_data_with.ONE);
-      html = Spark.attachEvents({
-        'click': function() {
-          test.isTrue(this.str);
-          event_buf.push(this.str);
-        }
-      }, html);
-      return html;
     }));
 
   var divs = tmpl.node().getElementsByTagName("div");
@@ -324,7 +325,7 @@ Tinytest.add("templating - rendered template", function(test) {
     return this.x + 1;
   };
 
-  Template.test_render_a.preserve = ['br'];
+  Template.test_render_a.preserve(['br']);
 
   var div = OnscreenDiv(
     Meteor.render(function () {
@@ -358,7 +359,7 @@ Tinytest.add("templating - rendered template", function(test) {
     R.get();
     return (+this) + 1;
   };
-  Template.test_render_b.preserve = ['br'];
+  Template.test_render_b.preserve(['br']);
 
   div = OnscreenDiv(
     Meteor.render(function () {
@@ -389,7 +390,7 @@ Tinytest.add("templating - rendered template", function(test) {
   var stuff = new LocalCollection();
   stuff.insert({foo:'bar'});
 
-  Template.test_render_c.preserve = ['br'];
+  Template.test_render_c.preserve(['br']);
 
   div = OnscreenDiv(
     Meteor.renderList(
@@ -419,7 +420,7 @@ Tinytest.add("templating - rendered template", function(test) {
   var stuff = new LocalCollection();
   stuff.insert({foo:'bar'});
 
-  Template.test_render_c.preserve = ['br'];
+  Template.test_render_c.preserve(['br']);
 
   div = OnscreenDiv(Meteor.renderList(stuff.find(),
                                       Template.test_render_c));
@@ -618,4 +619,205 @@ Tinytest.add("templating - template arg", function (test) {
 
   div.kill();
   Meteor.flush();
+});
+
+Tinytest.add("templating - preserve", function (test) {
+  var R = ReactiveVar('foo');
+
+  var tmpl = Template.test_template_preserve_a;
+  tmpl.preserve(['.b']);
+  tmpl.preserve(['.c']);
+  tmpl.preserve({'.d': true});
+  tmpl.preserve({'span': function (n) {
+    return _.contains(['e','f'], n.className) && n.className;
+  }});
+  tmpl.preserve(['span.a']);
+  tmpl['var'] = function () { return R.get(); };
+
+  var div = OnscreenDiv(Meteor.render(tmpl));
+  Meteor.flush();
+  test.equal(div.node().lastChild.nodeValue.match(/\S+/)[0], 'foo');
+  var spans1 = {};
+  _.each(DomUtils.findAll(div.node(), 'span'), function (sp) {
+    spans1[sp.className] = sp;
+  });
+
+  R.set('bar');
+  Meteor.flush();
+  test.equal(div.node().lastChild.nodeValue.match(/\S+/)[0], 'bar');
+  var spans2 = {};
+  _.each(DomUtils.findAll(div.node(), 'span'), function (sp) {
+    spans2[sp.className] = sp;
+  });
+
+  test.isTrue(spans1.a === spans2.a);
+  test.isTrue(spans1.b === spans2.b);
+  test.isTrue(spans1.c === spans2.c);
+  test.isTrue(spans1.d === spans2.d);
+  test.isTrue(spans1.e === spans2.e);
+  test.isTrue(spans1.f === spans2.f);
+  test.isFalse(spans1.y === spans2.y);
+  test.isFalse(spans1.z === spans2.z);
+
+  div.kill();
+  Meteor.flush();
+});
+
+Tinytest.add("templating - helpers", function (test) {
+  var tmpl = Template.test_template_helpers_a;
+
+  tmpl.foo = 'z';
+  tmpl.helpers({bar: 'b'});
+  // helpers(...) takes precendence of assigned helper
+  tmpl.helpers({foo: 'a', baz: function() { return 'c'; }});
+
+  var div = OnscreenDiv(Meteor.render(tmpl));
+  test.equal(div.text().match(/\S+/)[0], 'abc');
+  div.kill();
+  Meteor.flush();
+
+  tmpl = Template.test_template_helpers_b;
+
+  tmpl.helpers({
+    'name': 'A',
+    'arity': 'B',
+    'toString': 'C',
+    'length': 4,
+    'var': 'D'
+  });
+
+  div = OnscreenDiv(Meteor.render(tmpl));
+  test.equal(div.text().match(/\S+/)[0], 'ABC4D');
+  div.kill();
+  Meteor.flush();
+
+  // test that helpers don't "leak"
+  tmpl = Template.test_template_helpers_c;
+  div = OnscreenDiv(Meteor.render(tmpl));
+  test.equal(div.text(), '');
+  div.kill();
+  Meteor.flush();
+});
+
+Tinytest.add("templating - events", function (test) {
+  var tmpl = Template.test_template_events_a;
+
+  var buf = [];
+
+  // old style
+  tmpl.events = {
+    'click b': function () { buf.push('b'); }
+  };
+
+  var div = OnscreenDiv(Meteor.render(tmpl));
+  clickElement(DomUtils.find(div.node(), 'b'));
+  test.equal(buf, ['b']);
+  div.kill();
+  Meteor.flush();
+
+  ///
+
+  tmpl = Template.test_template_events_b;
+  buf = [];
+  // new style
+  tmpl.events({
+    'click u': function () { buf.push('u'); }
+  });
+  tmpl.events({
+    'click i': function () { buf.push('i'); }
+  });
+
+  var div = OnscreenDiv(Meteor.render(tmpl));
+  clickElement(DomUtils.find(div.node(), 'u'));
+  clickElement(DomUtils.find(div.node(), 'i'));
+  test.equal(buf, ['u', 'i']);
+  div.kill();
+  Meteor.flush();
+
+});
+
+Tinytest.add("templating - #each render callback", function (test) {
+  // test that any list modification triggers a render callback on the
+  // enclosing template
+
+  var entries = new LocalCollection();
+  entries.insert({x:'a'});
+  entries.insert({x:'b'});
+  entries.insert({x:'c'});
+
+  var buf = [];
+
+  var tmpl = Template.test_template_eachrender_a;
+  tmpl.helpers({entries: function() {
+    return entries.find({}, {sort: ['x']}); }});
+  tmpl.render = function () {
+    buf.push(canonicalizeHtml(
+      DomUtils.rangeToHtml(this.firstNode, this.lastNode)).replace(/\s/g, ''));
+  };
+  var div = OnscreenDiv(Meteor.render(tmpl));
+  Meteor.flush();
+  test.equal(buf, ['<div>a</div><div>b</div><div>c</div>']);
+  buf.length = 0;
+
+  // added
+  entries.insert({x:'d'});
+  test.equal(buf, []);
+  Meteor.flush();
+  test.equal(buf, ['<div>a</div><div>b</div><div>c</div><div>d</div>']);
+  buf.length = 0;
+
+  // removed
+  entries.remove({x:'a'});
+  test.equal(buf, []);
+  Meteor.flush();
+  test.equal(buf, ['<div>b</div><div>c</div><div>d</div>']);
+  buf.length = 0;
+
+  // moved/changed
+  entries.update({x:'b'}, {$set: {x: 'z'}});
+  test.equal(buf, []);
+  Meteor.flush();
+  test.equal(buf, ['<div>c</div><div>d</div><div>z</div>',
+                   '<div>c</div><div>d</div><div>z</div>']);
+  buf.length = 0;
+
+  // test pure "moved"
+
+  tmpl = Template.test_template_eachrender_b;
+  var cbks = [];
+  var xs = ['a','b','c'];
+  tmpl.helpers({entries: function() {
+    return { observe: function (callbacks) {
+      cbks.push(callbacks);
+      _.each(xs, function(x, i) {
+        callbacks.added({x:x}, i);
+      });
+      return {
+        stop: function () {
+          cbks = _.without(cbks, callbacks);
+        }
+      };
+    }};
+  }});
+  tmpl.render = function () {
+    buf.push(canonicalizeHtml(
+      DomUtils.rangeToHtml(this.firstNode, this.lastNode)).replace(/\s/g, ''));
+  };
+  buf = [];
+  var div = OnscreenDiv(Meteor.render(tmpl));
+  test.equal(buf, []);
+  Meteor.flush();
+  test.equal(buf, ['<div>a</div><div>b</div><div>c</div>']);
+  buf.length = 0;
+
+  _.each(cbks, function (callbacks) {
+    callbacks.moved({x:'a'}, 0, 2);
+  });
+  test.equal(buf, []);
+  Meteor.flush();
+  test.equal(div.html().replace(/\s/g, ''),
+             '<div>b</div><div>c</div><div>a</div>');
+  test.equal(buf, ['<div>b</div><div>c</div><div>a</div>']);
+  buf.length = 0;
+
 });
