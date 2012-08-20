@@ -37,14 +37,17 @@ ReactiveVar.prototype.get = function() {
   return self._value;
 };
 
-ReactiveVar.prototype.set = function(newValue) {
+ReactiveVar.prototype.set = function(newValue, notReactive) {
   var self = this;
   var oldValue = self._value;
   // detect equality and don't invalidate dependers
   // when value is a primitive.
-  if (_.isEqual(oldValue,newValue)) return;
+  // not reactive false forces reactivity on equals
+  if (_.isEqual(oldValue,newValue) && !(notReactive === false)) return;
 
   self._value = newValue;
+
+  if (notReactive) return;
 
   for(var id in self._deps)
     self._deps[id].invalidate();
@@ -102,9 +105,9 @@ ReactiveDict.prototype.get = function(key) {
   return this._vars[key].get();
 }
 
-ReactiveDict.prototype.set = function(key, value) {
+ReactiveDict.prototype.set = function(key, value, notReactive) {
   this._ensureKey(key);
-  return this._vars[key].set(value);
+  return this._vars[key].set(value, notReactive);
 }
 
 ReactiveDict.prototype.setMany = function(values,quiet) {

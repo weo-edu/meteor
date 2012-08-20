@@ -312,10 +312,14 @@ Handlebars.evaluate = function (ast, data, options) {
       else if (elt[0] === '{')
         // {{double stache}}
         buf.push(maybeEscape(invoke(stack, elt[1])));
-      else if (elt[0] === '!')
+      else if (elt[0] === '!') {
         // {{{triple stache}}}
-        buf.push(toString(invoke(stack, elt[1] || '')));
-      else if (elt[0] === '#') {
+        var branch = elt[1]+"@"+getPCKey(index);
+        var html = Spark.labelBranch(branch,function() {
+          return toString(invoke(stack, elt[1] || ''));
+        });
+        buf.push(html);
+      } else if (elt[0] === '#') {
         // {{#block helper}}
         var block = decorateBlockFn(
           function (data) {

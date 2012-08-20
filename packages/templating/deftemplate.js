@@ -53,7 +53,7 @@
     Meteor._reload.on_migrate('templateStores',function() {
       var stores = {}
       _.each(templateInstanceData,function(template) {
-        stores[template.id()] = template.store;
+        stores[template._id()] = template.store;
       });
       return [true,stores];
     });
@@ -85,7 +85,7 @@
 
         store: ReactiveDict(),
 
-        id: function() {
+        _id: function() {
           if ($(this.firstNode).attr('id')) return $(this.firstNode).attr('id');
           else {
             return "/" + $(this.firstNode).parents().andSelf().map(function() {
@@ -100,8 +100,8 @@
           
         },
 
-        set: function(key,value) {
-          return this.store.set(key,value);
+        set: function(key, value, notReactive) {
+          return this.store.set(key, value, notReactive);
         },
 
         get: function(key) {
@@ -141,6 +141,7 @@
 
   Meteor.templateFromLandmark = templateObjFromLandmark;
 
+
   Meteor._def_template = function (name, raw_func) {
     Meteor._hook_handlebars();
 
@@ -151,35 +152,29 @@
     var partial = function (data) {
       data = data || {};
       var tmpl = name && Template[name] || {};
-
-      console.log('create Landmark',name);
       var html = Spark.createLandmark({
         preserve: tmpl.preserve || {},
         create: function () {
           var template = templateObjFromLandmark(this);
           template.data = data;
           tmpl.create && tmpl.create.call(template);
-          console.log('range',this);
         },
         render: function () {
           var template = templateObjFromLandmark(this);
           template.data = data;
 
+          var path = template._id();
+          if (template.firstRender && path in templateStoresByPath) {
+            //restore store
+            var store = templateStoresByPath[path]
+            delete templateStoresByPath[path];
+            if(store) template.store.setMany(store);
+          }
 
           tmpl.render && tmpl.render.call(template);
           template.emitRender();
 
-          var path = template.id();
-          if (template.firstRender && path in templateStoresByPath) {
-            //restore store
-            Meteor.defer(function() {
-              console.log('defer');
-              var store = templateStoresByPath[path]
-              delete templateStoresByPath[path];
-              console.log('set many',store);;
-              if(store) template.store.setMany(store);
-            });
-          }
+          
           template.firstRender = false;
         },
         destroy: function () {
