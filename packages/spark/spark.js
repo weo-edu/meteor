@@ -855,6 +855,7 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
     handle.stop();
   };
   html = annotate(html, Spark._ANNOTATION_LIST, function (range) {
+    console.log('outerRange annotate',range);
     outerRange = range;
     outerRange.finalize = cleanup;
   }, function () {
@@ -885,6 +886,7 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
     added: function (item, beforeIndex) {
       atFlushTime(function () {
         var frag = Spark.render(_.bind(itemFunc, null, item));
+        console.log('outerRange',outerRange);
         DomUtils.wrapFragmentForContainer(frag, outerRange.containerNode());
         var range = new LiveRange(Spark._TAG, frag);
 
