@@ -885,7 +885,6 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
     added: function (item, beforeIndex) {
       atFlushTime(function () {
         //XXX is this right;
-        if (!outerRange.parentNode) return;
         var frag = Spark.render(_.bind(itemFunc, null, item));
         DomUtils.wrapFragmentForContainer(frag, outerRange.containerNode());
         var range = new LiveRange(Spark._TAG, frag);
