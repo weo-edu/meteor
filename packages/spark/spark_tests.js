@@ -1473,7 +1473,7 @@ Tinytest.add("spark - bad labels", function(test) {
 });
 
 
-Tinytest.add("spark - landmark preserve", function(test) {
+Tinytest.add("spark - landmark patching", function(test) {
 
   var rand;
 
@@ -1602,8 +1602,10 @@ Tinytest.add("spark - landmark preserve", function(test) {
 
     var R = ReactiveVar(false);
     var structure = randomNodeList(null, 6);
-    var frag = WrappedFrag(renderWithLegacyLabels(function () {
-      return nodeListToHtml(structure, R.get());
+    var frag = WrappedFrag(Meteor.render(function () {
+      return Spark.createLandmark({ preserve: legacyLabels }, function () {
+        return nodeListToHtml(structure, R.get());
+      });
     })).hold();
     test.equal(frag.html(), nodeListToHtml(structure, false) || "<!---->");
     fillInElementIdentities(structure, frag.node());
@@ -2616,7 +2618,8 @@ Tinytest.add("spark - controls", function(test) {
         // IE 7 is known to fire change events on all
         // the radio buttons with checked=false, as if
         // each button were deselected before selecting
-        // the new one.
+        // the new one.  (Meteor doesn't normalize this
+        // behavior.)
         // However, browsers are consistent if we are
         // getting a checked=true notification.
         var btn = event.target;
@@ -3416,6 +3419,74 @@ Tinytest.add("spark - landmark arg", function (test) {
   test.equal(div.text(), "Greetings 1-bold Line");
   clickElement(DomUtils.find(div.node(), 'i'));
   test.equal(div.text(), "Hello 3-element World");
+
+  div.kill();
+  Meteor.flush();
+});
+
+Tinytest.add("spark - landmark preserve", function (test) {
+  var R = ReactiveVar("foo");
+
+  var lmhr = function () {
+    return Spark.createLandmark({preserve:['hr']}, function () {
+      return '<hr/>';
+    });
+  };
+
+  var div = OnscreenDiv(Meteor.render(function () {
+    return "<div><span>" + R.get() + "</span>" +
+      Spark.labelBranch('A', lmhr) + Spark.labelBranch('B', lmhr) +
+      "</div>";
+  }));
+
+  test.equal(div.html(), '<div><span>foo</span><hr><hr></div>');
+  var hrs1 = DomUtils.findAll(div.node(), 'hr');
+  R.set("bar");
+  Meteor.flush();
+  test.equal(div.html(), '<div><span>bar</span><hr><hr></div>');
+  var hrs2 = DomUtils.findAll(div.node(), 'hr');
+
+  test.isTrue(hrs1[0] === hrs2[0]);
+  test.isTrue(hrs1[1] === hrs2[1]);
+
+  div.kill();
+  Meteor.flush();
+});
+
+Tinytest.add("spark - branch annotation is optional", function (test) {
+  // test that labelBranch works on HTML that isn't element-balanced
+  // and doesn't fail by trying to emit an annotation when it contains
+  // no landmarks.
+
+  var R = ReactiveVar("foo");
+
+  var Rget = function () { return R.get(); };
+  var cnst = function (c) { return function () { return c; }; };
+  var lmhr = function () {
+    return Spark.createLandmark({preserve:['hr']}, function () {
+      return '<hr/>';
+    });
+  };
+
+  var div = OnscreenDiv(Meteor.render(function () {
+    return '<div class="' + Spark.labelBranch('A', Rget) + '">' +
+      Spark.labelBranch('B', cnst('</div><div>')) +
+      Spark.labelBranch('C', lmhr) + Spark.labelBranch('D', lmhr) +
+      '</div>';
+  }));
+
+  test.equal(div.html(), '<div class="foo"></div><div><hr><hr></div>');
+  var div1 = div.node().firstChild;
+  var hrs1 = DomUtils.findAll(div.node(), 'hr');
+  R.set("bar");
+  Meteor.flush();
+  test.equal(div.html(), '<div class="bar"></div><div><hr><hr></div>');
+  var div2 = div.node().firstChild;
+  var hrs2 = DomUtils.findAll(div.node(), 'hr');
+
+  test.isFalse(div1 === div2);
+  test.isTrue(hrs1[0] === hrs2[0]);
+  test.isTrue(hrs1[1] === hrs2[1]);
 
   div.kill();
   Meteor.flush();
