@@ -755,7 +755,7 @@ Commands.push({
       return app;
     }
 
-    _.each(meteors, function(val, key){
+    /*_.each(meteors, function(val, key){
       meteors[key].proxy = new httpProxy.HttpProxy({
         target: {
           host: 'localhost',
@@ -763,12 +763,12 @@ Commands.push({
         }
       });
       //meteors[key].proxy.changeOrigin = true;
-    })
+    })*/
 
     var p = httpProxy.createServer(function(req,res, proxy) {
       var app = getAppForReq(req);
       req.url = utils.stripAppFromUrl(req.url);
-      app.proxy.proxyRequest(req, res);
+      proxy.proxyRequest(req, res, {host: '127.0.0.1', port: app.port});
     });//, {enable: {xforward: true}, source: {host: '127.0.0.1', port: parseInt(new_argv.port, 10)}});
     
     p.on('upgrade', function(req, socket, head){
@@ -809,7 +809,9 @@ Commands.push({
         return _write.apply(this, arguments);
       };
 
-      app.proxy.proxyWebSocketRequest(req, socket, head);
+//      app.proxy.proxyWebSocketRequest(req, socket, head);
+      p.proxy.proxyWebSocketRequest(req, socket, head, 
+        { host: '127.0.0.1', port: app.port });
     });
 
     p.listen(new_argv.port,function(){});

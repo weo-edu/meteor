@@ -225,6 +225,15 @@
         var template = templateObjFromLandmark(landmark);
         data.template = template;
         data.get = template.get.bind(template);
+
+        data.toJSON = function() {
+          var o = _.clone(this);
+          if (o) {
+            delete o.template;
+            delete o.get;
+          }
+          return o;
+        }
         
         var html = Spark.isolate(function () {
           // XXX Forms needs to run a hook before and after raw_func
