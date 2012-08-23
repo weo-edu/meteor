@@ -847,7 +847,7 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
     function (html) { return html; };
 
   // Render the initial contents. If we have a renderer, create a
-  // range around each item as well as around the list, and save them
+  // range around each item as well as around the list, and save atflushtimethem
   // off for later.
   var html = '';
   var outerRange;
@@ -866,7 +866,9 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
     }
   }
   initialContents = null; // save memory
+  var cleanedup = false;
   var cleanup = function () {
+    cleanedup = true;
     handle.stop();
   };
   html = annotate(html, Spark._ANNOTATION_LIST, function (range) {
@@ -899,6 +901,7 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
   _.extend(callbacks, {
     added: function (item, beforeIndex) {
       atFlushTime(function () {
+        if (cleanedup) return;
         //XXX is this right;
         var frag = Spark.render(_.bind(itemFunc, null, item));
         DomUtils.wrapFragmentForContainer(frag, outerRange.containerNode());
@@ -918,6 +921,7 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
 
     removed: function (item, atIndex) {
       atFlushTime(function () {
+        if (cleanedup) return;
         if (itemRanges.length === 1) {
           var frag = Spark.render(elseFunc);
           DomUtils.wrapFragmentForContainer(frag, outerRange.containerNode());
@@ -933,6 +937,7 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
 
     moved: function (item, oldIndex, newIndex) {
       atFlushTime(function () {
+        if(cleanedup) return;
         if (oldIndex === newIndex)
           return;
 
@@ -951,6 +956,7 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
 
     changed: function (item, atIndex) {
       atFlushTime(function () {
+        if(cleanedup) return;
         Spark.renderToRange(itemRanges[atIndex], _.bind(itemFunc, null, item));
       });
     }
