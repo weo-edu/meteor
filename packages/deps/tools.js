@@ -21,7 +21,10 @@ var ReactiveVar = function(initialValue) {
                  initialValue);
   this._deps = {};
   this._equals_deps = {};
+
 };
+
+
 
 ReactiveVar.prototype.get = function() {
   var self = this;
@@ -98,6 +101,20 @@ var ReactiveDict = function(initialValues) {
 
   for (key in initialValues)
     this._vars[key] = ReactiveVar(initialValues[key]);
+  this._key_deps = {};
+}
+
+// make this reactive
+ReactiveDict.prototype.keys = function() {
+  var self = this;
+  var context = Meteor.deps.Context.current;
+  if (context && !(context.id in self._key_deps)) {
+    self._key_deps[context.id] = context;
+    context.on_invalidate(function() {
+      delete self._key_deps[context.id];
+    });
+  }
+  return _.keys(this._vars);
 }
 
 ReactiveDict.prototype.get = function(key) {
@@ -127,8 +144,13 @@ ReactiveDict.prototype.equals = function(key, value) {
 }
 
 ReactiveDict.prototype._ensureKey = function(key) {
-  if (!(key in this._vars))
-    this._vars[key] = ReactiveVar();
+  var self = this;
+  if (!(key in self._vars)) {
+    self._vars[key] = ReactiveVar();
+    for(var id in self._key_deps)
+      self._key_deps[id].invalidate();
+  }
+
 }
 
 ReactiveDict.prototype.all = function() {

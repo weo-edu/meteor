@@ -152,6 +152,7 @@ Meteor._LivedataConnection = function (url, restart_on_update) {
 
   if (restart_on_update) {
     self.stream.on('update_available', function () {
+      console.log('update_available');
       // Start trying to migrate to a new version. Until all packages
       // signal that they're ready for a migration, the app will
       // continue running normally.

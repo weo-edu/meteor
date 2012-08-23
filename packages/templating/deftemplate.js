@@ -142,6 +142,7 @@
   };
 
   Meteor.templateFromLandmark = templateObjFromLandmark;
+  Meteor.templatesById = {};
 
    // XXX forms hooks into this to add "bind"?
   Meteor._template_decl_methods = {
@@ -191,6 +192,9 @@
           var template = templateObjFromLandmark(this);
           template.data = data;
           tmpl.create && tmpl.create.call(template);
+          if (data.id) {
+            Meteor.templatesById[data.id] = template;
+          }
         },
         render: function () {
           var template = templateObjFromLandmark(this);
@@ -201,7 +205,11 @@
             //restore store
             var store = templateStoresByPath[path]
             delete templateStoresByPath[path];
-            if(store) template.store.setMany(store);
+            if(store) {
+              Meteor.defer(function() {
+                template.store.setMany(store);
+              });
+            }
           }
 
           tmpl.render && tmpl.render.call(template);
@@ -225,6 +233,14 @@
         var template = templateObjFromLandmark(landmark);
         data.template = template;
         data.get = template.get.bind(template);
+        data.toJSON = function() {
+          if (data) {
+            var data = _.clone(data);
+            delete data.template;
+            delete data.get;
+          }
+          return JSON.stringify(data);
+        }
         
         var html = Spark.isolate(function () {
           // XXX Forms needs to run a hook before and after raw_func
