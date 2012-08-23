@@ -46,7 +46,7 @@
   };
 
   // map from landmark id, to the 'this' object for
-  // create/render/destroy callbacks on templates
+  // created/rendered/destroyed callbacks on templates
   var templateInstanceData = {};
 
   //setup migration for template stores
@@ -188,15 +188,15 @@
 
       var html = Spark.createLandmark({
         preserve: tmplData.preserve || {},
-        create: function () {
+        created: function () {
           var template = templateObjFromLandmark(this);
           template.data = data;
-          tmpl.create && tmpl.create.call(template);
+          tmpl.created && tmpl.created.call(template);
           if (data.id) {
             Meteor.templatesById[data.id] = template;
           }
         },
-        render: function () {
+        rendered: function () {
           var template = templateObjFromLandmark(this);
           template.data = data;
 
@@ -212,16 +212,16 @@
             }
           }
 
-          tmpl.render && tmpl.render.call(template);
+          tmpl.rendered && tmpl.rendered.call(template);
           template.emitRender();
 
           
           template.firstRender = false;
         },
-        destroy: function () {
+        destroyed: function () {
           var template = templateObjFromLandmark(this)
-          tmpl.destroy &&
-            tmpl.destroy.call(template);
+          tmpl.destroyed &&
+            tmpl.destroyed.call(template);
           template.emitDestroy();
           delete templateInstanceData[this.id];
         }

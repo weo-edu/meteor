@@ -20,7 +20,7 @@
 // list() returns the expected HTML, Spark.createLandmark creates and
 // then destroys a landmark -- may already be tested?)
 
-// XXX in landmark-demo, if Template.timer.create throws an exception,
+// XXX in landmark-demo, if Template.timer.created throws an exception,
 // then it is never called again, even if you push the 'create a
 // timer' button again. the problem is almost certainly in atFlushTime
 // (not hard to see what it is.)
@@ -77,6 +77,15 @@ var notifyWatchers = function (start, end) {
   tempRange.destroy();
 };
 
+Spark._createId = function () {
+  var chars =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  var id = "";
+  for (var i = 0; i < 8; i++)
+    id += chars.substr(Math.floor(Meteor.random() * 64), 1);
+  return id;
+};
+
 Spark._Renderer = function () {
   // Map from annotation ID to an annotation function, which is called
   // at render time and receives (startNode, endNode).
@@ -104,28 +113,18 @@ Spark._Renderer = function () {
 };
 
 _.extend(Spark._Renderer.prototype, {
-  // The annotation tags that we insert into HTML strings must be
-  // unguessable in order to not create potential cross-site scripting
-  // attack vectors, so we use random strings.  Even a well-written app
-  // that avoids XSS vulnerabilities might, for example, put
-  // unescaped < and > in HTML attribute values, where they are normally
-  // safe.  We can't assume that a string like '<1>' came from us
-  // and not arbitrary user-entered data.
-  createId: function () {
-    var id = "";
-    var chars =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-    for (var i = 0; i < 8; i++) {
-      id += chars.substr(Math.floor(Meteor.random() * 64), 1);
-    }
-    return id;
-  },
-
   // `what` can be a function that takes a LiveRange, or just a set of
   // attributes to add to the liverange.  tag and what are optional.
   // if no tag is passed, no liverange will be created.
   annotate: function (html, type, what, unusedFunc) {
-    var id = (type || '') + ":" + this.createId();
+    // The annotation tags that we insert into HTML strings must be
+    // unguessable in order to not create potential cross-site scripting
+    // attack vectors, so we use random strings.  Even a well-written app
+    // that avoids XSS vulnerabilities might, for example, put
+    // unescaped < and > in HTML attribute values, where they are normally
+    // safe.  We can't assume that a string like '<1>' came from us
+    // and not arbitrary user-entered data.
+    var id = (type || '') + ":" + Spark._createId();
     this.annotations[id] = function (start, end) {
       if (! start) {
         // materialize called us with no args because this annotation
@@ -166,6 +165,17 @@ _.extend(Spark._Renderer.prototype, {
       getNotes: function () {
         var top = stack[stack.length - 1];
         return top;
+      },
+      // Mark this branch with `getNotes()[prop] = true` and also
+      // walk up the stack marking parent branches (until an
+      // existing truthy value for `prop` is found).
+      // This makes it easy to test whether any descendent of a
+      // branch has the mark.
+      mark: function (prop) {
+        for (var i = stack.length - 1;
+             i >= 0 && ! stack[i][prop];
+             i--)
+          stack[i][prop] = true;
       }
     };
   },
@@ -332,7 +342,7 @@ var scheduleOnscreenSetup = function (frag, landmarkRanges) {
     // onscreen (possibly not for the first time.)
     _.each(landmarkRanges, function (landmarkRange) {
       if (! landmarkRange.isPreservedConstant)
-        landmarkRange.renderCallback.call(landmarkRange.landmark);
+        landmarkRange.rendered.call(landmarkRange.landmark);
     });
 
     // Deliver render callbacks to all landmarks that enclose the
@@ -346,7 +356,7 @@ var scheduleOnscreenSetup = function (frag, landmarkRanges) {
     // case from the previous
     var walk = renderedRange;
     while ((walk = findParentOfType(Spark._ANNOTATION_LANDMARK, walk)))
-      walk.renderCallback.call(walk.landmark);
+      walk.rendered.call(walk.landmark);
 
     // This code can run several times on the same nodes (if the
     // output of a render is included in a render), so it must be
@@ -387,9 +397,12 @@ var PreservationController = function () {
 };
 
 _.extend(PreservationController.prototype, {
-  addRoot: function (context, preserve, fromRange, toRange) {
+  // Specify preservations that should be in effect on a fromRange/toRange
+  // pair.  If specified, `optContextNode` should be an ancestor node of
+  // fromRange that selectors are to be considered relative to.
+  addRoot: function (preserve, fromRange, toRange, optContextNode) {
     var self = this;
-    self.roots.push({ context: context, preserve: preserve,
+    self.roots.push({ context: optContextNode, preserve: preserve,
                       fromRange: fromRange, toRange: toRange});
   },
 
@@ -407,6 +420,7 @@ _.extend(PreservationController.prototype, {
     var preservations = _.clone(self.regionPreservations);
 
     var visitLabeledNodes = function (context, clipRange, nodeLabeler, selector, func) {
+      context = (context || clipRange.containerNode());
       var nodes = DomUtils.findAllClipped(
         context, selector, clipRange.firstNode(), clipRange.lastNode());
 
@@ -414,16 +428,18 @@ _.extend(PreservationController.prototype, {
         var label = nodeLabeler(n);
         label && func(n, label);
       });
-  };
+    };
 
     // Find the old incarnation of each of the preserved nodes
     _.each(self.roots, function (root) {
       root.fromNodesByLabel = {};
       _.each(root.preserve, function (nodeLabeler, selector) {
         root.fromNodesByLabel[selector] = {};
-        visitLabeledNodes(root.context, root.fromRange, nodeLabeler, selector, function (n, label) {
-          root.fromNodesByLabel[selector][label] = n;
-        });
+        visitLabeledNodes(
+          root.context, root.fromRange, nodeLabeler, selector,
+          function (n, label) {
+            root.fromNodesByLabel[selector][label] = n;
+          });
       });
     });
 
@@ -532,8 +548,7 @@ Spark.renderToRange = function (range, htmlFunc) {
         if (landmarkRange.constant)
           pc.addConstantRegion(notes.originalRange, landmarkRange);
 
-        pc.addRoot(notes.originalRange.containerNode(),
-                   landmarkRange.preserve,
+        pc.addRoot(landmarkRange.preserve,
                    notes.originalRange, landmarkRange);
       }
     });
@@ -542,8 +557,7 @@ Spark.renderToRange = function (range, htmlFunc) {
   // updated region
   var walk = range;
   while ((walk = findParentOfType(Spark._ANNOTATION_LANDMARK, walk)))
-    pc.addRoot(walk.containerNode(), walk.preserve,
-               range, tempRange);
+    pc.addRoot(walk.preserve, range, tempRange, walk.containerNode());
 
   // compute preservations (must do this before destroying tempRange)
   var preservations = pc.computePreservations(range, tempRange);
@@ -552,7 +566,7 @@ Spark.renderToRange = function (range, htmlFunc) {
 
   var results = {};
 
-  // patch (using preservations)
+  // Patch! (using preservations)
   range.operate(function (start, end) {
     // XXX this will destroy all liveranges, including ones
     // inside constant regions whose DOM nodes we are going
@@ -889,7 +903,7 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
   var notifyParentsRendered = function () {
     var walk = outerRange;
     while ((walk = findParentOfType(Spark._ANNOTATION_LANDMARK, walk)))
-      walk.renderCallback.call(walk.landmark);
+      walk.rendered.call(walk.landmark);
   };
 
   // The DOM update callbacks.
@@ -989,6 +1003,8 @@ _.extend(Spark.Landmark.prototype, {
   }
 });
 
+Spark.UNIQUE_LABEL = ['UNIQUE_LABEL'];
+
 // label must be a string.
 // or pass label === null to not drop a label after all (meaning that
 // this function is a noop)
@@ -997,9 +1013,19 @@ Spark.labelBranch = function (label, htmlFunc) {
   if (! renderer || label === null)
     return htmlFunc();
 
+  if (label === Spark.UNIQUE_LABEL)
+    label = Spark._createId();
+
   renderer.currentBranch.pushLabel(label);
   var html = htmlFunc();
+  var occupied = renderer.currentBranch.getNotes().occupied;
   renderer.currentBranch.popLabel();
+
+  if (! occupied)
+    // don't create annotation if branch doesn't contain any landmarks.
+    // if this label isn't on an element-level HTML boundary, then that
+    // is certainly the case.
+    return html;
 
   return renderer.annotate(
     html, Spark._ANNOTATION_LABEL, { label: label });
@@ -1023,9 +1049,9 @@ Spark.createLandmark = function (options, htmlFunc) {
   if (! renderer) {
     // no renderer -- create and destroy Landmark inline
     var landmark = new Spark.Landmark;
-    options.create && options.create.call(landmark);
+    options.created && options.created.call(landmark);
     var html = htmlFunc(landmark);
-    options.destroy && options.destroy.call(landmark);
+    options.destroyed && options.destroyed.call(landmark);
     return html;
   }
 
@@ -1041,16 +1067,17 @@ Spark.createLandmark = function (options, htmlFunc) {
     if (typeof preserve[selector] !== 'function')
       preserve[selector] = function () { return true; };
 
+  renderer.currentBranch.mark('occupied');
   var notes = renderer.currentBranch.getNotes();
   var landmark;
   if (notes.originalRange) {
     if (notes.originalRange.superceded)
       throw new Error("Can't create second landmark in same branch");
-    notes.originalRange.superceded = true; // prevent destroy(), second match
+    notes.originalRange.superceded = true; // prevent destroyed(), second match
     landmark = notes.originalRange.landmark; // the old Landmark
   } else {
     landmark = new Spark.Landmark;
-    options.create && options.create.call(landmark);
+    options.created && options.created.call(landmark);
   }
   notes.landmark = landmark;
 
@@ -1064,14 +1091,14 @@ Spark.createLandmark = function (options, htmlFunc) {
       _.extend(range, {
         preserve: preserve,
         constant: !! options.constant,
-        renderCallback: options.render || function () {},
-        destroyCallback: options.destroy || function () {},
         enterCallback: options.enter,
+        rendered: options.rendered || function () {},
+        destroyed: options.destroyed || function () {},
         landmark: landmark,
         finalize: function () {
           if (! this.superceded) {
             this.landmark._range = null;
-            this.destroyCallback.call(this.landmark);
+            this.destroyed.call(this.landmark);
           }
         }
       });
@@ -1080,7 +1107,7 @@ Spark.createLandmark = function (options, htmlFunc) {
       renderer.landmarkRanges.push(range);
     }, function () {
       // "annotation not used" callback
-      options.destroy && options.destroy.call(landmark);
+      options.destroyed && options.destroyed.call(landmark);
     });
 };
 

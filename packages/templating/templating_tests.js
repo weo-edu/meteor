@@ -19,7 +19,7 @@ Tinytest.add("templating - assembly", function (test) {
   test.equal(canonicalizeHtml(onscreen.innerHTML), "xyhi");
   Session.set("stuff", false);
   Meteor.flush();
-  test.equal(canonicalizeHtml(onscreen.innerHTML), "x<!---->hi");
+  test.equal(canonicalizeHtml(onscreen.innerHTML), "xhi");
   document.body.removeChild(onscreen);
   Meteor.flush();
 });
@@ -458,7 +458,7 @@ Tinytest.add("templating - branch labels", function(test) {
     var data = this;
     var firstRender = true;
     return Spark.createLandmark({ constant: true,
-                                  render: function () {
+                                  rendered: function () {
                                     if (! firstRender)
                                       return;
                                     firstRender = false;
@@ -502,13 +502,14 @@ Tinytest.add("templating - matching in list", function (test) {
 
   var buf = [];
   _.extend(Template.test_listmatching_a1, {
-    create: function () { buf.push('+'); },
-    render: function () {
-      var letter = DomUtils.rangeToHtml(this.firstNode,
-                                        this.lastNode).match(/\S+/)[0];
+    created: function () { buf.push('+'); },
+    rendered: function () {
+      var letter = canonicalizeHtml(
+        DomUtils.rangeToHtml(this.firstNode,
+                             this.lastNode).match(/\S+/)[0]);
       buf.push('*'+letter);
     },
-    destroy: function () { buf.push('-'); }
+    destroyed: function () { buf.push('-'); }
   });
 
   var R = ReactiveVar('foo');
@@ -582,7 +583,7 @@ Tinytest.add("templating - template arg", function (test) {
     }
   };
 
-  Template.test_template_arg_a.create = function() {
+  Template.test_template_arg_a.created = function() {
     var self = this;
     test.isFalse(self.firstNode);
     test.isFalse(self.lastNode);
@@ -590,7 +591,7 @@ Tinytest.add("templating - template arg", function (test) {
     test.throws(function () { return self.findAll("*"); });
   };
 
-  Template.test_template_arg_a.render = function () {
+  Template.test_template_arg_a.rendered = function () {
     var template = this;
     template.firstNode.innerHTML = 'Greetings';
     template.lastNode.innerHTML = 'Line';
@@ -599,7 +600,7 @@ Tinytest.add("templating - template arg", function (test) {
     template.secret = "strawberry "+template.data.food;
   };
 
-  Template.test_template_arg_a.destroy = function() {
+  Template.test_template_arg_a.destroyed = function() {
     var self = this;
     test.isFalse(self.firstNode);
     test.isFalse(self.lastNode);
@@ -636,7 +637,8 @@ Tinytest.add("templating - preserve", function (test) {
 
   var div = OnscreenDiv(Meteor.render(tmpl));
   Meteor.flush();
-  test.equal(div.node().lastChild.nodeValue.match(/\S+/)[0], 'foo');
+  test.equal(DomUtils.find(div.node(), 'u').firstChild.nodeValue.match(
+      /\S+/)[0], 'foo');
   var spans1 = {};
   _.each(DomUtils.findAll(div.node(), 'span'), function (sp) {
     spans1[sp.className] = sp;
@@ -644,7 +646,8 @@ Tinytest.add("templating - preserve", function (test) {
 
   R.set('bar');
   Meteor.flush();
-  test.equal(div.node().lastChild.nodeValue.match(/\S+/)[0], 'bar');
+  test.equal(DomUtils.find(div.node(), 'u').firstChild.nodeValue.match(
+      /\S+/)[0], 'bar');
   var spans2 = {};
   _.each(DomUtils.findAll(div.node(), 'span'), function (sp) {
     spans2[sp.className] = sp;
@@ -687,14 +690,24 @@ Tinytest.add("templating - helpers", function (test) {
   });
 
   div = OnscreenDiv(Meteor.render(tmpl));
-  test.equal(div.text().match(/\S+/)[0], 'ABC4D');
+  var txt = div.text().match(/\S+/)[0];
+  test.isTrue(txt.match(/^ABC?4D$/));
+  // We don't get 'C' (the ability to name a helper {{toString}})
+  // in IE < 9 because of the famed DontEnum bug.  This could be
+  // fixed but it would require making all the code that handles
+  // the dictionary of helpers be DontEnum-aware.  In practice,
+  // the Object prototype method names (toString, hasOwnProperty,
+  // isPropertyOf, ...) make poor helper names and are unlikely
+  // to be used in apps.
+  test.expect_fail();
+  test.equal(txt, 'ABC4D');
   div.kill();
   Meteor.flush();
 
   // test that helpers don't "leak"
   tmpl = Template.test_template_helpers_c;
   div = OnscreenDiv(Meteor.render(tmpl));
-  test.equal(div.text(), '');
+  test.equal(div.text(), 'x');
   div.kill();
   Meteor.flush();
 });
@@ -736,8 +749,8 @@ Tinytest.add("templating - events", function (test) {
 
 });
 
-Tinytest.add("templating - #each render callback", function (test) {
-  // test that any list modification triggers a render callback on the
+Tinytest.add("templating - #each rendered callback", function (test) {
+  // test that any list modification triggers a rendered callback on the
   // enclosing template
 
   var entries = new LocalCollection();
@@ -750,7 +763,7 @@ Tinytest.add("templating - #each render callback", function (test) {
   var tmpl = Template.test_template_eachrender_a;
   tmpl.helpers({entries: function() {
     return entries.find({}, {sort: ['x']}); }});
-  tmpl.render = function () {
+  tmpl.rendered = function () {
     buf.push(canonicalizeHtml(
       DomUtils.rangeToHtml(this.firstNode, this.lastNode)).replace(/\s/g, ''));
   };
@@ -781,6 +794,9 @@ Tinytest.add("templating - #each render callback", function (test) {
                    '<div>c</div><div>d</div><div>z</div>']);
   buf.length = 0;
 
+  div.kill();
+  Meteor.flush();
+
   // test pure "moved"
 
   tmpl = Template.test_template_eachrender_b;
@@ -799,7 +815,7 @@ Tinytest.add("templating - #each render callback", function (test) {
       };
     }};
   }});
-  tmpl.render = function () {
+  tmpl.rendered = function () {
     buf.push(canonicalizeHtml(
       DomUtils.rangeToHtml(this.firstNode, this.lastNode)).replace(/\s/g, ''));
   };
@@ -820,4 +836,76 @@ Tinytest.add("templating - #each render callback", function (test) {
   test.equal(buf, ['<div>b</div><div>c</div><div>a</div>']);
   buf.length = 0;
 
+  div.kill();
+  Meteor.flush();
+});
+
+Tinytest.add("templating - landmarks in helpers", function (test) {
+  var buf = [];
+
+  var R = ReactiveVar('foo');
+
+  var tmpl = Template.test_template_landmarks_a;
+  tmpl.LM = function () {
+    return new Handlebars.SafeString(
+      Spark.createLandmark({created: function () { buf.push('c'); },
+                            rendered: function () { buf.push('r'); },
+                            destroyed: function () { buf.push('d'); }},
+                           function () { return 'x'; }));
+  };
+  tmpl.v = function () {
+    return R.get();
+  };
+
+  var div = OnscreenDiv(Meteor.render(tmpl));
+  test.equal(div.text().match(/\S+/)[0], 'xxxxfoo');
+  Meteor.flush();
+  buf.sort();
+  test.equal(buf.join(''), 'ccccrrrr');
+  buf.length = 0;
+
+  R.set('bar');
+  Meteor.flush();
+  test.equal(div.text().match(/\S+/)[0], 'xxxxbar');
+  test.equal(buf.join(''), 'rrrr');
+  buf.length = 0;
+
+  div.kill();
+  Meteor.flush();
+  test.equal(buf.join(''), 'dddd');
+});
+
+Tinytest.add("templating - bare each has no matching", function (test) {
+  var buf = [];
+
+  var R = ReactiveVar('foo');
+
+  var tmpl = Template.test_template_bare_each_a;
+  tmpl.abc = [{}, {}, {}];
+  tmpl.LM = function () {
+    return new Handlebars.SafeString(
+      Spark.createLandmark({created: function () { buf.push('c'); },
+                            rendered: function () { buf.push('r'); },
+                            destroyed: function () { buf.push('d'); }},
+                           function () { return 'x'; }));
+  };
+  tmpl.v = function () {
+    return R.get();
+  };
+
+  var div = OnscreenDiv(Meteor.render(tmpl));
+  Meteor.flush();
+  buf.sort();
+  test.equal(buf.join(''), 'cccrrr');
+  buf.length = 0;
+
+  R.set('bar');
+  Meteor.flush();
+  buf.sort();
+  test.equal(buf.join(''), 'cccdddrrr');
+  buf.length = 0;
+
+  div.kill();
+  Meteor.flush();
+  test.equal(buf.join(''), 'ddd');
 });
