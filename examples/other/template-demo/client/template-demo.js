@@ -14,9 +14,7 @@ if (! Session.get("z")) {
   Session.set("z", 1);
 }
 
-<<<<<<< HEAD:examples/landmark-demo/client/landmark-demo.js
-Template.redrawButtons.events = {
-=======
+
 Template.preserveDemo.x =
 Template.constantDemo.x =
 Template.stateDemo.x =
@@ -33,8 +31,8 @@ function () {
   return Session.get("z");
 };
 
-Template.page.events = {
->>>>>>> 87bebaa50dc16e9b2df4fb78237421b9b44e4a32:examples/other/template-demo/client/template-demo.js
+
+Template.page.events({
   'click input.x': function () {
     Session.set("x", Session.get("x") + 1);
   },
@@ -46,7 +44,7 @@ Template.page.events = {
   'click input.z': function () {
     Session.set("z", Session.get("z") + 1);
   }
-};
+});
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -70,11 +68,12 @@ Template.preserveDemo.spinAnim = function () {
   return this.template.get('spinForward') ? 'spinForward' : 'spinBackward';
 };
 
-Template.preserveDemo.events = {
-  'change .spinforward' : function (event,template) {
-    template.set('spinForward', event.currentTarget.checked);
+
+Template.preserveDemo.events({
+  'change .spinforward' : function (event) {
+    Session.set('spinForward', event.currentTarget.checked);
   }
-};
+});
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -86,26 +85,26 @@ Template.constantDemo.show = function (which) {
   return ! Session.get('mapchecked' + which);
 };
 
-Template.constantDemo.events = {
+Template.constantDemo.events({
   'change .remove' : function (event) {
     var tgt = event.currentTarget;
     Session.set('mapchecked' + tgt.getAttribute("which"), tgt.checked);
   }
-};
+});
 
 ///////////////////////////////////////////////////////////////////////////////
 
-Template.stateDemo.events = {
+Template.stateDemo.events({
   'click .create': function () {
     Timers.insert({});
   }
-};
+});
 
 Template.stateDemo.timers = function () {
   return Timers.find();
 };
 
-Template.timer.events = {
+Template.timer.events({
   'click .reset': function (event, template) {
     template.elapsed = 0;
     updateTimer(template);
@@ -113,7 +112,7 @@ Template.timer.events = {
   'click .delete': function () {
     Timers.remove(this._id);
   }
-};
+});
 
 var updateTimer = function (timer) {
   timer.node.innerHTML = timer.elapsed + " second" +
@@ -181,18 +180,10 @@ Template.d3Demo.right = function () {
   return { group: "right" };
 };
 
-Template.circles.events = {
-<<<<<<< HEAD:examples/landmark-demo/client/landmark-demo.js
-  'click circle': function (evt, template) {
-    // XXX actually want to create a ReactiveVar on the template!
-    // (but how will it be preserved across migration?)
-    // (maybe template.get, template.set?? rather than form??)
-    template.set("selectedCircle:" + this.group, evt.currentTarget.id);
-    
-=======
+
+Template.circles.events({
   'mousedown circle': function (evt, template) {
     Session.set("selectedCircle:" + this.group, evt.currentTarget.id);
->>>>>>> 87bebaa50dc16e9b2df4fb78237421b9b44e4a32:examples/other/template-demo/client/template-demo.js
   },
   'click .add': function () {
     Circles.insert({x: Meteor.random(), y: Meteor.random(),
@@ -221,7 +212,7 @@ Template.circles.events = {
       });
     });
   }
-};
+});
 
 var colorToString = function (color) {
   var f = function (x) { return Math.floor(x * 256); };

@@ -877,8 +877,10 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
     }
   }
   initialContents = null; // save memory
+  var stopped = false;
   var cleanup = function () {
     handle.stop();
+    stopped = true;
   };
   html = annotate(html, Spark._ANNOTATION_LIST, function (range) {
     outerRange = range;
@@ -906,11 +908,17 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
       walk.rendered.call(walk.landmark);
   };
 
+  var later = function (f) {
+    atFlushTime(function () {
+      if (! stopped)
+        f();
+    });
+  };
+
   // The DOM update callbacks.
   _.extend(callbacks, {
     added: function (item, beforeIndex) {
-      atFlushTime(function () {
-        //XXX is this right;
+      later(function () {
         var frag = Spark.render(_.bind(itemFunc, null, item));
         DomUtils.wrapFragmentForContainer(frag, outerRange.containerNode());
         var range = new LiveRange(Spark._TAG, frag);
@@ -928,7 +936,7 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
     },
 
     removed: function (item, atIndex) {
-      atFlushTime(function () {
+      later(function () {
         if (itemRanges.length === 1) {
           var frag = Spark.render(elseFunc);
           DomUtils.wrapFragmentForContainer(frag, outerRange.containerNode());
@@ -943,7 +951,7 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
     },
 
     moved: function (item, oldIndex, newIndex) {
-      atFlushTime(function () {
+      later(function () {
         if (oldIndex === newIndex)
           return;
 
@@ -961,7 +969,7 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
     },
 
     changed: function (item, atIndex) {
-      atFlushTime(function () {
+      later(function () {
         Spark.renderToRange(itemRanges[atIndex], _.bind(itemFunc, null, item));
       });
     }
