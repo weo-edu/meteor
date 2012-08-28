@@ -247,7 +247,6 @@ LocalCollection.Cursor.prototype._markAsReactive = function (options) {
 
   if (context) {
     var invalidate = _.bind(context.invalidate, context);
-
     var handle = self.observe({added: options.added && invalidate,
                                removed: options.removed && invalidate,
                                changed: options.changed && invalidate,

@@ -761,13 +761,13 @@ Spark.attachEvents = withRenderer(function (eventMap, html, _renderer) {
 /* Isolate                                                                    */
 /******************************************************************************/
 
-Spark.isolate = function (htmlFunc) {
+Spark.isolate = function (htmlFunc, name) {
   var renderer = Spark._currentRenderer.get();
   if (!renderer)
     return htmlFunc();
 
   var ctx = new Meteor.deps.Context;
-
+  ctx.templateName = name;
   return renderer.annotate(
     ctx.run(htmlFunc), Spark._ANNOTATION_ISOLATE, function (range) {
       range.finalize = function () {
@@ -783,7 +783,9 @@ Spark.isolate = function (htmlFunc) {
         if (! range)
           return; // killed by finalize. range has already been destroyed.
 
+        console.log('refresh', name);
         ctx = new Meteor.deps.Context;
+        ctx.templateName = name;
         Spark.renderToRange(range, function () {
           return ctx.run(htmlFunc);
         });
@@ -858,7 +860,7 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
     function (html) { return html; };
 
   // Render the initial contents. If we have a renderer, create a
-  // range around each item as well as around the list, and save them
+  // range around each item as well as around the list, and save atflushtimethem
   // off for later.
   var html = '';
   var outerRange;
@@ -879,6 +881,7 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
   initialContents = null; // save memory
   var stopped = false;
   var cleanup = function () {
+    cleanedup = true;
     handle.stop();
     stopped = true;
   };

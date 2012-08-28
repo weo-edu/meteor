@@ -51,6 +51,7 @@ ReactiveVar.prototype.set = function(newValue, notReactive) {
   self._value = newValue;
 
   if (notReactive) return;
+  console.log('invalidate');
 
   for(var id in self._deps)
     self._deps[id].invalidate();
