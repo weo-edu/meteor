@@ -28,14 +28,21 @@ Handlebars.json_ast_to_func = function (ast) {
 // what is passed in via named arguments.
 Handlebars._default_helpers = {
   'with': function (data, options) {
+    data = data || {};
+    data.template = this.template;
+    data.toJSON = this.toJSON;
     return options.fn(data);
   },
   'each': function (data, options) {
+    data = data || {};
+    data.template = this.template;
+    data.toJSON = this.toJSON;
     var parentData = this;
     if (data && data.length > 0)
       return _.map(data, function(x, i) {
         // infer a branch key from the data
-        var branch = (x._id || (typeof x === 'string' ? x : null) || i);
+        var branch = (x._id || (typeof x === 'string' ? x : null) ||
+                      Spark.UNIQUE_LABEL);
         return Spark.labelBranch(branch, function() {
           return options.fn(x);
         });

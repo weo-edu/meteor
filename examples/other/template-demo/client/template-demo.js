@@ -33,8 +33,12 @@ function () {
   return Session.get("z");
 };
 
+<<<<<<< HEAD
 Template.page.events = {
 >>>>>>> 87bebaa50dc16e9b2df4fb78237421b9b44e4a32:examples/other/template-demo/client/template-demo.js
+=======
+Template.page.events({
+>>>>>>> 9005cf34a0efeedfb339bbb7fd6ef7de6cb37def
   'click input.x': function () {
     Session.set("x", Session.get("x") + 1);
   },
@@ -46,7 +50,7 @@ Template.page.events = {
   'click input.z': function () {
     Session.set("z", Session.get("z") + 1);
   }
-};
+});
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -70,11 +74,17 @@ Template.preserveDemo.spinAnim = function () {
   return this.template.get('spinForward') ? 'spinForward' : 'spinBackward';
 };
 
+<<<<<<< HEAD
 Template.preserveDemo.events = {
   'change .spinforward' : function (event,template) {
     template.set('spinForward', event.currentTarget.checked);
+=======
+Template.preserveDemo.events({
+  'change .spinforward' : function (event) {
+    Session.set('spinForward', event.currentTarget.checked);
+>>>>>>> 9005cf34a0efeedfb339bbb7fd6ef7de6cb37def
   }
-};
+});
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -86,26 +96,26 @@ Template.constantDemo.show = function (which) {
   return ! Session.get('mapchecked' + which);
 };
 
-Template.constantDemo.events = {
+Template.constantDemo.events({
   'change .remove' : function (event) {
     var tgt = event.currentTarget;
     Session.set('mapchecked' + tgt.getAttribute("which"), tgt.checked);
   }
-};
+});
 
 ///////////////////////////////////////////////////////////////////////////////
 
-Template.stateDemo.events = {
+Template.stateDemo.events({
   'click .create': function () {
     Timers.insert({});
   }
-};
+});
 
 Template.stateDemo.timers = function () {
   return Timers.find();
 };
 
-Template.timer.events = {
+Template.timer.events({
   'click .reset': function (event, template) {
     template.elapsed = 0;
     updateTimer(template);
@@ -113,20 +123,20 @@ Template.timer.events = {
   'click .delete': function () {
     Timers.remove(this._id);
   }
-};
+});
 
 var updateTimer = function (timer) {
   timer.node.innerHTML = timer.elapsed + " second" +
     ((timer.elapsed === 1) ? "" : "s");
 };
 
-Template.timer.create = function () {
+Template.timer.created = function () {
   var self = this;
   self.elapsed = 0;
   self.node = null;
 };
 
-Template.timer.render = function () {
+Template.timer.rendered = function () {
   var self = this;
   self.node = this.find(".elapsed");
   updateTimer(self);
@@ -141,7 +151,7 @@ Template.timer.render = function () {
   }
 };
 
-Template.timer.destroy = function () {
+Template.timer.destroyed = function () {
   clearInterval(this.timer);
 };
 
@@ -181,6 +191,7 @@ Template.d3Demo.right = function () {
   return { group: "right" };
 };
 
+<<<<<<< HEAD
 Template.circles.events = {
 <<<<<<< HEAD:examples/landmark-demo/client/landmark-demo.js
   'click circle': function (evt, template) {
@@ -190,6 +201,9 @@ Template.circles.events = {
     template.set("selectedCircle:" + this.group, evt.currentTarget.id);
     
 =======
+=======
+Template.circles.events({
+>>>>>>> 9005cf34a0efeedfb339bbb7fd6ef7de6cb37def
   'mousedown circle': function (evt, template) {
     Session.set("selectedCircle:" + this.group, evt.currentTarget.id);
 >>>>>>> 87bebaa50dc16e9b2df4fb78237421b9b44e4a32:examples/other/template-demo/client/template-demo.js
@@ -221,7 +235,7 @@ Template.circles.events = {
       });
     });
   }
-};
+});
 
 var colorToString = function (color) {
   var f = function (x) { return Math.floor(x * 256); };
@@ -238,10 +252,10 @@ Template.circles.disabled = function () {
     '' : 'disabled="disabled"';
 };
 
-Template.circles.create = function () {
+Template.circles.created = function () {
 };
 
-Template.circles.render = function () {
+Template.circles.rendered = function () {
   var self = this;
   self.node = self.find("svg");
 
@@ -315,6 +329,6 @@ Template.circles.render = function () {
   }
 };
 
-Template.circles.destroy = function () {
+Template.circles.destroyed = function () {
   this.handle && this.handle.stop();
 };

@@ -46,7 +46,7 @@
   };
 
   // map from landmark id, to the 'this' object for
-  // create/render/destroy callbacks on templates
+  // created/rendered/destroyed callbacks on templates
   var templateInstanceData = {};
 
   //setup migration for template stores
@@ -185,94 +185,110 @@
       var tmpl = name && Template[name] || {};
       var tmplData = tmpl._tmpl_data || {};
 
-      var html = Spark.createLandmark({
-        preserve: tmplData.preserve || {},
-        create: function () {
-          var template = templateObjFromLandmark(this);
-          template.data = data;
-          tmpl.create && tmpl.create.call(template);
-        },
-        render: function () {
-          var template = templateObjFromLandmark(this);
-          template.data = data;
+      var html = Spark.labelBranch("Template."+name, function () {
+        var html = Spark.createLandmark({
+          preserve: tmplData.preserve || {},
+          created: function () {
+            var oldCtx = Meteor.deps.Context.current;
+            Meteor.deps.Context.current = null;
 
-          var path = template._id();
-          if (template.firstRender && path in templateStoresByPath) {
-            //restore store
-            var store = templateStoresByPath[path]
-            delete templateStoresByPath[path];
-            if(store) template.store.setMany(store);
+            var template = templateObjFromLandmark(this);
+            template.data = data;
+            tmpl.created && tmpl.created.call(template);
+
+            Meteor.deps.Context.current = oldCtx;
+          },
+          rendered: function () {
+            var oldCtx = Meteor.deps.Context.current;
+            Meteor.deps.Context.current = null;
+
+            var template = templateObjFromLandmark(this);
+            template.data = data;
+
+            var path = template._id();
+            if (template.firstRender && path in templateStoresByPath) {
+              //restore store
+              var store = templateStoresByPath[path]
+              delete templateStoresByPath[path];
+              if(store) template.store.setMany(store);
+            }
+
+            tmpl.render && tmpl.render.call(template);
+            template.emitRender();
+
+            
+            template.firstRender = false;
+
+            Meteor.deps.Context.current = oldCtx;
+          },
+          destroyed: function () {
+            var oldCtx = Meteor.deps.Context.current;
+            Meteor.deps.Context.current = null;
+
+            var template = templateObjFromLandmark(this)
+            tmpl.destroy &&
+              tmpl.destroy.call(template);
+            template.emitDestroy();
+            delete templateInstanceData[this.id];
+
+            Meteor.deps.Context.current = oldCtx;
           }
-
-          tmpl.render && tmpl.render.call(template);
-          template.emitRender();
-
-          
-          template.firstRender = false;
-        },
-        destroy: function () {
-          var template = templateObjFromLandmark(this)
-          tmpl.destroy &&
-            tmpl.destroy.call(template);
-          template.emitDestroy();
-          delete templateInstanceData[this.id];
-        }
-      }, function (landmark) {
-        //XXX is this right?
-        data = _.clone(data);
+        }, function (landmark) {
+          data = _.clone(data);
         
-        // make template accessible from within helpers
-        var template = templateObjFromLandmark(landmark);
-        data.template = template;
-        data.get = template.get.bind(template);
+          // make template accessible from within helpers
+          var template = templateObjFromLandmark(landmark);
+          data.template = template;
+          data.get = template.get.bind(template);
 
-        data.toJSON = function() {
-          var o = _.clone(this);
-          if (o) {
-            delete o.template;
-            delete o.get;
+          data.toJSON = function() {
+            var o = _.clone(this);
+            if (o) {
+              delete o.template;
+              delete o.get;
+            }
+            return o;
           }
-          return o;
-        }
-        
-        var html = Spark.isolate(function () {
-          // XXX Forms needs to run a hook before and after raw_func
-          // (and receive 'landmark')
-          return raw_func(data, {
-            helpers: _.extend({}, partial, tmplData.helpers || {}),
-            partials: Meteor._partials,
-            name: name
-          });
+          var html = Spark.isolate(function () {
+            // XXX Forms needs to run a hook before and after raw_func
+            // (and receive 'landmark')
+            return raw_func(data, {
+              helpers: _.extend({}, partial, tmplData.helpers || {}),
+              partials: Meteor._partials,
+              name: name
+            });
+          }, name);
+
+
+          // take an event map with `function (event, template)` handlers
+          // and produce one with `function (event, landmark)` handlers
+          // for Spark, by inserting logic to create the template object.
+          var wrapEventMap = function (oldEventMap) {
+            var newEventMap = {};
+            _.each(oldEventMap, function (handler, key) {
+              newEventMap[key] = function (event, landmark) {
+                return handler.call(this, event,
+                                    templateObjFromLandmark(landmark));
+              };
+            });
+            return newEventMap;
+          };
+
+          // support old Template.foo.events = {...} format
+          var events =
+                (tmpl.events !== Meteor._template_decl_methods.events ?
+                 tmpl.events : tmplData.events);
+          // events need to be inside the landmark, not outside, so
+          // that when an event fires, you can retrieve the enclosing
+          // landmark to get the template data
+          if (tmpl.events)
+            html = Spark.attachEvents(wrapEventMap(events), html);
+          return html;
         });
-
-        // take an event map with `function (event, template)` handlers
-        // and produce one with `function (event, landmark)` handlers
-        // for Spark, by inserting logic to create the template object.
-        var wrapEventMap = function (oldEventMap) {
-          var newEventMap = {};
-          _.each(oldEventMap, function (handler, key) {
-            newEventMap[key] = function (event, landmark) {
-              return handler.call(this, event,
-                                  templateObjFromLandmark(landmark));
-            };
-          });
-          return newEventMap;
-        };
-
-        // support old Template.foo.events = {...} format
-        var events =
-              (tmpl.events !== Meteor._template_decl_methods.events ?
-               tmpl.events : tmplData.events);
-        // events need to be inside the landmark, not outside, so
-        // that when an event fires, you can retrieve the enclosing
-        // landmark to get the template data
-        if (tmpl.events)
-          html = Spark.attachEvents(wrapEventMap(tmpl.events), html);
-
+        html = Spark.setDataContext(data, html);
         return html;
       });
 
-      html = Spark.setDataContext(data, html);
       return html;
     };
 
