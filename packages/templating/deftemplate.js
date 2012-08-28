@@ -207,6 +207,10 @@
             template.data = data;
 
             var path = template._id();
+            console.log('template', name);
+            console.log('path',path);
+            if (template.firstRender) Meteor.templatesById[path] = template;
+            console.log('templatesbyId', Meteor.templatesById);
             if (template.firstRender && path in templateStoresByPath) {
               //restore store
               var store = templateStoresByPath[path]
