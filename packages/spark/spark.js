@@ -771,7 +771,6 @@ Spark.isolate = function (htmlFunc, name) {
         if (! range)
           return; // killed by finalize. range has already been destroyed.
 
-        console.log('refresh', name);
         ctx = new Meteor.deps.Context;
         ctx.templateName = name;
         Spark.renderToRange(range, function () {

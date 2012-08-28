@@ -213,7 +213,7 @@
               if(store) template.store.setMany(store);
             }
 
-            tmpl.render && tmpl.render.call(template);
+            tmpl.rendered && tmpl.rendered.call(template);
             template.emitRender();
 
             
@@ -226,8 +226,8 @@
             Meteor.deps.Context.current = null;
 
             var template = templateObjFromLandmark(this)
-            tmpl.destroy &&
-              tmpl.destroy.call(template);
+            tmpl.destroyed &&
+              tmpl.destroyed.call(template);
             template.emitDestroy();
             delete templateInstanceData[this.id];
 
