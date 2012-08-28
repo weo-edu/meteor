@@ -142,6 +142,7 @@
   };
 
   Meteor.templateFromLandmark = templateObjFromLandmark;
+  Meteor.templatesById = {};
 
    // XXX forms hooks into this to add "bind"?
   Meteor._template_decl_methods = {

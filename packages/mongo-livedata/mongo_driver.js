@@ -17,6 +17,7 @@ _Mongo = function (url) {
   var self = this;
 
   self.collection_queue = [];
+  self.db_callbacks = [];
 
   MongoDB.connect(url, function(err, db) {
     if (err)
@@ -30,8 +31,20 @@ _Mongo = function (url) {
         db.collection(c.name, c.callback);
       }).run();
     }
+
+    while((c = self.db_callbacks.pop())) {
+      c(db);
+    }
   });
 };
+
+_Mongo.prototype.withDB = function(cb) {
+  var self = this;
+  if (self.db) 
+    cb(self.db);
+  else
+    self.db_callbacks.push(cb);
+}
 
 // protect against dangerous selectors.  falsey and {_id: falsey}
 // are both likely programmer error, and not what you want,
@@ -95,6 +108,7 @@ _Mongo.prototype._maybeBeginWrite = function () {
 
 _Mongo.prototype.insert = function (collection_name, document) {
   var self = this;
+  console.log('insert',collection_name,document);
 
   if (collection_name === "___meteor_failure_test_collection" &&
       document.fail) {

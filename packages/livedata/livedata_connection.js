@@ -152,6 +152,7 @@ Meteor._LivedataConnection = function (url, restart_on_update) {
 
   if (restart_on_update) {
     self.stream.on('update_available', function () {
+      console.log('update_available');
       // Start trying to migrate to a new version. Until all packages
       // signal that they're ready for a migration, the app will
       // continue running normally.
@@ -203,6 +204,7 @@ _.extend(Meteor._LivedataConnection.prototype, {
   subscribe: function (name /* .. [arguments] .. callback */) {
     var self = this;
     var id;
+    var complete = false;
 
     var args = Array.prototype.slice.call(arguments, 1);
     if (args.length && typeof args[args.length - 1] === "function")
@@ -228,6 +230,9 @@ _.extend(Meteor._LivedataConnection.prototype, {
       self.subs.insert({_id: id, name: name, args: args, count: 1});
 
       self.sub_ready_callbacks[id] = [];
+      self.sub_ready_callbacks[id].push(function() {
+        complete = true;
+      })
 
       if (callback)
         self.sub_ready_callbacks[id].push(callback);
@@ -238,7 +243,15 @@ _.extend(Meteor._LivedataConnection.prototype, {
       if (!id) return; // must have an id (local from above).
       // just update the database. observe takes care of the rest.
       self.subs.update({_id: id}, {$inc: {count: -1}});
-    }};
+    },
+    complete: function() {
+      return complete || existing && existing[0];
+    },
+    completed: function(cb) {
+      self.sub_ready_callbacks[id].push(cb);
+    }
+
+  };
 
     if (Meteor._capture_subs)
       Meteor._capture_subs.push(token);

@@ -14,9 +14,7 @@ if (! Session.get("z")) {
   Session.set("z", 1);
 }
 
-<<<<<<< HEAD:examples/landmark-demo/client/landmark-demo.js
-Template.redrawButtons.events = {
-=======
+
 Template.preserveDemo.x =
 Template.constantDemo.x =
 Template.stateDemo.x =
@@ -34,11 +32,16 @@ function () {
 };
 
 <<<<<<< HEAD
+
+Template.page.events({
+=======
+<<<<<<< HEAD
 Template.page.events = {
 >>>>>>> 87bebaa50dc16e9b2df4fb78237421b9b44e4a32:examples/other/template-demo/client/template-demo.js
 =======
 Template.page.events({
 >>>>>>> 9005cf34a0efeedfb339bbb7fd6ef7de6cb37def
+>>>>>>> d6b9f4960f57f2e43e76bce760253958d48c289e
   'click input.x': function () {
     Session.set("x", Session.get("x") + 1);
   },
@@ -75,6 +78,12 @@ Template.preserveDemo.spinAnim = function () {
 };
 
 <<<<<<< HEAD
+
+Template.preserveDemo.events({
+  'change .spinforward' : function (event) {
+    Session.set('spinForward', event.currentTarget.checked);
+=======
+<<<<<<< HEAD
 Template.preserveDemo.events = {
   'change .spinforward' : function (event,template) {
     template.set('spinForward', event.currentTarget.checked);
@@ -83,6 +92,7 @@ Template.preserveDemo.events({
   'change .spinforward' : function (event) {
     Session.set('spinForward', event.currentTarget.checked);
 >>>>>>> 9005cf34a0efeedfb339bbb7fd6ef7de6cb37def
+>>>>>>> d6b9f4960f57f2e43e76bce760253958d48c289e
   }
 });
 
@@ -192,6 +202,10 @@ Template.d3Demo.right = function () {
 };
 
 <<<<<<< HEAD
+
+Template.circles.events({
+=======
+<<<<<<< HEAD
 Template.circles.events = {
 <<<<<<< HEAD:examples/landmark-demo/client/landmark-demo.js
   'click circle': function (evt, template) {
@@ -204,9 +218,9 @@ Template.circles.events = {
 =======
 Template.circles.events({
 >>>>>>> 9005cf34a0efeedfb339bbb7fd6ef7de6cb37def
+>>>>>>> d6b9f4960f57f2e43e76bce760253958d48c289e
   'mousedown circle': function (evt, template) {
     Session.set("selectedCircle:" + this.group, evt.currentTarget.id);
->>>>>>> 87bebaa50dc16e9b2df4fb78237421b9b44e4a32:examples/other/template-demo/client/template-demo.js
   },
   'click .add': function () {
     Circles.insert({x: Meteor.random(), y: Meteor.random(),

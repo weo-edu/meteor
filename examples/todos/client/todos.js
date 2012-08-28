@@ -241,7 +241,11 @@ Template.todo_item.events[ okcancel_events('#todo-input') ] =
 Template.todo_item.events(okCancelEvents(
   '#todo-input',
   {
+<<<<<<< HEAD
+>>>>>>> 1ca5357b28fa2a433a9eeb45144747c6a5c449b5
+=======
 >>>>>>> 9005cf34a0efeedfb339bbb7fd6ef7de6cb37def
+>>>>>>> d6b9f4960f57f2e43e76bce760253958d48c289e
     ok: function (value) {
       Todos.update(this._id, {$set: {text: value}});
       Session.set('editing_itemname', null);

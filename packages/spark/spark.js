@@ -516,6 +516,18 @@ Spark.renderToRange = function (range, htmlFunc) {
     });
   };
 
+  // Find landmarks enclosing range, from inner to outer
+  var enclosingLandmarks = [];
+  var walk = range;
+  while ((walk = findParentOfType(Spark._ANNOTATION_LANDMARK, walk)))
+    enclosingLandmarks.push(walk);
+
+  // Render the new contents. Must call 'enter' and 'exit' on
+  // enclosing landmarks as appropriate.
+   _.each(_.clone(enclosingLandmarks).reverse(), function (containingRange) {
+    containingRange.enterCallback.call(containingRange.landmark);
+  });
+
   // Find all of the landmarks in the old contents of the range
   visitLandmarksInRange(range, function (landmarkRange, notes) {
     notes.originalRange = landmarkRange;
@@ -1079,12 +1091,17 @@ Spark.createLandmark = function (options, htmlFunc) {
   }
   notes.landmark = landmark;
 
+  options.enter = options.enter || function () {};
+
+  options.enter.call(landmark);
+  
   var html = htmlFunc(landmark);
   return renderer.annotate(
     html, Spark._ANNOTATION_LANDMARK, function (range) {
       _.extend(range, {
         preserve: preserve,
         constant: !! options.constant,
+        enterCallback: options.enter,
         rendered: options.rendered || function () {},
         destroyed: options.destroyed || function () {},
         landmark: landmark,
