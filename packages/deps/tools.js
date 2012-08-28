@@ -51,7 +51,6 @@ ReactiveVar.prototype.set = function(newValue, notReactive) {
   self._value = newValue;
 
   if (notReactive) return;
-  console.log('invalidate');
 
   for(var id in self._deps)
     self._deps[id].invalidate();
@@ -105,7 +104,6 @@ var ReactiveDict = function(initialValues) {
   this._key_deps = {};
 }
 
-// make this reactive
 ReactiveDict.prototype.keys = function() {
   var self = this;
   var context = Meteor.deps.Context.current;

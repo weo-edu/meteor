@@ -64,7 +64,6 @@ var runtime_config = function (app_html) {
 };
 
 var run = function () {
-  console.log('run');
   var bundle_dir = path.join(__dirname, '..');
 
   // check environment
@@ -92,8 +91,6 @@ var run = function () {
   io = require('socket.io');
   io = io.listen(app);
   io.set('log level', 1);
-  io.set('transports', [
-    'websocket']);
 
   // read bundle config file
   var info_raw =

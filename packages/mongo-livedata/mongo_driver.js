@@ -108,7 +108,6 @@ _Mongo.prototype._maybeBeginWrite = function () {
 
 _Mongo.prototype.insert = function (collection_name, document) {
   var self = this;
-  console.log('insert',collection_name,document);
 
   if (collection_name === "___meteor_failure_test_collection" &&
       document.fail) {

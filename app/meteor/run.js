@@ -170,7 +170,6 @@ var log_to_clients = function (msg) {
 
 var start_server = function (bundle_path, port, mongo_url,
                              on_exit_callback, on_listen_callback) {
-  console.log('start server');
   // environment
   var env = {};
   for (var k in process.env)
@@ -354,7 +353,7 @@ _.extend(DependencyWatcher.prototype, {
         self.watches[filepath] = function() { fs.unwatchFile(filepath); };
       } else {
         // fs.watchFile doesn't work for directories (as tested on ubuntu)
-        var watch = fs.watch(filepath, {}, // poll a lot!
+        var watch = fs.watch(filepath, {interval: 500}, // poll a lot!
                      _.bind(self._scan, self, false, filepath));
         self.watches[filepath] = function() { watch.close(); };
       }
@@ -452,7 +451,6 @@ var start_update_checks = function () {
 // can't continue. If you change this, remember to call
 // watcher.destroy() as appropriate.
 exports.run = function (app_dir, bundle_opts, port) {
-  console.log('run');
   var outer_port = port || 3000;
   var inner_port = outer_port + 1;
   var mongo_port = outer_port + 2;
@@ -567,9 +565,7 @@ exports.run = function (app_dir, bundle_opts, port) {
       return;
     }
 
-
     start_watching();
-    console.log('finished start watching')
     Status.running = true;
     server_handle = start_server(bundle_path, inner_port, mongo_url, function () {
       // on server exit
@@ -585,7 +581,7 @@ exports.run = function (app_dir, bundle_opts, port) {
       request_queue = [];
     });
 
-    console.log('finished start server');
+
     // launch test bundle and server if needed.
     if (test_bundle_opts) {
       var errors =
@@ -618,7 +614,6 @@ exports.run = function (app_dir, bundle_opts, port) {
       mongo_port,
       function () { // On Mongo startup complete
         // don't print mongo startup is slow warning.
-        console.log('mongo complete');
         if (mongo_startup_print_timer) {
           clearTimeout(mongo_startup_print_timer);
           mongo_startup_print_timer = null;
@@ -628,11 +623,9 @@ exports.run = function (app_dir, bundle_opts, port) {
           process_startup_printer();
           process_startup_printer = null;
         }
-        console.log('restart server from mongo');
         restart_server();
       },
       function (code, signal) { // On Mongo dead
-        console.log('mongo code');
         console.log("Unexpected mongo exit code " + code + ". Restarting.");
 
         // if mongo dies 3 times with less than 5 seconds between each,
@@ -652,11 +645,9 @@ exports.run = function (app_dir, bundle_opts, port) {
         // Wait a sec to restart.
         setTimeout(launch, 1000);
       });
-
   };
 
   start_proxy(outer_port, inner_port, function () {
-    console.log('proxy');
     process.stdout.write("[[[[[ " + files.pretty_path(app_dir) + " ]]]]]\n\n");
 
     mongo_startup_print_timer = setTimeout(function () {
@@ -667,7 +658,6 @@ exports.run = function (app_dir, bundle_opts, port) {
     };
 
     start_update_checks();
-    console.log('finish start update check');
     launch();
   });
 };
