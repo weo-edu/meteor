@@ -1080,6 +1080,7 @@ Spark.createLandmark = function (options, htmlFunc) {
   notes.landmark = landmark;
 
   var html = htmlFunc(landmark);
+
   return renderer.annotate(
     html, Spark._ANNOTATION_LANDMARK, function (range) {
       _.extend(range, {
