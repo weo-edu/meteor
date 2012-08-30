@@ -8,8 +8,8 @@ var _ = require('../../packages/underscore/underscore.js');
 
 Package.on_use(function (api, where) {
   where = where || ['client', 'server'];
-
   api.use(['underscore', 'deps', 'deps-extensions'], where);
+  api.use('reactive',where);
   // XXX what I really want to do is ensure that if 'reload' is going to
   // be loaded, it should be loaded before 'session'. Session can work
   // with or without reload.

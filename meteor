@@ -1,6 +1,11 @@
 #!/bin/bash
+<<<<<<< HEAD
 echo test
 BUNDLE_VERSION=0.1.5
+=======
+
+BUNDLE_VERSION=0.1.6
+>>>>>>> f53c490456d8541630e36de579994b2be212e63c
 
 # OS Check. Put here because here is where we download the precompiled
 # bundles that are arch specific.

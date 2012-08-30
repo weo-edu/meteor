@@ -1,3 +1,5 @@
+// XXX METEOR changes in <METEOR>
+
 /* SockJS client, version 0.3.1, http://sockjs.org, MIT License
 
 Copyright (c) 2011-2012 VMware, Inc.
@@ -201,6 +203,17 @@ utils.isSameOriginUrl = function(url_a, url_b) {
                 ===
             url_b.split('/').slice(0,3).join('/'));
 };
+
+// <METEOR>
+utils.isSameOriginScheme = function(url_a, url_b) {
+    if (!url_b) url_b = _window.location.href;
+
+    return (url_a.split(':')[0]
+                ===
+            url_b.split(':')[0]);
+};
+// </METEOR>
+
 
 utils.getParentDomain = function(url) {
     // ipv4 ip address
@@ -1108,6 +1121,7 @@ SockJS.prototype._try_next_protocol = function(close_event) {
 
             var connid = utils.random_string(8);
             var trans_url = that._base_url + '/' + that._server + '/' + connid;
+
             that._debug('Opening transport:', protocol, ' url:'+trans_url,
                         ' RTO:'+that._options.rto);
             that._transport = new SockJS[protocol](that, trans_url,
@@ -1148,6 +1162,14 @@ SockJS.prototype._applyInfo = function(info, rtt, protocols_whitelist) {
     that._options.info.null_origin = !_document.domain;
     var probed = utils.probeProtocols();
     that._protocols = utils.detectProtocols(probed, protocols_whitelist, info);
+// <METEOR>
+    // Hack to avoid XDR when using different protocols
+    // We're on IE trying to do cross-protocol. jsonp only.
+    if (!utils.isSameOriginScheme(that._base_url) &&
+        2 === utils.isXHRCorsCapable()) {
+        that._protocols = ['jsonp-polling'];
+    }
+// </METEOR>
 };
 //         [*] End of lib/sockjs.js
 
@@ -1164,6 +1186,10 @@ SockJS.prototype._applyInfo = function(info, rtt, protocols_whitelist) {
 var WebSocketTransport = SockJS.websocket = function(ri, trans_url) {
     var that = this;
     var url = trans_url + '/websocket';
+
+    if(__meteor_runtime_config__.METEOR_SUBAPP_NAME)
+        url += '/' + __meteor_runtime_config__.METEOR_SUBAPP_NAME;
+
     if (url.slice(0, 5) === 'https') {
         url = 'wss' + url.slice(5);
     } else {
@@ -1945,7 +1971,14 @@ var createInfoReceiver = function(base_url) {
     case 1:
         return new InfoReceiver(base_url, utils.XHRCorsObject);
     case 2:
-        return new InfoReceiver(base_url, utils.XDRObject);
+// <METEOR>
+        // XDR doesn't work across different schemes
+        // http://blogs.msdn.com/b/ieinternals/archive/2010/05/13/xdomainrequest-restrictions-limitations-and-workarounds.aspx
+        if (utils.isSameOriginScheme(base_url))
+            return new InfoReceiver(base_url, utils.XDRObject);
+        else
+            return new InfoReceiverFake();
+// </METEOR>
     case 3:
         // Opera
         return new InfoReceiverIframe(base_url);

@@ -152,7 +152,7 @@ Commands.push({
 
     var example_dir = path.join(__dirname, '../../examples');
     var examples = _.reject(fs.readdirSync(example_dir), function (e) {
-      return (e === 'unfinished');
+      return (e === 'unfinished' || e === 'other');
     });
 
     if (argv._.length === 1) {
@@ -610,14 +610,21 @@ Commands.push({
   help: "starts up router from subdirs",
   func: function(argv) {
     var opt = require('optimist')
-    .alias('port', 'p').default('port', 3000)
-    .describe('port', 'Set the base port of your router proxy.  Each subsequent subapp will consume the next 4 following ports.')
-    .describe('prefix', 'Set an additional routing prefix for your subapps, defaults to none (when set, path will look like "app!<prefix>-<subapp>"'),
-      fs = require('fs'),
+      .alias('port', 'p').default('port', 3000)
+      .describe('port', 'Set the base port of your router proxy.  Each subsequent subapp will consume the next 4 following ports.')
+      .describe('prefix', 'Set an additional routing prefix for your subapps, defaults to none (when set, path will look like "app!<prefix>-<subapp>"');
+
+    var fs = require('fs'),
       path = require('path'),
       spawn = require('child_process').spawn,
       httpProxy = require('http-proxy'),
       subapp_prefix = 'app!';
+
+    if(argv.prefix)
+      subapp_prefix += argv.prefix + '-';
+
+    process.env.METEOR_SUBAPP_PREFIX = subapp_prefix;
+    var utils = require(process.env.PACKAGE_DIR + '/utilities/utilities.js').utils;
 
     var new_argv = opt.argv;
     var meteors = (function collectSubapps(){
@@ -630,15 +637,12 @@ Commands.push({
           var dir = p;
           var name = p;
           if(p !== 'root'){
-            if(argv.prefix)
-              name = argv.prefix + '-' + p;
-
             name = subapp_prefix + name;
           }
 
           meteors[name] = {
             name: name,
-            port: new_argv.port+portsPerApp*nMeteors+1,
+            port: new_argv.port+portsPerApp*nMeteors+2,
             dir: dir
           }
           nMeteors++;
@@ -648,14 +652,51 @@ Commands.push({
       return meteors;
     })();
 
-    console.log('Initializing subapps...', meteors);
+    if(!process.env.MONGO_URL){
+      var mongo_err_timer,
+        mongo_err_count = 0;
+      console.log('Initializing top-level mongo instance...');
+      var mongo_runner = require('../lib/mongo_runner.js');
+      var mongo_port = new_argv.port + 1;
+      (function launch() {
+        mongo_runner.launch_mongo(
+          meteors.root.dir,
+          mongo_port,
+          function () { // On Mongo startup complete
+          },
+          function (code, signal) { // On Mongo dead
+            console.log("Unexpected mongo exit code " + code + ". Restarting.");
 
+            // if mongo dies 3 times with less than 5 seconds between each,
+            // declare it failed and die.
+            mongo_err_count += 1;
+
+            if (mongo_err_count >= 3) {
+              console.log("Can't start mongod. Check for other processes listening on port " + mongo_port + " or other meteors running in the same project.");
+              process.exit(1);
+            }
+            if (mongo_err_timer)
+              clearTimeout(mongo_err_timer);
+            mongo_err_timer = setTimeout(function () {
+              mongo_err_count = 0;
+              mongo_err_timer = null;
+            }, 5000);
+
+            // Wait a sec to restart.
+            setTimeout(launch, 1000);
+          })
+      })();
+    }
+
+    console.log('Initializing subapps...', meteors);
+    var mongo_url = process.env.MONGO_URL || "mongodb://127.0.0.1:" + mongo_port + "/meteor";
     var childProcesses = (function spawnSubapps(){
       var children = [];
       _.each(meteors,function(app, appName) {
         var env = _.clone(process.env);
         env.METEOR_SUBAPP_PREFIX = subapp_prefix;
-
+        env.METEOR_SUBAPP_NAME = appName;
+        env.MONGO_URL = mongo_url;
         var p = spawn('meteor',['--port',app.port],{cwd: app.dir, env: env});
         children.push(p);
 
@@ -679,19 +720,11 @@ Commands.push({
     function nameToApp(name){
       if(meteors.hasOwnProperty(name)){
         return meteors[name];
-      }
+      } else if(name === 'app!root')
+        return meteors['root'];
     }
 
     var stylesheets = {};
-    function getAppNameFromPath(p){
-      if(p){
-        var parts = p.split('/');
-
-        if(parts[1].indexOf(subapp_prefix) === 0)
-         return parts[1];
-      }
-    }
-
 
     function isStylesheet(path){
       var parts = path.split('/');
@@ -700,7 +733,7 @@ Commands.push({
     }
 
     function getAppForReq(req){
-      var app = nameToApp(getAppNameFromPath(req.url));
+      var app = nameToApp(utils.getAppFromPath(req.url));
       if(!app && typeof req.headers.referer !== 'undefined'){
         var parsedref = require('url').parse(req.headers.referer);
         var refpath = parsedref.pathname;
@@ -711,7 +744,7 @@ Commands.push({
         if(isStylesheet(parsedref.path))
           refpath = stylesheets[parsedref.path];
 
-        var appName = getAppNameFromPath(refpath);
+        var appName = utils.getAppFromPath(refpath);
 
         app = nameToApp(appName);
       }
@@ -722,25 +755,65 @@ Commands.push({
       return app;
     }
 
-    function stripAppFromUrl(url, appName){
-      //  The trailing slash in the check is important so that files such as
-      //  /root.css still work correctly.
-      if(url.indexOf('/' + appName + '/') === 0)
-        return url.slice(appName.length + 1);
-      return url;
-    }
+    /*_.each(meteors, function(val, key){
+      meteors[key].proxy = new httpProxy.HttpProxy({
+        target: {
+          host: 'localhost',
+          port: val.port
+        }
+      });
+      //meteors[key].proxy.changeOrigin = true;
+    })*/
 
-    var p = httpProxy.createServer(function(req,res,proxy) {
+    var p = httpProxy.createServer(function(req,res, proxy) {
       var app = getAppForReq(req);
-      req.url = stripAppFromUrl(req.url, app.name);
+      req.url = utils.stripAppFromUrl(req.url);
       proxy.proxyRequest(req, res, {host: '127.0.0.1', port: app.port});
+    });//, {enable: {xforward: true}, source: {host: '127.0.0.1', port: parseInt(new_argv.port, 10)}});
+    
+    p.on('upgrade', function(req, socket, head){
+      var url = require('url').parse(req.url);
+      var parts = url.pathname.split('/');
+      if(parts.length > 1)
+        var app = nameToApp(parts[1]);
+
+      var oldUrl = _.clone(req.url);
+      if(!app)
+        app = nameToApp('root');
+      else{
+        parts.shift();
+        parts.shift();
+        req.url = '/' + parts.join('/');
+      }
+
+      //  XXX Hack - this exists only to modify the returning headers
+      //  to match what was sent, in order to pass IOS security check.
+      //  Hopefully they will update to a more recent websocket standard
+      //  soon
+      var _write = socket.write;
+      socket.write = function(data){
+        socket.write = _write;
+
+        var sdata = data.toString();
+        sdata = sdata.substr(0, sdata.search('\r\n\r\n'));
+        if(~sdata.search(req.url)){
+          var bdata = data.slice(Buffer.byteLength(sdata), data.length);
+          sdata = sdata.replace(req.url, oldUrl);
+          data = new Buffer(Buffer.byteLength(sdata) + bdata.length);
+          data.write(sdata, 0, Buffer.byteLength(sdata), 'utf8');
+          bdata.copy(data, Buffer.byteLength(sdata), 0, bdata.length);
+          socket.write = _write;
+          arguments[0] = data;
+        }
+
+        return _write.apply(this, arguments);
+      };
+
+//      app.proxy.proxyWebSocketRequest(req, socket, head);
+      p.proxy.proxyWebSocketRequest(req, socket, head, 
+        { host: '127.0.0.1', port: app.port });
     });
 
-    p.on('upgrade', function(req, socket, head) {
-      var app = getAppForReq(req);
-      console.log('upgrade');
-      p.proxy.proxyWebSocketRequest(req, socket, head, {host: '127.0.0.1', port: app.port});
-    });
     p.listen(new_argv.port,function(){});
 
   }

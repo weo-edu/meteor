@@ -30,7 +30,7 @@ var init_keepalive = function () {
 
   setInterval(function () {
     keepalive_count ++;
-    if (keepalive_count >= 2) {
+    if (keepalive_count >= 3) {
       console.log("Failed to receive keepalive! Exiting.");
       process.exit(1);
     }
@@ -51,8 +51,7 @@ var supported_browser = function (user_agent) {
 var runtime_config = function (app_html) {
   var insert = '';
   if (process.env.DEFAULT_DDP_ENDPOINT)
-    insert += "__meteor_runtime_config__.DEFAULT_DDP_ENDPOINT = '" +
-      process.env.DEFAULT_DDP_ENDPOINT + "';";
+    insert += "__meteor_runtime_config__.DEFAULT_DDP_ENDPOINT = '" + process.env.DEFAULT_DDP_ENDPOINT + "';";
 
   _.each(process.env, function(val, key){
     if(key.indexOf('METEOR_') === 0)
@@ -89,21 +88,9 @@ var run = function () {
   app.use(express.bodyParser());
   app.use(app.router);
 
-  app.use(function (req, res) {
-    // prevent favicon.ico and robots.txt from returning app_html
-    if (_.indexOf(['/favicon.ico', '/robots.txt'], req.url) !== -1) {
-      res.writeHead(404);
-      res.end();
-      return;
-    }
-
-    res.writeHead(200, {'Content-Type': 'text/html'});
-    if (supported_browser(req.headers['user-agent']))
-      res.write(app_html);
-    else
-      res.write(unsupported_html);
-    res.end();
-  });
+  io = require('socket.io');
+  io = io.listen(app);
+  io.set('log level', 1);
 
   // read bundle config file
   var info_raw =
@@ -111,12 +98,13 @@ var run = function () {
   var info = JSON.parse(info_raw);
 
   // start up app
-  __meteor_bootstrap__ = {require: require, startup_hooks: [], app: app};
+  __meteor_bootstrap__ = {require: require, startup_hooks: [], app: app, io: io};
   Fiber(function () {
     // (put in a fiber to let Meteor.db operations happen during loading)
 
     // pass in database info
     __meteor_bootstrap__.mongo_url = mongo_url;
+    __meteor_bootstrap__.redis_url = process.env.REDIS_URL;
 
     // load app code
     _.each(info.load, function (filename) {
@@ -134,6 +122,22 @@ var run = function () {
       // error message on parse error. it's what require() uses to
       // generate its errors.
       require('vm').runInThisContext(code, filename, true);
+    });
+
+    app.use(function (req, res) {
+      // prevent favicon.ico and robots.txt from returning app_html
+      if (_.indexOf(['/favicon.ico', '/robots.txt'], req.url) !== -1) {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+
+      res.writeHead(200, {'Content-Type': 'text/html'});
+      if (supported_browser(req.headers['user-agent']))
+        res.write(app_html);
+      else
+        res.write(unsupported_html);
+      res.end();
     });
 
     // run the user startup hooks.

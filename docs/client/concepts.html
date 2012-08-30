@@ -306,8 +306,9 @@ available as a function on the global `Template` object.
 Today, the only templating system that has been packaged for Meteor is
 Handlebars. Let us know what templating systems you'd like to use with
 Meteor. Meanwhile, see
-the <a href="http://www.handlebarsjs.com/">Handlebars
-documentation.</a>
+the <a href="http://www.handlebarsjs.com/">Handlebars documentation</a>
+and <a href="https://github.com/meteor/meteor/wiki/Handlebars">Meteor
+Handlebars extensions</a>.
 {{/note}}
 
 A template with a `name` of `hello` is rendered by calling the
@@ -375,10 +376,10 @@ in `this`:
 
 {{#note}}
 Handlebars note: `{{dstache}}#if league_is "junior"}}` is
-allowed because of a Meteor extension that allows nested helper
-calls. (Both `if` and `league_is` are
-technically helpers, and stock Handlebars only allows one helper
-invocation per expression.)
+allowed because of a Meteor extension that allows nesting a helper
+in a block helper. (Both `if` and `league_is` are
+technically helpers, and stock Handlebars would not invoke
+`league_is` here.)
 {{/note}}
 
 Helpers can also be used to pass in constant data.
@@ -386,7 +387,7 @@ Helpers can also be used to pass in constant data.
     // Works fine with {{dstache}}#each sections}}
     Template.report.sections = ["Situation", "Complication", "Resolution"];
 
-Finally, you can set the `events` property of a template function to a
+Finally, you can use an `events` declaration on a template function to set up a
 table of event handlers. The format is documented at [Event
 Maps](#eventmaps). The `this` argument to the event handler will be
 the data context of the element that triggered the event.
@@ -405,11 +406,11 @@ the data context of the element that triggered the event.
     </{{! }}template>
 
     <!-- myapp.js -->
-    Template.player_score.events = {
+    Template.player_score.events({
       'click .give_points': function () {
         Users.update({_id: this._id}, {$inc: {score: 2}});
       }
-    };
+    });
 
 Putting it all together, here's an example of how you can inject
 arbitrary data into your templates, and have them update automatically
