@@ -1,6 +1,11 @@
 #!/bin/bash
+<<<<<<< HEAD
+echo test
+BUNDLE_VERSION=0.1.5
+=======
 
 BUNDLE_VERSION=0.1.6
+>>>>>>> f53c490456d8541630e36de579994b2be212e63c
 
 # OS Check. Put here because here is where we download the precompiled
 # bundles that are arch specific.
@@ -67,7 +72,6 @@ function install_dev_bundle {
     set +e
 }
 
-
 if [ -d "$SCRIPT_DIR/.git" ] || [ -f "$SCRIPT_DIR/.git" ]; then
     # In a checkout.
     if [ ! -d "$SCRIPT_DIR/dev_bundle" ] ; then
@@ -102,5 +106,5 @@ if [ "$(ulimit -n)" != "unlimited" ] ; then
     ulimit -n 512 > /dev/null 2>&1
 fi
 
-export NODE_PATH="$DEV_BUNDLE/lib/node_modules"
-exec "$DEV_BUNDLE/bin/node" "$METEOR" "$@"
+echo test
+exec "node" "$METEOR" "$@"
