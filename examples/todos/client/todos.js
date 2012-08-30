@@ -218,30 +218,12 @@ Template.todo_item.events({
     Meteor.setTimeout(function () {
       Todos.update(id, {$pull: {tags: tag}});
     }, 300);
-<<<<<<< HEAD
-  },
-
-  'click .make-public': function () {
-    Todos.update(this._id, {$set: {privateTo: null}});
-  },
-
-  'click .make-private': function () {
-    Todos.update(this._id, {$set: {
-      privateTo: Meteor.user()._id
-    }});
-  }
-};
-
-Template.todo_item.events[ okcancel_events('#todo-input') ] =
-  make_okcancel_handler({
-=======
   }
 });
 
 Template.todo_item.events(okCancelEvents(
   '#todo-input',
   {
->>>>>>> 9005cf34a0efeedfb339bbb7fd6ef7de6cb37def
     ok: function (value) {
       Todos.update(this._id, {$set: {text: value}});
       Session.set('editing_itemname', null);

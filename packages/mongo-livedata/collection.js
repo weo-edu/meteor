@@ -110,7 +110,6 @@ _.extend(Meteor.Collection.prototype, {
     var self = this;
     return self._collection.findOne.apply(self._collection, _.toArray(arguments));
   },
-
   _maybe_snapshot: function () {
     var self = this;
     if (self._manager && self._manager.registerStore && !self._was_snapshot) {
@@ -387,7 +386,7 @@ Meteor.Collection.prototype._validatedRemove = function(userId, selector) {
 // generating their result until the database has acknowledged
 // them. In the future maybe we should provide a flag to turn this
 // off.
-_.each(["insert", "update", "remove"], function (name) {
+_.each(["insert", "update", "remove", "findAndModify"], function (name) {
   Meteor.Collection.prototype[name] = function (/* arguments */) {
     var self = this;
     var args = _.toArray(arguments);
@@ -419,6 +418,7 @@ _.each(["insert", "update", "remove"], function (name) {
       ret = args[0]._id = Meteor.uuid();
     }
 
+    var res;
     if (self._manager && self._manager !== Meteor.default_server) {
       // just remote to another endpoint, propagate return value or
       // exception.
@@ -426,19 +426,24 @@ _.each(["insert", "update", "remove"], function (name) {
         // asynchronous: on success, callback should return ret
         // (document ID for insert, undefined for update and
         // remove), not the method's result.
-        self._manager.apply(self._prefix + name, args, function (error, result) {
+        res = self._manager.apply(self._prefix + name, args, function (error, result) {
+          if(name === 'findAndModify')
+            ret = res;
           callback(error, !error && ret);
         });
       } else {
         // synchronous: propagate exception
-        self._manager.apply(self._prefix + name, args);
+        res = self._manager.apply(self._prefix + name, args);
+        console.log('res', res);
       }
 
+      if(name === 'findAndModify') 
+        ret = res;
     } else {
       // it's my collection.  descend into the collection object
       // and propagate any exception.
       try {
-        self._collection[name].apply(self._collection, args);
+        res = self._collection[name].apply(self._collection, args);
       } catch (e) {
         if (callback) {
           callback(e);
@@ -447,6 +452,8 @@ _.each(["insert", "update", "remove"], function (name) {
         throw e;
       }
 
+      if(name === 'findAndModify')
+        ret = res;
       // on success, return *ret*, not the manager's return value.
       callback && callback(null, ret);
     }

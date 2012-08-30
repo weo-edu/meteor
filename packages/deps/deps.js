@@ -26,6 +26,13 @@
     // invalidation functions (before returning) -- it just marks the
     // context as invalidated.
     invalidate: function () {
+      if(Context.logInvalidateStack) {
+        Error.stackTraceLimit = 100;
+        if (!this.errs) this.errs = [];
+        this.errs.push(new Error);
+        Error.stackTraceLimit = 10;
+      }
+
       if (!this._invalidated) {
         this._invalidated = true;
         // If this is first invalidation, schedule a flush.
@@ -39,14 +46,7 @@
 
     // calls f immediately if this context was already
     // invalidated. receives one argument, the context.
-    on_invalidate: function (f) {
-      if(Context.logInvalidateStack) {
-        Error.stackTraceLimit = 100;
-        if (!f.errs) f.errs = [];
-        f.errs.push(new Error);
-        Error.stackTraceLimit = 10;
-      }
-  
+    on_invalidate: function (f) {  
       if (this._invalidated)
         f(this);
       else
@@ -69,7 +69,7 @@
         _.each(pending, function (ctx) {
           _.each(ctx._callbacks, function (f) {
             if(Context.logInvalidateStack) {
-              _.each(f.errs, function(err) {
+              _.each(ctx.errs, function(err) {
                 printUserStack(err.stack);
               });
             }

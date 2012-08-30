@@ -230,6 +230,45 @@ _Mongo.prototype.update = function (collection_name, selector, mod, options) {
     throw err;
 };
 
+_Mongo.prototype.findAndModify = function(collection_name, selector, sort, mod, options) {
+  var self = this,
+    write = self._maybeBeginWrite();
+  
+  var finish = Meteor.bindEnvironment(function() {
+    Meteor.refresh({collection: collection_name});
+    write.committed();
+  }, function(e) {
+    Meteor._debug('Exception while completing findAndModify:' + e.stack);
+  });
+
+  selector = _Mongo._rewriteSelector(selector);
+  options = options || {};
+
+  var future = new Future;
+  self._withCollection(collection_name, function(err, collection) {
+    if(err) {
+      future.ret([false, err]);
+      return;
+    }
+
+    collection.findAndModify(selector, sort, mod, options, function(err, obj) {
+      if(err) {
+        future.ret([false, err]);
+        return;
+      }
+
+      finish();
+      future.ret([true, obj]);
+    });
+  });
+
+  var res = future.wait();
+  if(! res[0])
+    throw res[1];
+
+  return res[1];
+};
+
 _Mongo.prototype.find = function (collection_name, selector, options) {
   var self = this;
 

@@ -177,6 +177,15 @@
 
     window.Template = window.Template || {};
 
+    var contextFree = function(fn) {
+      var ctx = Meteor.deps.Context.current;
+      Meteor.deps.Context.current = null;
+      try {
+        fn();
+      } finally {
+        Meteor.deps.Context.current = ctx;
+      }
+    };
 
     // Define the function assigned to Template.<name>.
 
@@ -189,49 +198,23 @@
         var html = Spark.createLandmark({
           preserve: tmplData.preserve || {},
           created: function () {
-            var oldCtx = Meteor.deps.Context.current;
-            Meteor.deps.Context.current = null;
-
-            var template = templateObjFromLandmark(this);
-            template.data = data;
-            tmpl.created && tmpl.created.call(template);
-
-            Meteor.deps.Context.current = oldCtx;
+            var self = this;
+            contextFree(function() {
+              var template = templateObjFromLandmark(self);
+              template.data = data;
+              tmpl.created && tmpl.created.call(template);
+            });
           },
           rendered: function () {
-            var oldCtx = Meteor.deps.Context.current;
-            Meteor.deps.Context.current = null;
-
             var template = templateObjFromLandmark(this);
             template.data = data;
-
-            var path = template._id();
-            if (template.firstRender && path in templateStoresByPath) {
-              //restore store
-              var store = templateStoresByPath[path]
-              delete templateStoresByPath[path];
-              if(store) template.store.setMany(store);
-            }
-
             tmpl.rendered && tmpl.rendered.call(template);
-            template.emitRender();
-
-            
-            template.firstRender = false;
-
-            Meteor.deps.Context.current = oldCtx;
           },
           destroyed: function () {
-            var oldCtx = Meteor.deps.Context.current;
-            Meteor.deps.Context.current = null;
-
-            var template = templateObjFromLandmark(this)
-            tmpl.destroyed &&
-              tmpl.destroyed.call(template);
-            template.emitDestroy();
+            // template.data is already set from previous callbacks
+             tmpl.destroyed &&
+              tmpl.destroyed.call(templateObjFromLandmark(this));
             delete templateInstanceData[this.id];
-
-            Meteor.deps.Context.current = oldCtx;
           }
         }, function (landmark) {
           data = _.clone(data);
