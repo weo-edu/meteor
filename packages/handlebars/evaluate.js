@@ -256,13 +256,15 @@ Handlebars.evaluate = function (ast, data, options) {
       if (typeof oneArg === "function")
         // invoke the positional arguments
         // (and hash arguments) as a nested helper invocation.
-        oneArg = apply(values.slice(1), {hash:hash});
+        oneArg = apply(values.slice(1), {hash:hash, template: Meteor.template});
       values = [values[0], oneArg];
       // keyword args don't go to the block helper, then.
       extra.hash = {};
     } else {
       extra.hash = hash;
     }
+
+    extra.template = Meteor.template;
 
     return apply(values, extra);
   };
@@ -339,7 +341,6 @@ Handlebars.evaluate = function (ast, data, options) {
         // {{#block helper}}
         var block = decorateBlockFn(
           function (data) {
-            console.log('stack', stack);
             return template({parent: stack, data: data}, elt[2],
                             getPCKey());
           }, stack.data);

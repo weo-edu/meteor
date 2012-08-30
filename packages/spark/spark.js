@@ -521,7 +521,25 @@ Spark.renderToRange = function (range, htmlFunc) {
     notes.originalRange = landmarkRange;
   });
 
-  var frag = renderer.materialize(htmlFunc);
+  // Find landmarks enclosing range, from inner to outer
+  var enclosingLandmarks = [];
+  var walk = range;
+  while ((walk = findParentOfType(Spark._ANNOTATION_LANDMARK, walk)))
+    enclosingLandmarks.push(walk);
+
+  // Render the new contents. Must call 'enter' and 'exit' on
+  // enclosing landmarks as appropriate.
+   _.each(_.clone(enclosingLandmarks).reverse(), function (containingRange) {
+    containingRange.enterCallback.call(containingRange.landmark);
+  });
+
+  try {
+    var frag = renderer.materialize(htmlFunc);
+  } finally {
+    _.each(_.clone(enclosingLandmarks), function (containingRange) {
+      containingRange.exitCallback.call(containingRange.landmark);
+    });
+  }
 
   DomUtils.wrapFragmentForContainer(frag, range.containerNode());
 
@@ -1079,7 +1097,15 @@ Spark.createLandmark = function (options, htmlFunc) {
   }
   notes.landmark = landmark;
 
-  var html = htmlFunc(landmark);
+  options.enter = options.enter || function () {};
+  options.exit = options.exit || function () {};
+
+  options.enter.call(landmark);
+  try {
+    var html = htmlFunc(landmark);
+  } finally {
+    options.exit.call(landmark);
+  }
 
   return renderer.annotate(
     html, Spark._ANNOTATION_LANDMARK, function (range) {
@@ -1088,6 +1114,8 @@ Spark.createLandmark = function (options, htmlFunc) {
         constant: !! options.constant,
         rendered: options.rendered || function () {},
         destroyed: options.destroyed || function () {},
+        enterCallback: options.enter,
+        exitCallback: options.exit,
         landmark: landmark,
         finalize: function () {
           if (! this.superceded) {
