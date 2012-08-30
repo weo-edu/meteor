@@ -523,7 +523,9 @@ exports.run = function (app_dir, bundle_opts, port) {
 
     bundle_opts.subapp = 'root';
     errors.concat(bundler.bundle(app_dir, bundle_path, bundle_opts));*/
+    console.log('start bundle', +new Date());
     errors = bundler.bundle(app_dir, bundle_path, bundle_opts);
+    console.log('end bundle', +new Date());
 
 
 

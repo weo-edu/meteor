@@ -180,6 +180,7 @@ Template.d3Demo.right = function () {
 };
 
 
+
 Template.circles.events({
   'mousedown circle': function (evt, template) {
     Session.set("selectedCircle:" + this.group, evt.currentTarget.id);

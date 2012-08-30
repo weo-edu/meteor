@@ -142,6 +142,7 @@
   };
 
   Meteor.templateFromLandmark = templateObjFromLandmark;
+  Meteor.templatesById = {};
 
    // XXX forms hooks into this to add "bind"?
   Meteor._template_decl_methods = {
@@ -190,7 +191,6 @@
     // Define the function assigned to Template.<name>.
 
     var partial = function (data) {
-      data = data || {};
       var tmpl = name && Template[name] || {};
       var tmplData = tmpl._tmpl_data || {};
 
@@ -215,23 +215,18 @@
              tmpl.destroyed &&
               tmpl.destroyed.call(templateObjFromLandmark(this));
             delete templateInstanceData[this.id];
+          },
+
+          enter: function() {
+            this.oldTemplate = Meteor.template;
+            Meteor.template = templateObjFromLandmark(this);
+          },
+
+          exit: function() {
+            Meteor.template = this.oldTemplate;
           }
         }, function (landmark) {
-          data = _.clone(data);
-        
-          // make template accessible from within helpers
-          var template = templateObjFromLandmark(landmark);
-          data.template = template;
-          data.get = template.get.bind(template);
 
-          data.toJSON = function() {
-            var o = _.clone(this);
-            if (o) {
-              delete o.template;
-              delete o.get;
-            }
-            return o;
-          }
           var html = Spark.isolate(function () {
             // XXX Forms needs to run a hook before and after raw_func
             // (and receive 'landmark')

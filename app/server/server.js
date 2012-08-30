@@ -90,7 +90,7 @@ var run = function () {
 
   io = require('socket.io');
   io = io.listen(app);
- io.set('log level', 1);
+  io.set('log level', 1);
 
   // read bundle config file
   var info_raw =

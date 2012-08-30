@@ -1,6 +1,6 @@
 #!/bin/bash
+BUNDLE_VERSION=0.1.7
 
-BUNDLE_VERSION=0.1.6
 
 # OS Check. Put here because here is where we download the precompiled
 # bundles that are arch specific.
@@ -66,7 +66,6 @@ function install_dev_bundle {
     trap - EXIT
     set +e
 }
-
 
 if [ -d "$SCRIPT_DIR/.git" ] || [ -f "$SCRIPT_DIR/.git" ]; then
     # In a checkout.
