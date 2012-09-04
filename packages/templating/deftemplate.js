@@ -142,7 +142,7 @@
   };
 
   Meteor.templateFromLandmark = templateObjFromLandmark;
-  Meteor.templatesById = {};
+  Meteor.templateById = {}
 
    // XXX forms hooks into this to add "bind"?
   Meteor._template_decl_methods = {
@@ -178,19 +178,11 @@
 
     window.Template = window.Template || {};
 
-    var contextFree = function(fn) {
-      var ctx = Meteor.deps.Context.current;
-      Meteor.deps.Context.current = null;
-      try {
-        fn();
-      } finally {
-        Meteor.deps.Context.current = ctx;
-      }
-    };
 
     // Define the function assigned to Template.<name>.
 
     var partial = function (data) {
+      data = data || {};
       var tmpl = name && Template[name] || {};
       var tmplData = tmpl._tmpl_data || {};
 
@@ -198,30 +190,42 @@
         var html = Spark.createLandmark({
           preserve: tmplData.preserve || {},
           created: function () {
-            var self = this;
-            contextFree(function() {
-              var template = templateObjFromLandmark(self);
-              template.data = data;
-              tmpl.created && tmpl.created.call(template, tmpl);
-            });
+            var template = templateObjFromLandmark(this);
+            template.data = data;
+            tmpl.created && tmpl.created.call(template);
+
+            if (data.id)
+              Meteor.templateById[data.id] = template;
           },
           rendered: function () {
             var template = templateObjFromLandmark(this);
             template.data = data;
+
+            var path = template._id();
+            if (template.firstRender && path in templateStoresByPath) {
+              //restore store
+              var store = templateStoresByPath[path]
+              delete templateStoresByPath[path];
+              if(store) template.store.setMany(store);
+            }
+
             tmpl.rendered && tmpl.rendered.call(template);
+            template.emitRender();
+
+            
+            template.firstRender = false;
           },
           destroyed: function () {
-            // template.data is already set from previous callbacks
-             tmpl.destroyed &&
-              tmpl.destroyed.call(templateObjFromLandmark(this));
+            var template = templateObjFromLandmark(this)
+            tmpl.destroyed &&
+              tmpl.destroyed.call(template);
+            template.emitDestroy();
             delete templateInstanceData[this.id];
           },
-
-          enter: function() {
+          enter: function () {
             this.oldTemplate = Meteor.template;
             Meteor.template = templateObjFromLandmark(this);
           },
-
           exit: function() {
             Meteor.template = this.oldTemplate;
           }
