@@ -202,7 +202,7 @@
             contextFree(function() {
               var template = templateObjFromLandmark(self);
               template.data = data;
-              tmpl.created && tmpl.created.call(template);
+              tmpl.created && tmpl.created.call(template, tmpl);
             });
           },
           rendered: function () {
