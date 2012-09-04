@@ -122,7 +122,6 @@ ReactiveDict.prototype.get = function(key) {
 }
 
 ReactiveDict.prototype.set = function(key, value, notReactive) {
-  console.log('set', key ,value);
   this._ensureKey(key);
   return this._vars[key].set(value, notReactive);
 }

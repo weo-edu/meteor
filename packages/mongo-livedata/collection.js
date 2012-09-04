@@ -434,7 +434,6 @@ _.each(["insert", "update", "remove", "findAndModify"], function (name) {
       } else {
         // synchronous: propagate exception
         res = self._manager.apply(self._prefix + name, args);
-        console.log('res', res);
       }
 
       if(name === 'findAndModify') 

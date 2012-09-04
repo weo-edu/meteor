@@ -84,13 +84,10 @@ _.extend(Package.prototype, {
   init_from_library: function (name) {
     var self = this;
     self.name = name;
+
+    self.source_root = files.get_package_dir(name);
     self.serve_root = path.join('/packages', name);
-
-    self.source_root = path.join(files.get_package_dir(), name);
-    if(!path.existsSync(self.source_root)){
-      self.source_root = path.join(files.get_user_package_dir(), name);
-    }
-
+    
     var fullpath = path.join(self.source_root, 'package.js');
     var code = fs.readFileSync(fullpath).toString();
     // \n is necessary in case final line is a //-comment
@@ -270,13 +267,14 @@ var packages = module.exports = {
   // a package object.
   list: function () {
     var ret = {};
-    var dir = files.get_package_dir();
 
-    _.each(fs.readdirSync(dir), function (name) {
-      // skip .meteor directory
-      if (path.existsSync(path.join(dir, name, 'package.js')))
-        ret[name] = packages.get(name);
-    });
+    _.each(files.get_package_dirs(), function(dir) {
+      _.each(fs.readdirSync(dir), function (name) {
+        // skip .meteor directory
+        if (path.existsSync(path.join(dir, name, 'package.js')))
+          ret[name] = packages.get(name);
+      });      
+    })
 
     var my_dir = files.get_user_package_dir();
     _.each(fs.readdirSync(my_dir), function (name) {

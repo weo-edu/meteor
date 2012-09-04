@@ -53,12 +53,13 @@ var runtime_config = function (app_html) {
   if (process.env.DEFAULT_DDP_ENDPOINT)
     insert += "__meteor_runtime_config__.DEFAULT_DDP_ENDPOINT = '" + process.env.DEFAULT_DDP_ENDPOINT + "';";
 
-  _.each(process.env, function(val, key){
-    if(key.indexOf('METEOR_') === 0)
-      insert += "__meteor_runtime_config__." + key + " = '" + val + "';";
-  });
+  if (typeof __meteor_runtime_config__ === 'undefined')
+    return app_html;
 
-  app_html = app_html.replace("// ##RUNTIME_CONFIG##", insert);
+  app_html = app_html.replace(
+    "// ##RUNTIME_CONFIG##",
+    "__meteor_runtime_config__ = " +
+      JSON.stringify(__meteor_runtime_config__) + ";");
 
   return app_html;
 };
@@ -99,6 +100,12 @@ var run = function () {
 
   // start up app
   __meteor_bootstrap__ = {require: require, startup_hooks: [], app: app, io: io};
+  __meteor_runtime_config__ = {};
+  _.each(process.env, function(val, key){
+    if(key.indexOf('METEOR_') === 0)
+      __meteor_runtime_config__[key] = val;
+  });
+
   Fiber(function () {
     // (put in a fiber to let Meteor.db operations happen during loading)
 
@@ -123,6 +130,15 @@ var run = function () {
       // generate its errors.
       require('vm').runInThisContext(code, filename, true);
     });
+
+
+    // Actually serve HTML. This happens after user code, so that
+    // packages can insert connect middlewares and update
+    // __meteor_runtime_config__
+    var app_html = fs.readFileSync(path.join(bundle_dir, 'app.html'), 'utf8');
+    var unsupported_html = fs.readFileSync(path.join(bundle_dir, 'unsupported.html'));
+
+    app_html = runtime_config(app_html);
 
     app.use(function (req, res) {
       // prevent favicon.ico and robots.txt from returning app_html
