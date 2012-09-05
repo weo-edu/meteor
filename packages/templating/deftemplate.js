@@ -142,7 +142,7 @@
   };
 
   Meteor.templateFromLandmark = templateObjFromLandmark;
-  Meteor.templateById = {}
+  Meteor.templatesById = {}
 
    // XXX forms hooks into this to add "bind"?
   Meteor._template_decl_methods = {
@@ -192,10 +192,10 @@
           created: function () {
             var template = templateObjFromLandmark(this);
             template.data = data;
-            tmpl.created && tmpl.created.call(template);
+            tmpl.created && tmpl.created.call(template, tmpl);
 
             if (data.id)
-              Meteor.templateById[data.id] = template;
+              Meteor.templatesById[data.id] = template;
           },
           rendered: function () {
             var template = templateObjFromLandmark(this);
