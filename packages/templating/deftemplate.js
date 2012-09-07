@@ -143,6 +143,7 @@
 
   Meteor.templateFromLandmark = templateObjFromLandmark;
   Meteor.templatesById = {}
+  Meteor.templatesByIdCallbacks = {};
 
    // XXX forms hooks into this to add "bind"?
   Meteor._template_decl_methods = {
@@ -194,8 +195,13 @@
             template.data = data;
             tmpl.created && tmpl.created.call(template, tmpl);
 
-            if (data.id)
-              Meteor.templatesById[data.id] = template;
+            if (data.id) {
+                Meteor.templatesById[data.id] = template;
+                _.each(Meteor.templatesByIdCallbacks[data.id], function (cb) {
+                  cb(template);
+                });
+            }
+
           },
           rendered: function () {
             var template = templateObjFromLandmark(this);
@@ -239,7 +245,7 @@
               partials: Meteor._partials,
               name: name
             });
-          }, name);
+          });
 
 
           // take an event map with `function (event, template)` handlers
@@ -266,7 +272,7 @@
           if (tmpl.events)
             html = Spark.attachEvents(wrapEventMap(events), html);
           return html;
-        });
+        }, name);
         html = Spark.setDataContext(data, html);
         return html;
       });
