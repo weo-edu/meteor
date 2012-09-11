@@ -1087,8 +1087,10 @@ Spark.createLandmark = function (options, htmlFunc) {
   var notes = renderer.currentBranch.getNotes();
   var landmark;
   if (notes.originalRange) {
-    if (notes.originalRange.superceded)
+    if (notes.originalRange.superceded) {
+      console.log('landmark', notes.originalRange.landmark);
       throw new Error("Can't create second landmark in same branch");
+    }
     notes.originalRange.superceded = true; // prevent destroyed(), second match
     landmark = notes.originalRange.landmark; // the old Landmark
   } else {
