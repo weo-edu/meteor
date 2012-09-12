@@ -614,11 +614,12 @@ Commands.push({
     var utils = require(process.env.PACKAGE_DIRS + '/utilities/utilities.js').utils;
 
     var new_argv = opt.argv;
-    var basePort = process.env.ROUTER_PORT && parseInt(process.env.ROUTER_PORT) || new_argv.port;
+    var base_port = new_argv.port || parseInt(process.env.ROUTER_PORT);
+
     var meteors = (function collectSubapps(){
       var nMeteors = 0;
       var meteors = {};
-      var portsPerApp = 4;
+      var portsPerApp = 5;
 
       _.each(fs.readdirSync(process.cwd()),function(p) {
         if (p[0] !== '.' && path.existsSync(path.join(p,'.meteor'))) {
@@ -630,7 +631,7 @@ Commands.push({
 
           meteors[name] = {
             name: name,
-            port: basePort+portsPerApp*nMeteors+2,
+            port: base_port+portsPerApp*nMeteors+2,
             dir: dir
           }
           nMeteors++;
@@ -802,7 +803,7 @@ Commands.push({
         { host: '127.0.0.1', port: app.port });
     });
 
-    p.listen(basePort,function(){});
+    p.listen(base_port,function(){});
 
   }
 });

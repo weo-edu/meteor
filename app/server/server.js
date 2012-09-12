@@ -99,7 +99,13 @@ var run = function () {
   var info = JSON.parse(info_raw);
 
   // start up app
-  __meteor_bootstrap__ = {require: require, startup_hooks: [], app: app, io: io};
+  __meteor_bootstrap__ = {
+    require: require, 
+    startup_hooks: [], 
+    app: app, 
+    io: io,
+    env: process.env
+  };
   __meteor_runtime_config__ = {};
   _.each(process.env, function(val, key){
     if(key.indexOf('METEOR_') === 0)
