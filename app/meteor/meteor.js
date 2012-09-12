@@ -597,7 +597,7 @@ Commands.push({
   help: "starts up router from subdirs",
   func: function(argv) {
     var opt = require('optimist')
-      .alias('port', 'p').default('port', 3000)
+      .alias('port', 'p').default('port', parseInt(process.env.ROUTER_PORT, 10))
       .describe('port', 'Set the base port of your router proxy.  Each subsequent subapp will consume the next 4 following ports.')
       .describe('prefix', 'Set an additional routing prefix for your subapps, defaults to none (when set, path will look like "app!<prefix>-<subapp>"');
 
@@ -614,11 +614,11 @@ Commands.push({
     var utils = require(process.env.PACKAGE_DIR + '/utilities/utilities.js').utils;
 
     var new_argv = opt.argv;
-    var base_port = new_argv.port || process.env.ROUTER_PORT;
+    var base_port = new_argv.port;
     var meteors = (function collectSubapps(){
       var nMeteors = 0;
       var meteors = {};
-      var portsPerApp = 5;
+      var portsPerApp = 4;
 
       _.each(fs.readdirSync(process.cwd()),function(p) {
         if (p[0] !== '.' && path.existsSync(path.join(p,'.meteor'))) {
@@ -796,13 +796,13 @@ Commands.push({
 
         return _write.apply(this, arguments);
       };
-
+      console.log('upgrade', req.url, app);
 //      app.proxy.proxyWebSocketRequest(req, socket, head);
       p.proxy.proxyWebSocketRequest(req, socket, head, 
         { host: '127.0.0.1', port: app.port });
     });
 
-    p.listen(new_argv.port,function(){});
+    p.listen(base_port,function(){});
 
   }
 });
