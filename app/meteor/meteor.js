@@ -611,9 +611,10 @@ Commands.push({
       subapp_prefix += argv.prefix + '-';
 
     process.env.METEOR_SUBAPP_PREFIX = subapp_prefix;
-    var utils = require(process.env.PACKAGE_DIR + '/utilities/utilities.js').utils;
+    var utils = require(process.env.PACKAGE_DIRS + '/utilities/utilities.js').utils;
 
     var new_argv = opt.argv;
+    var basePort = process.env.ROUTER_PORT && parseInt(process.env.ROUTER_PORT) || new_argv.port;
     var meteors = (function collectSubapps(){
       var nMeteors = 0;
       var meteors = {};
@@ -629,7 +630,7 @@ Commands.push({
 
           meteors[name] = {
             name: name,
-            port: new_argv.port+portsPerApp*nMeteors+2,
+            port: basePort+portsPerApp*nMeteors+2,
             dir: dir
           }
           nMeteors++;
@@ -801,7 +802,7 @@ Commands.push({
         { host: '127.0.0.1', port: app.port });
     });
 
-    p.listen(new_argv.port,function(){});
+    p.listen(basePort,function(){});
 
   }
 });
