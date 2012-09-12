@@ -627,10 +627,11 @@ Commands.push({
     var utils = require(process.env.PACKAGE_DIR + '/utilities/utilities.js').utils;
 
     var new_argv = opt.argv;
+    var base_port = new_argv.port || process.env.ROUTER_PORT;
     var meteors = (function collectSubapps(){
       var nMeteors = 0;
       var meteors = {};
-      var portsPerApp = 4;
+      var portsPerApp = 5;
 
       _.each(fs.readdirSync(process.cwd()),function(p) {
         if (p[0] !== '.' && path.existsSync(path.join(p,'.meteor'))) {
@@ -642,7 +643,7 @@ Commands.push({
 
           meteors[name] = {
             name: name,
-            port: new_argv.port+portsPerApp*nMeteors+2,
+            port: base_port+portsPerApp*nMeteors+2,
             dir: dir
           }
           nMeteors++;
