@@ -593,19 +593,6 @@ Commands.push({
 
 
 Commands.push({
-  name: "route",
-  help: "Run meteor with routing enabled",
-  func: function(argv){
-    var app_dir = require_project('routes');
-    var fd = fs.openSync(path.join(app_dir, '.meteor/routes'), 'w');
-    var routes = {};
-    fs.writeSync(fd, JSON.stringify(routes));
-    fs.closeSync(fd);
-  }
-});
-
-
-Commands.push({
   name: "router",
   help: "starts up router from subdirs",
   func: function(argv) {
