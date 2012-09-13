@@ -86,6 +86,7 @@ var run = function () {
 
   app_html = runtime_config(app_html);
 
+  //app.enable('trust proxy');
   app.use(express.bodyParser());
   app.use(app.router);
 

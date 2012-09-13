@@ -604,14 +604,14 @@ Commands.push({
     var fs = require('fs'),
       path = require('path'),
       spawn = require('child_process').spawn,
-      httpProxy = require('http-proxy'),
+      httpProxy = require('weo-http-proxy'),
       subapp_prefix = 'app!';
 
     if(argv.prefix)
       subapp_prefix += argv.prefix + '-';
 
     process.env.METEOR_SUBAPP_PREFIX = subapp_prefix;
-    var utils = require(process.env.PACKAGE_DIR + '/utilities/utilities.js').utils;
+    var utils = require(process.env.PACKAGE_DIRS + '/utilities/utilities.js').utils;
 
     var new_argv = opt.argv;
     var base_port = new_argv.port;
@@ -794,9 +794,9 @@ Commands.push({
           arguments[0] = data;
         }
 
-        return _write.apply(this, arguments);
+        return _write.apply(this, _.toArray(arguments));
       };
-      console.log('upgrade', req.url, app);
+
 //      app.proxy.proxyWebSocketRequest(req, socket, head);
       p.proxy.proxyWebSocketRequest(req, socket, head, 
         { host: '127.0.0.1', port: app.port });

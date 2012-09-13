@@ -454,6 +454,8 @@ exports.run = function (app_dir, bundle_opts, port) {
   var inner_port = outer_port + 1;
   var mongo_port = outer_port + 2;
   var test_port = outer_port + 3;
+  console.log('outer port', outer_port);
+  console.log('inner port', inner_port);
   var bundle_path = path.join(app_dir, '.meteor/local/build');
   var test_bundle_path = path.join(app_dir, '.meteor/local/build_test');
   // Allow override and use of external mongo. Matches code in launch_mongo.
