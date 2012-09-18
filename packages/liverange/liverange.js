@@ -220,6 +220,8 @@
   LiveRange.prototype.destroy = function (recursive) {
     var self = this;
 
+
+
     if (recursive) {
       // recursive case: destroy all descendent ranges too
       // (more efficient than actually recursing)

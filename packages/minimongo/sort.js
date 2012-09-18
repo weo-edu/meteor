@@ -47,11 +47,16 @@ LocalCollection._compileSort = function (spec) {
     if (i !== 0)
       code += "if(x!==0)return x;";
     code += "x=" + (asc[i] ? "" : "-") +
-      "c(a[" + JSON.stringify(keys[i]) + "],b[" +
-      JSON.stringify(keys[i]) + "]);";
+      "c(a" + LocalCollection._bracketize(keys[i]) + ", b" +
+      LocalCollection._bracketize(keys[i]) + ");";
   }
   code += "return x;};})";
-
   eval(code);
   return _func(LocalCollection._f._cmp);
 };
+
+LocalCollection._bracketize = function(s){
+  return _.reduce(s.split('.'), function(memo, val){
+    return memo += '[' + JSON.stringify(val) + ']';
+  }, '');
+}

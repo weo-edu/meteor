@@ -1,6 +1,6 @@
 Package.describe({
   summary: "Meteor's reliable message delivery module",
-  internal: true
+  internal: false
 });
 
 Package.on_use(function (api) {

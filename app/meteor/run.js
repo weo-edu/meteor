@@ -4,7 +4,7 @@ var fs = require("fs");
 var path = require("path");
 var spawn = require('child_process').spawn;
 
-var httpProxy = require('http-proxy');
+var httpProxy = require('weo-http-proxy');
 
 var files = require('../lib/files.js');
 var updater = require('../lib/updater.js');
@@ -454,6 +454,8 @@ exports.run = function (app_dir, bundle_opts, port) {
   var inner_port = outer_port + 1;
   var mongo_port = outer_port + 2;
   var test_port = outer_port + 3;
+  console.log('outer port', outer_port);
+  console.log('inner port', inner_port);
   var bundle_path = path.join(app_dir, '.meteor/local/build');
   var test_bundle_path = path.join(app_dir, '.meteor/local/build_test');
   // Allow override and use of external mongo. Matches code in launch_mongo.
@@ -506,7 +508,27 @@ exports.run = function (app_dir, bundle_opts, port) {
 
     server_log = [];
 
-    var errors = bundler.bundle(app_dir, bundle_path, bundle_opts);
+    var errors = [];
+
+    var ignore = [];
+    /*if(path.existsSync(path.join(app_dir, '.meteor/routes'))){
+      var dirs = fs.readdirSync('./');
+      _.each(dirs, function(val, key){
+        if(val[0] != '.' && val != 'root'){
+          bundle_opts.subapp = val;
+          errors.concat(bundler.bundle(path.join(app_dir, val), path.join(app_dir, val, '.meteor/local/build'), bundle_opts));
+          bundler.ignore_files.push('/^' + val + '$/');
+        }
+      });
+    }
+
+    bundle_opts.subapp = 'root';
+    errors.concat(bundler.bundle(app_dir, bundle_path, bundle_opts));*/
+    console.log('start bundle', +new Date());
+    errors = bundler.bundle(app_dir, bundle_path, bundle_opts);
+    console.log('end bundle', +new Date());
+
+
 
     var deps_raw;
     try {
@@ -523,7 +545,7 @@ exports.run = function (app_dir, bundle_opts, port) {
     if (deps_raw)
       deps_info = JSON.parse(deps_raw.toString());
 
-    if (errors) {
+    if (errors && errors.length != 0) {
       log_to_clients({stdout: "Errors prevented startup:\n"});
       _.each(errors, function (e) {
         log_to_clients({stdout: e + "\n"});

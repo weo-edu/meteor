@@ -5,7 +5,7 @@ require("fibers");
 var fs = require("fs");
 var path = require("path");
 
-var connect = require('connect');
+var express = require('express');
 var gzippo = require('gzippo');
 var argv = require('optimist').argv;
 var mime = require('mime');
@@ -50,6 +50,9 @@ var supported_browser = function (user_agent) {
 // add any runtime configuration options needed to app_html
 var runtime_config = function (app_html) {
   var insert = '';
+  if (process.env.DEFAULT_DDP_ENDPOINT)
+    insert += "__meteor_runtime_config__.DEFAULT_DDP_ENDPOINT = '" + process.env.DEFAULT_DDP_ENDPOINT + "';";
+
   if (typeof __meteor_runtime_config__ === 'undefined')
     return app_html;
 
@@ -72,11 +75,25 @@ var run = function () {
     throw new Error("MONGO_URL must be set in environment");
 
   // webserver
-  var app = connect.createServer();
+  var app = express.createServer();
   var static_cacheable_path = path.join(bundle_dir, 'static_cacheable');
   if (fs.existsSync(static_cacheable_path))
     app.use(gzippo.staticGzip(static_cacheable_path, {clientMaxAge: 1000 * 60 * 60 * 24 * 365}));
-  app.use(gzippo.staticGzip(path.join(bundle_dir, 'static')));
+  app.use('/', gzippo.staticGzip(path.join(bundle_dir, 'static')));
+
+
+  var app_html = fs.readFileSync(path.join(bundle_dir, 'app.html'), 'utf8');
+  var unsupported_html = fs.readFileSync(path.join(bundle_dir, 'unsupported.html'));
+
+  app_html = runtime_config(app_html);
+
+  //app.enable('trust proxy');
+  app.use(express.bodyParser());
+  app.use(app.router);
+
+  io = require('socket.io');
+  io = io.listen(app);
+  io.set('log level', 1);
 
   // read bundle config file
   var info_raw =
@@ -84,10 +101,25 @@ var run = function () {
   var info = JSON.parse(info_raw);
 
   // start up app
-  __meteor_bootstrap__ = {require: require, startup_hooks: [], app: app};
+  __meteor_bootstrap__ = {
+    require: require, 
+    startup_hooks: [], 
+    app: app, 
+    io: io,
+    env: process.env
+  };
   __meteor_runtime_config__ = {};
+  _.each(process.env, function(val, key){
+    if(key.indexOf('METEOR_') === 0)
+      __meteor_runtime_config__[key] = val;
+  });
+
   Fiber(function () {
     // (put in a fiber to let Meteor.db operations happen during loading)
+
+    // pass in database info
+    __meteor_bootstrap__.mongo_url = mongo_url;
+    __meteor_bootstrap__.redis_url = process.env.REDIS_URL;
 
     // load app code
     _.each(info.load, function (filename) {

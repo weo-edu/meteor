@@ -521,7 +521,25 @@ Spark.renderToRange = function (range, htmlFunc) {
     notes.originalRange = landmarkRange;
   });
 
-  var frag = renderer.materialize(htmlFunc);
+  // Find landmarks enclosing range, from inner to outer
+  var enclosingLandmarks = [];
+  var walk = range;
+  while ((walk = findParentOfType(Spark._ANNOTATION_LANDMARK, walk)))
+    enclosingLandmarks.push(walk);
+
+  // Render the new contents. Must call 'enter' and 'exit' on
+  // enclosing landmarks as appropriate.
+   _.each(_.clone(enclosingLandmarks).reverse(), function (containingRange) {
+    containingRange.enterCallback.call(containingRange.landmark);
+  });
+
+  try {
+    var frag = renderer.materialize(htmlFunc);
+  } finally {
+    _.each(_.clone(enclosingLandmarks), function (containingRange) {
+      containingRange.exitCallback.call(containingRange.landmark);
+    });
+  }
 
   DomUtils.wrapFragmentForContainer(frag, range.containerNode());
 
@@ -749,13 +767,13 @@ Spark.attachEvents = withRenderer(function (eventMap, html, _renderer) {
 /* Isolate                                                                    */
 /******************************************************************************/
 
-Spark.isolate = function (htmlFunc) {
+Spark.isolate = function (htmlFunc, name) {
   var renderer = Spark._currentRenderer.get();
   if (!renderer)
     return htmlFunc();
 
   var ctx = new Meteor.deps.Context;
-
+  ctx.templateName = name;
   return renderer.annotate(
     ctx.run(htmlFunc), Spark._ANNOTATION_ISOLATE, function (range) {
       range.finalize = function () {
@@ -772,6 +790,7 @@ Spark.isolate = function (htmlFunc) {
           return; // killed by finalize. range has already been destroyed.
 
         ctx = new Meteor.deps.Context;
+        ctx.templateName = name;
         Spark.renderToRange(range, function () {
           return ctx.run(htmlFunc);
         });
@@ -846,7 +865,7 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
     function (html) { return html; };
 
   // Render the initial contents. If we have a renderer, create a
-  // range around each item as well as around the list, and save them
+  // range around each item as well as around the list, and save atflushtimethem
   // off for later.
   var html = '';
   var outerRange;
@@ -867,6 +886,7 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
   initialContents = null; // save memory
   var stopped = false;
   var cleanup = function () {
+    cleanedup = true;
     handle.stop();
     stopped = true;
   };
@@ -1068,7 +1088,7 @@ Spark.createLandmark = function (options, htmlFunc) {
   var landmark;
   if (notes.originalRange) {
     if (notes.originalRange.superceded)
-      throw new Error("Can't create second landmark in same branch");
+      throw new Error("Can't create second landmark in same branch ");
     notes.originalRange.superceded = true; // prevent destroyed(), second match
     landmark = notes.originalRange.landmark; // the old Landmark
   } else {
@@ -1088,7 +1108,16 @@ Spark.createLandmark = function (options, htmlFunc) {
   }
   notes.landmark = landmark;
 
-  var html = htmlFunc(landmark);
+  options.enter = options.enter || function () {};
+  options.exit = options.exit || function () {};
+
+  options.enter.call(landmark);
+  try {
+    var html = htmlFunc(landmark);
+  } finally {
+    options.exit.call(landmark);
+  }
+
   return renderer.annotate(
     html, Spark._ANNOTATION_LANDMARK, function (range) {
       _.extend(range, {
@@ -1096,6 +1125,8 @@ Spark.createLandmark = function (options, htmlFunc) {
         constant: !! options.constant,
         rendered: options.rendered || function () {},
         destroyed: options.destroyed || function () {},
+        enterCallback: options.enter,
+        exitCallback: options.exit,
         landmark: landmark,
         finalize: function () {
           if (! this.superceded) {

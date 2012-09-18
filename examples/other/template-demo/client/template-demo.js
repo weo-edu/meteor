@@ -30,6 +30,7 @@ function () {
   return Session.get("z");
 };
 
+
 Template.page.events({
   'click input.x': function () {
     Session.set("x", Session.get("x") + 1);
@@ -52,13 +53,20 @@ if (typeof Session.get("spinForward") !== 'boolean') {
 
 Template.preserveDemo.preserve([ '.spinner', '.spinforward' ]);
 
+Template.preserveDemo.create = function() {
+  if (typeof this.get("spinForward") !== 'boolean') {
+    this.set("spinForward", true);
+  }
+}
+
 Template.preserveDemo.spinForwardChecked = function () {
-  return Session.get('spinForward') ? 'checked="checked"' : '';
+  return this.template.get('spinForward') ? 'checked="checked"' : '';
 };
 
 Template.preserveDemo.spinAnim = function () {
-  return Session.get('spinForward') ? 'spinForward' : 'spinBackward';
+  return this.template.get('spinForward') ? 'spinForward' : 'spinBackward';
 };
+
 
 Template.preserveDemo.events({
   'change .spinforward' : function (event) {
@@ -171,6 +179,8 @@ Template.d3Demo.right = function () {
   return { group: "right" };
 };
 
+
+
 Template.circles.events({
   'mousedown circle': function (evt, template) {
     Session.set("selectedCircle:" + this.group, evt.currentTarget.id);
@@ -186,11 +196,11 @@ Template.circles.events({
                     group: this.group
                    });
   },
-  'click .remove': function () {
-    var selected = Session.get("selectedCircle:" + this.group);
+  'click .remove': function (evt,template) {
+    var selected = template.get("selectedCircle:" + this.group);
     if (selected) {
       Circles.remove(selected);
-      Session.set("selectedCircle:" + this.group, null);
+      template.set("selectedCircle:" + this.group, null);
     }
   },
   'click .scram': function () {
@@ -210,12 +220,12 @@ var colorToString = function (color) {
     + f(color.g) + "," + + f(color.b) + ")";
 };
 
-Template.circles.count = function () {
+Template.circles.count = function (arg1,arg2) {
   return Circles.find({group: this.group}).count();
 };
 
 Template.circles.disabled = function () {
-  return Session.get("selectedCircle:" + this.group) ?
+  return this.template.get("selectedCircle:" + this.group) ?
     '' : 'disabled="disabled"';
 };
 

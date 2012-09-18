@@ -17,6 +17,7 @@ _Mongo = function (url) {
   var self = this;
 
   self.collection_queue = [];
+  self.db_callbacks = [];
 
   MongoDB.connect(url, function(err, db) {
     if (err)
@@ -30,8 +31,20 @@ _Mongo = function (url) {
         db.collection(c.name, c.callback);
       }).run();
     }
+
+    while((c = self.db_callbacks.pop())) {
+      c(db);
+    }
   });
 };
+
+_Mongo.prototype.withDB = function(cb) {
+  var self = this;
+  if (self.db) 
+    cb(self.db);
+  else
+    self.db_callbacks.push(cb);
+}
 
 // protect against dangerous selectors.  falsey and {_id: falsey}
 // are both likely programmer error, and not what you want,
@@ -228,6 +241,45 @@ _Mongo.prototype.update = function (collection_name, selector, mod, options) {
   var err = future.wait();
   if (err)
     throw err;
+};
+
+_Mongo.prototype.findAndModify = function(collection_name, selector, sort, mod, options) {
+  var self = this,
+    write = self._maybeBeginWrite();
+  
+  var finish = Meteor.bindEnvironment(function() {
+    Meteor.refresh({collection: collection_name});
+    write.committed();
+  }, function(e) {
+    Meteor._debug('Exception while completing findAndModify:' + e.stack);
+  });
+
+  selector = _Mongo._rewriteSelector(selector);
+  options = options || {};
+
+  var future = new Future;
+  self._withCollection(collection_name, function(err, collection) {
+    if(err) {
+      future.ret([false, err]);
+      return;
+    }
+
+    collection.findAndModify(selector, sort, mod, options, function(err, obj) {
+      if(err) {
+        future.ret([false, err]);
+        return;
+      }
+
+      finish();
+      future.ret([true, obj]);
+    });
+  });
+
+  var res = future.wait();
+  if(! res[0])
+    throw res[1];
+
+  return res[1];
 };
 
 _Mongo.prototype.find = function (collection_name, selector, options) {

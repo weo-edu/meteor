@@ -67,7 +67,6 @@ function install_dev_bundle {
     set +e
 }
 
-
 if [ -d "$SCRIPT_DIR/.git" ] || [ -f "$SCRIPT_DIR/.git" ]; then
     # In a checkout.
     if [ ! -d "$SCRIPT_DIR/dev_bundle" ] ; then

@@ -50,6 +50,27 @@
   // created/rendered/destroyed callbacks on templates
   var templateInstanceData = {};
 
+  //setup migration for template stores
+  var templateStoresByPath = {};
+  if (Meteor._reload) {
+    Meteor._reload.on_migrate('templateStores',function() {
+      var stores = {}
+      _.each(templateInstanceData,function(template) {
+        stores[template._id()] = template.store;
+      });
+      return [true,stores];
+    });
+    (function() {
+      var migration_data = Meteor._reload.migration_data('templateStores');
+      if (migration_data) {
+        templateStoresByPath = migration_data;
+
+        // should delete all template stores after first render ?
+        
+      }
+    })();
+  }
+
   var templateObjFromLandmark = function (landmark) {
     var template = templateInstanceData[landmark.id] || (
       templateInstanceData[landmark.id] = {
@@ -63,7 +84,57 @@
           if (! landmark.hasDom())
             throw new Error("Template not in DOM");
           return landmark.findAll(selector);
-        }
+        },
+
+        store: ReactiveDict(),
+
+        _id: function() {
+          if ($(this.firstNode).attr('id')) return $(this.firstNode).attr('id');
+          else {
+            return "/" + $(this.firstNode).parents().andSelf().map(function() {
+              var $this = $(this);
+              var tagName = this.nodeName;
+              if ($this.siblings(tagName).length > 0) {
+                  tagName += "[" + $this.prevAll(tagName).length + "]";
+              }
+              return tagName;
+            }).get().join("/");
+          }
+          
+        },
+
+        set: function(key, value, notReactive) {
+          return this.store.set(key, value, notReactive);
+        },
+
+        get: function(key) {
+          return this.store.get(key);
+        },
+
+        emitter: new Emitter(),
+
+        nextRender: function(cb) {
+          this.emitter.once('render',cb);
+        },
+
+        emitRender: function() {
+          this.emitter.emit('render');
+        },
+
+        onRender: function(cb) {
+          this.emitter.on('render',cb);
+        },
+
+        onDestroy: function(cb) {
+          this.emitter.on('destroy',cb);
+        },
+
+        emitDestroy: function() {
+          this.emitter.emit('destroy');
+        },
+
+        firstRender: true,
+
       });
     // set these each time
     template.firstNode = landmark.hasDom() ? landmark.firstNode() : null;
@@ -71,7 +142,11 @@
     return template;
   };
 
-  // XXX forms hooks into this to add "bind"?
+  Meteor.templateFromLandmark = templateObjFromLandmark;
+  Meteor.templatesById = {}
+  Meteor.templatesByIdCallbacks = {};
+
+   // XXX forms hooks into this to add "bind"?
   Meteor._template_decl_methods = {
     // methods store data here (event map, etc.).  initialized per template.
     _tmpl_data: null,
@@ -105,9 +180,11 @@
 
     window.Template = window.Template || {};
 
+
     // Define the function assigned to Template.<name>.
 
     var partial = function (data) {
+      data = data || {};
       var tmpl = name && Template[name] || {};
       var tmplData = tmpl._tmpl_data || {};
 
@@ -117,20 +194,50 @@
           created: function () {
             var template = templateObjFromLandmark(this);
             template.data = data;
-            tmpl.created && tmpl.created.call(template);
+            tmpl.created && tmpl.created.call(template, tmpl);
+
+            if (data.id) {
+                Meteor.templatesById[data.id] = template;
+                _.each(Meteor.templatesByIdCallbacks[data.id], function (cb) {
+                  cb(template);
+                });
+            }
+
           },
           rendered: function () {
             var template = templateObjFromLandmark(this);
             template.data = data;
+
+            var path = template._id();
+            if (template.firstRender && path in templateStoresByPath) {
+              //restore store
+              var store = templateStoresByPath[path]
+              delete templateStoresByPath[path];
+              if(store) template.store.setMany(store);
+            }
+
             tmpl.rendered && tmpl.rendered.call(template);
+            template.emitRender();
+
+            
+            template.firstRender = false;
           },
           destroyed: function () {
-            // template.data is already set from previous callbacks
+            var template = templateObjFromLandmark(this)
             tmpl.destroyed &&
-              tmpl.destroyed.call(templateObjFromLandmark(this));
+              tmpl.destroyed.call(template);
+            template.emitDestroy();
             delete templateInstanceData[this.id];
+          },
+          enter: function () {
+            this.oldTemplate = Meteor.template;
+            Meteor.template = templateObjFromLandmark(this);
+          },
+          exit: function() {
+            Meteor.template = this.oldTemplate;
           }
         }, function (landmark) {
+
           var html = Spark.isolate(function () {
             // XXX Forms needs to run a hook before and after raw_func
             // (and receive 'landmark')
@@ -140,6 +247,7 @@
               name: name
             });
           });
+
 
           // take an event map with `function (event, template)` handlers
           // and produce one with `function (event, landmark)` handlers
@@ -165,7 +273,7 @@
           if (tmpl.events)
             html = Spark.attachEvents(wrapEventMap(events), html);
           return html;
-        });
+        }, name);
         html = Spark.setDataContext(data, html);
         return html;
       });

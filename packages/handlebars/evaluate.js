@@ -28,9 +28,15 @@ Handlebars.json_ast_to_func = function (ast) {
 // what is passed in via named arguments.
 Handlebars._default_helpers = {
   'with': function (data, options) {
+    /*data = data || {};
+    data.template = this.template;
+    data.toJSON = this.toJSON;*/
     return options.fn(data);
   },
   'each': function (data, options) {
+    /*data = data || {};
+    data.template = this.template;
+    data.toJSON = this.toJSON;*/
     var parentData = this;
     if (data && data.length > 0)
       return _.map(data, function(x, i) {
@@ -104,10 +110,19 @@ Handlebars.evaluate = function (ast, data, options) {
   // the user to capture their subtemplate rendering functions and
   // call them later, after we've finished running (for eg findLive.)
   // maybe revisit later.
-
   var eval_value = function (stack, id) {
-    if (typeof(id) !== "object")
-      return id;
+    if (typeof(id) !== "object") {
+      if (id === 'true') {
+        return true;
+      } else if (id === 'false') {
+        return false
+      } else if (!isNaN(parseInt(id))) {
+        return parseInt(id);
+      } else {
+        return id;
+      }
+    }
+      
 
     // follow '..' in {{../../foo.bar}}
     for (var i = 0; i < id[0]; i++) {
@@ -241,13 +256,15 @@ Handlebars.evaluate = function (ast, data, options) {
       if (typeof oneArg === "function")
         // invoke the positional arguments
         // (and hash arguments) as a nested helper invocation.
-        oneArg = apply(values.slice(1), {hash:hash});
+        oneArg = apply(values.slice(1), {hash:hash, template: Meteor.template});
       values = [values[0], oneArg];
       // keyword args don't go to the block helper, then.
       extra.hash = {};
     } else {
       extra.hash = hash;
     }
+
+    extra.template = Meteor.template;
 
     return apply(values, extra);
   };

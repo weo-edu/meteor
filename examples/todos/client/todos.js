@@ -19,7 +19,6 @@ Session.set('editing_listname', null);
 // When editing todo text, ID of the todo
 Session.set('editing_itemname', null);
 
-
 // Subscribe to 'lists' collection on startup.
 // Select a list once data has arrived.
 Meteor.subscribe('lists', function () {
@@ -223,7 +222,7 @@ Template.todo_item.events({
     evt.target.parentNode.style.opacity = 0;
     // wait for CSS animation to finish
     Meteor.setTimeout(function () {
-      Todos.update({_id: id}, {$pull: {tags: tag}});
+      Todos.update(id, {$pull: {tags: tag}});
     }, 300);
   }
 });

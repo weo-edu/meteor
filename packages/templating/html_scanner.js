@@ -1,4 +1,3 @@
-
 var html_scanner = {
   // Scan a template file for <head>, <body>, and <template>
   // tags and extract their contents.
@@ -140,8 +139,7 @@ var html_scanner = {
       if (! name)
         throw parseError("Template has no 'name' attribute");
 
-      results.js += "Meteor._def_template(" + JSON.stringify(name) + ","
-        + code + ");\n";
+      results.js += "Meteor._def_template(" + JSON.stringify(name) + "," + code + ");\n";
     } else {
       // <body>
       if (hasAttribs)

@@ -11,6 +11,7 @@
     this._invalidated = false;
   };
   Context.current = null;
+  Context.logInvalidateStack = false;
 
   _.extend(Context.prototype, {
     run: function (f) {
@@ -25,6 +26,13 @@
     // invalidation functions (before returning) -- it just marks the
     // context as invalidated.
     invalidate: function () {
+      if(Context.logInvalidateStack) {
+        Error.stackTraceLimit = 100;
+        if (!this.errs) this.errs = [];
+        this.errs.push(new Error);
+        Error.stackTraceLimit = 10;
+      }
+
       if (!this._invalidated) {
         this._invalidated = true;
         // If this is first invalidation, schedule a flush.
@@ -38,7 +46,7 @@
 
     // calls f immediately if this context was already
     // invalidated. receives one argument, the context.
-    on_invalidate: function (f) {
+    on_invalidate: function (f) {  
       if (this._invalidated)
         f(this);
       else
@@ -60,6 +68,11 @@
 
         _.each(pending, function (ctx) {
           _.each(ctx._callbacks, function (f) {
+            if(Context.logInvalidateStack) {
+              _.each(ctx.errs, function(err) {
+                printUserStack(err.stack);
+              });
+            }
             f(ctx); // XXX wrap in try?
           });
           delete ctx._callbacks; // maybe help the GC
@@ -71,4 +84,27 @@
       Context: Context
     }
   });
+
+  function printUserStack(stack) {
+  //console.log(stack);
+    var re = /[^\(]*\((.*)\)/
+    var lines = stack.split('\n');
+    var userLines = _.filter(lines, function(line) {
+      var file = re.exec(line);
+      if(file && file[1] !== 'native') {
+        var parsed = utils.parseUrl(file[1]);
+        var parts = parsed.pathname.split('/');
+        if(parts[1] !== 'packages') {
+          //console.log(parsed.pathname);
+          return true;
+        }// else
+         // console.log(parsed.pathname);
+      }
+      //var url = utils.parseUrl(file[0]);
+      //console.log(url);
+      return false;
+    });
+
+    userLines.length > 0 && console.log(userLines.join('\n'));
+  }
 })();

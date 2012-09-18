@@ -1121,6 +1121,7 @@ SockJS.prototype._try_next_protocol = function(close_event) {
 
             var connid = utils.random_string(8);
             var trans_url = that._base_url + '/' + that._server + '/' + connid;
+
             that._debug('Opening transport:', protocol, ' url:'+trans_url,
                         ' RTO:'+that._options.rto);
             that._transport = new SockJS[protocol](that, trans_url,
@@ -1185,6 +1186,10 @@ SockJS.prototype._applyInfo = function(info, rtt, protocols_whitelist) {
 var WebSocketTransport = SockJS.websocket = function(ri, trans_url) {
     var that = this;
     var url = trans_url + '/websocket';
+
+    if(__meteor_runtime_config__.METEOR_SUBAPP_NAME)
+        url += '/' + __meteor_runtime_config__.METEOR_SUBAPP_NAME;
+
     if (url.slice(0, 5) === 'https') {
         url = 'wss' + url.slice(5);
     } else {

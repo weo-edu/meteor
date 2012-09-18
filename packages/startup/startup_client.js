@@ -1,10 +1,10 @@
 (function() {
   var queue = [];
-  var loaded = document.readyState === "loaded" ||
+  Meteor.loaded = document.readyState === "loaded" ||
     document.readyState == "complete";
 
   var ready = function() {
-    loaded = true;
+    Meteor.loaded = true;
     while (queue.length)
       (queue.shift())();
   };
@@ -25,7 +25,7 @@
       document.documentElement.doScroll;
 
     if (!doScroll || window !== top) {
-      if (loaded)
+      if (Meteor.loaded)
         cb();
       else
         queue.push(cb);

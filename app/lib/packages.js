@@ -84,6 +84,7 @@ _.extend(Package.prototype, {
   init_from_library: function (name) {
     var self = this;
     self.name = name;
+
     self.source_root = files.get_package_dir(name);
     self.serve_root = path.join('/packages', name);
     
@@ -217,12 +218,12 @@ var package_cache = {};
 
 var packages = module.exports = {
   // get a package by name. also maps package objects to themselves.
-  get: function (name) {
+  get: function (name, source_root) {
     if (name instanceof Package)
       return name;
     if (!(name in package_cache)) {
       var pkg = new Package;
-      pkg.init_from_library(name);
+      pkg.init_from_library(name, source_root);
       package_cache[name] = pkg;
     }
 
@@ -269,7 +270,7 @@ var packages = module.exports = {
   // a package object.
   list: function () {
     var ret = {};
-    
+
     _.each(files.get_package_dirs(), function(dir) {
       _.each(fs.readdirSync(dir), function (name) {
         // skip .meteor directory
@@ -277,6 +278,15 @@ var packages = module.exports = {
           ret[name] = packages.get(name);
       });      
     })
+
+    var my_dir = files.get_user_package_dir();
+    _.each(fs.readdirSync(my_dir), function (name) {
+      console.log('name',name);
+      // skip .meteor directory
+      if (path.existsSync(path.join(my_dir, name, 'package.js'))){
+        ret[name] = packages.get(name,my_dir);
+      }
+    });
 
     return ret;
   },

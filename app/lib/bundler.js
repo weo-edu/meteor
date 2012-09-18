@@ -34,12 +34,14 @@ var cleanCSS = require('clean-css');
 var _ = require('./third/underscore.js');
 
 // files to ignore when bundling. node has no globs, so use regexps
-var ignore_files = [
+exports.ignore_files = [
     /~$/, /^\.#/, /^#.*#$/,
     /^\.DS_Store$/, /^ehthumbs\.db$/, /^Icon.$/, /^Thumbs\.db$/,
     /^\.meteor$/, /* avoids scanning N^2 files when bundling all packages */
     /^\.git$/ /* often has too many files to watch */
 ];
+
+var ignore_files = exports.ignore_files;
 
 ///////////////////////////////////////////////////////////////////////////////
 // PackageInstance
@@ -98,6 +100,23 @@ var PackageInstance = function (pkg, bundle) {
       });
     },
 
+    add_dir: function(dir,where) {
+      var files = _.map(fs.readdirSync(path.join(self.pkg.source_root, dir)),function(file) {
+        return path.join(dir,file);
+      });
+      var non_js = [];
+      var js = [];
+      _.each(files,function(file) {
+        if (!path.extname(file) === '.js') {
+          non_js.push(file);
+        } else {
+          js.push(file);
+        }
+      });
+      this.add_files(non_js,where);
+      this.add_files(js,where);
+    },
+
     // Return a list of all of the extension that indicate source files
     // inside this package, INCLUDING leading dots.
     registered_extensions: function () {
@@ -123,6 +142,8 @@ var PackageInstance = function (pkg, bundle) {
         self.bundle.include_tests(pkg);
       });
     },
+
+    test_in_browser: true,
 
     // Report an error. It should be a single human-readable
     // string. If any errors are reported, the bundling is considered
@@ -461,7 +482,7 @@ _.extend(Bundle.prototype, {
   },
 
   // dev_bundle_mode should be "skip", "symlink", or "copy"
-  write_to_directory: function (output_path, project_dir, dev_bundle_mode) {
+  write_to_directory: function (output_path, project_dir, dev_bundle_mode, subapp) {
     var self = this;
     var app_json = {};
     var dependencies_json = {core: [], app: [], packages: {}};
@@ -542,6 +563,7 @@ _.extend(Bundle.prototype, {
       // er? file we don't know how to serve? thats not right...
       return file;
     };
+
     self.js.client = _.map(self.js.client, add_query_param);
     self.css = _.map(self.css, add_query_param);
 
@@ -651,8 +673,10 @@ exports.bundle = function (project_dir, output_path, options) {
     // Include tests if requested
     if (options.include_tests) {
       // in the future, let use specify the driver, instead of hardcoding?
-      bundle.use(packages.get('test-in-browser'));
       bundle.include_tests(project);
+      var inst = bundle._get_instance(project);
+      if (inst.api.test_in_browser) bundle.use(packages.get('test-in-browser'));
+
     }
 
     // Minify, if requested
@@ -663,7 +687,8 @@ exports.bundle = function (project_dir, output_path, options) {
     var dev_bundle_mode =
           options.skip_dev_bundle ? "skip" : (
             options.symlink_dev_bundle ? "symlink" : "copy");
-    bundle.write_to_directory(output_path, project_dir, dev_bundle_mode);
+    bundle.write_to_directory(output_path, project_dir, dev_bundle_mode, options.subapp);
+
 
     if (bundle.errors.length)
       return bundle.errors;
