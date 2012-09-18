@@ -167,7 +167,7 @@ Template.todos.todos = function () {
   if (tag_filter)
     sel.tags = tag_filter;
 
-  return Todos.find(sel, {sort: {timestamp: 1}});
+  return Todos.find(sel, {skip: 3, limit: 5, sort: {timestamp: 1}});
 };
 
 Template.todos.preserve(['#new-todo']);

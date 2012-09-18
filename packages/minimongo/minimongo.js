@@ -170,8 +170,8 @@ LocalCollection.LiveResultsSet = function () {};
 LocalCollection.Cursor.prototype.observe = function (options) {
   var self = this;
 
-  if (self.skip || self.limit)
-    throw new Error("cannot observe queries with skip or limit");
+  //if (self.skip || self.limit)
+  //  throw new Error("cannot observe queries with skip or limit");
 
   var qid = self.collection.next_qid++;
 
@@ -181,7 +181,10 @@ LocalCollection.Cursor.prototype.observe = function (options) {
     sort_f: self.sort_f,
     results: [],
     results_snapshot: self.collection.paused ? [] : null,
-    cursor: this
+    cursor: this,
+    limit: self.limit,
+    skip: self.skip,
+    skipped: 0
   };
   query.results = self._getRawObjects();
 
@@ -306,7 +309,7 @@ LocalCollection.prototype.remove = function (selector) {
     var removeId = remove[i];
     var removeDoc = self.docs[removeId];
     _.each(self.queries, function (query) {
-      if (query.selector_f(removeDoc))
+      if (query.selector_f(removeDoc) || query.cursor.limit || query.cursor.skip)
         queryRemove.push([query, removeDoc]);
     });
     delete self.docs[removeId];
@@ -397,20 +400,89 @@ LocalCollection._deepcopy = function (v) {
 // XXX the sorted-query logic below is laughably inefficient. we'll
 // need to come up with a better datastructure for this.
 
-LocalCollection._insertInResults = function (query, doc) {
+LocalCollection._insertInResults = function (query, doc, dontFireEvent) {
+  var self = this;
+
   if (!query.sort_f) {
+    if(query.cursor.limit && query.results.length >= query.cursor.limit) 
+      return;
+
     query.added(LocalCollection._deepcopy(doc), query.results.length);
     query.results.push(doc);
   } else {
+    if(query.cursor.skip) {
+      if(query.results.length === 0 && query.skipped < query.cursor.skip) {
+        query.skipped++;
+        return;
+      }
+      else if(query.skipped === query.cursor.skip) {
+        query.skipped++;
+        query.results = query.cursor._getRawObjects();
+        query.added(LocalCollection._deepcopy(query.results[0]), 0);
+        return;
+      }
+
+      if(query.results.length > 0 && query.sort_f(doc, query.results[0]) < 0) {
+        var oldLimit = query.cursor.limit;
+        query.cursor.limit = 1;
+        var objs = query.cursor._getRawObjects();
+        doc = objs[0];
+        query.cursor.limit = oldLimit;
+        dontFireEvent = false;
+      }
+    }
+
+    if(query.cursor.limit && query.results.length >= query.cursor.limit) {
+      if(query.sort_f(doc, query.results[query.results.length-1]) > 0)
+        return;
+    }
+
     var i = LocalCollection._insertInSortedList(query.sort_f, query.results, doc);
-    query.added(LocalCollection._deepcopy(doc), i);
+    dontFireEvent || query.added(LocalCollection._deepcopy(doc), i);
+
+    if(query.cursor.limit && query.results.length > query.cursor.limit) {
+      self._removeFromResults(query, query.results[query.results.length-1]);
+    }
+    return i;
   }
 };
 
 LocalCollection._removeFromResults = function (query, doc) {
-  var i = LocalCollection._findInResults(query, doc);
-  query.removed(doc, i);
-  query.results.splice(i, 1);
+  try{
+    var i = LocalCollection._findInResults(query, doc);
+
+    query.removed(doc, i);
+    query.results.splice(i, 1);
+
+    //  If the item just removed caused us to be 1 short of our limit
+    //  then we need to re-evaluate
+    if(query.cursor.limit && (query.results.length + 1) === query.cursor.limit) {
+      var objs = query.cursor._getRawObjects();
+      if(objs[query.cursor.limit-1]) {
+        i = query.cursor.limit - 1;
+        doc = objs[i];
+        query.results.push(doc);
+        query.added(LocalCollection._deepcopy(doc), i);
+      }
+    }
+  }
+  catch(err){
+    if(query.cursor.skip && query.cursor.sort_f(doc, query.results[0]) < 0) {
+      i = 0;
+      doc = query.results[i];
+      query.removed(doc, i);
+      query.results.shift();
+
+      if(query.cursor.limit) {
+        var objs = query.cursor._getRawObjects();
+        if(objs.length >= query.results.length) {
+          doc = objs.pop();
+          query.results.push(doc);
+          query.added(LocalCollection._deepcopy(doc), query.results.length-1);
+        }
+      }
+    }
+  }
 };
 
 LocalCollection._updateInResults = function (query, doc, old_doc) {
@@ -423,9 +495,22 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
   // just take it out and put it back in again, and see if the index
   // changes
   query.results.splice(orig_idx, 1);
-  var new_idx = LocalCollection._insertInSortedList(query.sort_f,
-                                               query.results, doc);
-  if (orig_idx !== new_idx)
+  var old = query.cursor.limit;
+  if(old && (query.cursor.sort_f(doc, query.results[0]) < 0
+    || query.cursor.sort_f(doc, query.results[query.results.length-1]) > 0))
+     query.cursor.limit--;
+  var new_idx = LocalCollection._insertInResults(query, doc, true);
+  query.cursor.limit = old;
+
+  if(query.cursor.limit && query.cursor.limit === (query.results.length+1)) {
+    var objs = query.cursor._getRawObjects();
+    if(objs.length === (query.results.length+1))
+      LocalCollection._insertInResults(query, objs.pop());
+  }
+
+  if(new_idx === undefined)
+    query.removed(doc, orig_idx);
+  else if (orig_idx !== new_idx)
     query.moved(LocalCollection._deepcopy(doc), orig_idx, new_idx);
 };
 
