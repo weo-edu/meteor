@@ -71,7 +71,8 @@ var run = function () {
   var port = process.env.PORT ? parseInt(process.env.PORT) : 80;
 
   // check for a valid MongoDB URL right away
-  if (!process.env.MONGO_URL)
+  var mongo_url = process.env.MONGO_URL;
+  if (!mongo_url)
     throw new Error("MONGO_URL must be set in environment");
 
   // webserver
