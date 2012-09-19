@@ -778,6 +778,7 @@ Commands.push({
       //  to match what was sent, in order to pass IOS security check.
       //  Hopefully they will update to a more recent websocket standard
       //  soon
+      socket = _.clone(socket);
       var _write = socket.write;
       socket.write = function(data){
         socket.write = _write;
