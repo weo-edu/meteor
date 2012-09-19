@@ -132,8 +132,7 @@
           this.emitter.emit('destroy');
         },
 
-        firstRender: true,
-
+        firstRender: true
       });
     // set these each time
     template.firstNode = landmark.hasDom() ? landmark.firstNode() : null;
