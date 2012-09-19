@@ -269,7 +269,7 @@ LocalCollection._compileSelector = function (selector) {
     return function (doc) {return selector.call(doc);};
 
   // shorthand -- scalars match _id
-  if ((typeof selector === "string") || (typeof selector === "number"))
+  if (LocalCollection._selectorIsId(selector))
     selector = {_id: selector};
   else if(_.isArray(selector))
     selector = {_id: {$in: selector}};
@@ -287,6 +287,11 @@ LocalCollection._compileSelector = function (selector) {
        LocalCollection._exprForSelector(selector, literals) +
        ";};})");
   return _func(LocalCollection._f, literals);
+};
+
+// Is this selector just shorthand for lookup by _id?
+LocalCollection._selectorIsId = function (selector) {
+  return (typeof selector === "string") || (typeof selector === "number");
 };
 
 // XXX implement ordinal indexing: 'people.2.name'

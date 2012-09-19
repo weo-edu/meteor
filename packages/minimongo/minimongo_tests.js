@@ -1151,3 +1151,173 @@ Tinytest.add("minimongo - pause", function (test) {
 
   h.stop();
 });
+
+
+/*
+  Things to test here:
+  1.  Pre-skip insert with and without limit
+  2.  Pre-skip remove with and without limit
+  3.  Mid-find insert with skip with and without limit
+*/
+Tinytest.add('minimongo - skip/limit reactivity', function(test) {
+  var operations = [];
+
+  var cbs = log_callbacks(operations);
+
+  var c = new LocalCollection();
+  _.each(_.range(50), function(i) {
+    c.insert({_id: i, a: i});
+  });
+
+  c.snapshot();
+
+  var cursor = c.find({}, {skip: 2, limit: 5, sort: [['a', 'asc']]});
+  var h = cursor.observe(cbs);
+
+  test.length(operations, 5);
+
+  /*
+    Insert in middle of find with skip and limit
+  */
+  //  Clear the operations log so we can get a clean view of what the insert does
+  operations.length = 0;
+
+  c.insert({_id: 51, a: 3});
+  //  One insert should trigger an insert and a remove operation
+  //  on a skip/limit query
+  test.length(operations, 2);
+
+  test.equal(operations.pop(), ['removed', 6, 5, {a: 6}]);
+  test.equal(operations.pop(), ['added', {a: 3}, 2]);
+
+  h.stop();
+  c.restore();
+  c.snapshot();
+
+  /*
+    Remove from before find with skip
+  */
+  var cursor = c.find({}, {skip: 2, sort: [['a', 'asc']]});
+  var h = cursor.observe(cbs);
+
+  var before = cursor.fetch();
+  operations.length = 0;
+  c.remove({_id: 1});
+  cursor.rewind();
+  var after = cursor.fetch();
+  test.equal(before[1], after[0]);
+
+  h.stop();
+  c.restore();
+  c.snapshot();
+
+  /*
+    Remove from the middle of a find with skip/limit
+  */
+  var cursor = c.find({}, {skip: 2, limit: 5, sort: [['a', 'asc']]});
+  var h = cursor.observe(cbs);
+  operations.length = 0;
+
+  c.remove({a: 3});
+  test.length(operations, 2);
+  test.equal(operations.pop()[0], 'added');
+  test.equal(operations.pop()[0], 'removed');
+
+  h.stop();
+  c.restore();
+  c.snapshot();
+
+
+  /*
+    Update element in the middle of a find to move it past the end
+  */
+  var cursor = c.find({}, {skip: 2, limit: 5, sort: [['a', 'asc']]});
+  var h = cursor.observe(cbs);
+  operations.length = 0;
+
+  c.update({a: 4}, {$set: {a: 20}});
+
+  test.length(operations, 3);
+  test.equal(operations.pop()[0], 'removed');
+  test.equal(operations.pop()[0], 'added');
+  h.stop();
+  c.restore();
+  c.snapshot();
+
+  /*
+    Update element in the middle of a find to move it before the beginning
+  */
+  var cursor = c.find({}, {skip: 2, limit: 5, sort: [['a', 'asc']]});
+  var h = cursor.observe(cbs);
+  operations.length = 0;
+  c.update({a: 4}, {$set: {a: 0}});
+  test.length(operations, 5);
+  test.equal(_.reduce(operations, function(memo, op) {
+    return memo + (op[0] === 'added' ? 1 : 0);
+  }, 0), 2);
+  test.equal(_.reduce(operations, function(memo, op) {
+    return memo + (op[0] === 'removed' ? 1 : 0); 
+  }, 0), 1);
+
+  h.stop();
+  c.restore();
+  c.snapshot();
+
+  /*
+    Update element to move it around within the find
+  */
+  var cursor = c.find({}, {skip: 2, limit: 5, sort: [['a', 'asc']]});
+  var h = cursor.observe(cbs);
+  operations.length = 0;
+  c.update({a: 4}, {$set: {a: 2}});
+  test.length(operations, 2);
+
+  h.stop();
+  c.restore();
+  c.snapshot();
+
+  /*
+    Insert element in middle of skip/limit
+  */
+  var cursor = c.find({}, {skip: 2, limit: 5, sort: [['a', 'asc']]});
+  var h = cursor.observe(cbs);
+  operations.length = 0;
+
+  c.insert({_id: 60, a: 3});
+  test.length(operations, 2);
+  test.equal(operations.pop(), ['removed', 6, 5, {a: 6}]);
+  test.equal(operations.pop(), ['added', {a: 3}, 2]);
+
+  h.stop();
+  c.restore();
+  c.snapshot();
+
+  /*
+    Insert element before start of skip/limit
+  */
+  var cursor = c.find({}, {skip: 2, limit: 5, sort: [['a', 'asc']]});
+  var h = cursor.observe(cbs);
+  operations.length = 0;
+
+  c.insert({_id: 60, a: 0});
+  test.length(operations, 2);
+  test.equal(operations.pop(), ['removed', 6, 5, {a: 6}]);
+  test.equal(operations.pop(), ['added', {a: 1}, 0]);
+
+  h.stop();
+  c.restore();
+  c.snapshot();
+
+  /*
+    Displace first element of skip/limited find with an insert
+  */
+  var cursor = c.find({}, {skip: 2, limit: 5, sort: [['a', 'asc']]});
+  var h = cursor.observe(cbs);
+  operations.length = 0;
+
+  c.insert({a: 1});
+  test.length(operations, 2);
+  test.equal(operations.pop()[0], 'removed');
+  test.equal(operations.pop()[0], 'added');
+});
+

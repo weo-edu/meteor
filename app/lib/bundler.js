@@ -20,10 +20,9 @@
 //  matches exclude, and if it doesn't exist yet, you should watch for
 //  it to appear)
 //
-// The application launcher is expected to execute /main.js with node,
-// setting the PORT and MONGO_URL environment variables. The enclosed
-// node application is expected to do the rest, including serving
-// /static.
+// The application launcher is expected to execute /main.js with node, setting
+// various environment variables (such as PORT and MONGO_URL). The enclosed node
+// application is expected to do the rest, including serving /static.
 
 var files = require('./files.js');
 var packages = require('./packages.js');
@@ -258,7 +257,7 @@ var Bundle = function () {
     /**
      * This is the ultimate low-level API to add data to the bundle.
      *
-     * type: "js", "css", "head", "body"
+     * type: "js", "css", "head", "body", "static"
      *
      * where: an environment, or a list of one or more environments
      * ("client", "server", "tests") -- for non-JS resources, the only
@@ -600,6 +599,7 @@ _.extend(Bundle.prototype, {
 "  $ npm install fibers\n" +
 "  $ export MONGO_URL='mongodb://user:password@host:port/databasename'\n" +
 "  $ export ROOT_URL='http://example.com'\n" +
+"  $ export MAIL_URL='smtp://user:password@mailhost:port/'\n" +
 "  $ node main.js\n" +
 "\n" +
 "Use the PORT environment variable to set the port where the\n" +
