@@ -778,10 +778,9 @@ Commands.push({
       //  to match what was sent, in order to pass IOS security check.
       //  Hopefully they will update to a more recent websocket standard
       //  soon
-      socket = _.clone(socket);
-      var _write = socket.write;
-      socket.write = function(data){
-        socket.write = _write;
+      var _modify = socket.modify;
+      socket.modify = function(data){
+        socket.modify = _modify;
 
         var sdata = data.toString();
         sdata = sdata.substr(0, sdata.search('\r\n\r\n'));
@@ -791,11 +790,9 @@ Commands.push({
           data = new Buffer(Buffer.byteLength(sdata) + bdata.length);
           data.write(sdata, 0, Buffer.byteLength(sdata), 'utf8');
           bdata.copy(data, Buffer.byteLength(sdata), 0, bdata.length);
-          socket.write = _write;
-          arguments[0] = data;
         }
 
-        return _write.apply(this, _.toArray(arguments));
+        return data;
       };
 
 //      app.proxy.proxyWebSocketRequest(req, socket, head);
