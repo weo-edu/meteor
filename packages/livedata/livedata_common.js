@@ -20,9 +20,28 @@ Meteor._MethodInvocation = function (isSimulation, userId,
   // same client) to continue running without waiting for this one to
   // complete.
   this.unblock = unblock || function () {};
+
+  // current user id
+  this._userId = userId;
+
+  // sets current user id in all appropriate server contexts and
+  // reruns subscriptions
+  this._setUserId = globallySetUserId || function () {};
+  
 };
 
 Meteor._CurrentInvocation = new Meteor.EnvironmentVariable;
+
+_.extend(Meteor._MethodInvocation.prototype, {
+  userId: function() {
+    return this._userId;
+  },
+
+  setUserId: function(userId) {
+    this._userId = userId;
+    this._setUserId(userId);
+  }
+});
 
 Meteor.Error = function (error, reason, details) {
   var self = this;

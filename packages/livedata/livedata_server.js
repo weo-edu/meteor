@@ -334,23 +334,26 @@ _.extend(Meteor._LivedataSession.prototype, {
     else
       self.universal_subs.push(sub);
 
-    try {
+    // Store a function to re-run the handler in case we want to rerun
+    // subscriptions, for example when the current user id changes
+    sub._runHandler = function() {
       var res = handler.apply(sub, params || []);
-    } catch (e) {
-      Meteor._debug("Internal exception while starting subscription", sub_id,
-                    e.stack);
-      return;
-    }
 
-    // if Meteor._RemoteCollectionDriver is available (defined in
-    // mongo-livedata), automatically wire up handlers that return a
-    // Cursor.  otherwise, the handler is completely responsible for
-    // delivering its own data messages and registering stop
-    // functions.
-    //
-    // XXX generalize
-    if (Meteor._RemoteCollectionDriver && (res instanceof Meteor._Mongo.Cursor))
-      sub._publishCursor(res);
+      // if Meteor._RemoteCollectionDriver is available (defined in
+      // mongo-livedata), automatically wire up handlers that return a
+      // Cursor.  otherwise, the handler is completely responsible for
+      // delivering its own data messages and registering stop
+      // functions.
+      //
+      // XXX generalize
+      if (Meteor._RemoteCollectionDriver && (res instanceof Meteor._Mongo.Cursor))
+        sub._publishCursor(res);
+      else if(res && '_publish' in res){
+        res._publish(sub);
+      }
+    };
+
+    sub._runHandler();
   },
 
   // tear down specified subscription
