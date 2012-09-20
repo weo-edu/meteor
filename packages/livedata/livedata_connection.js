@@ -303,7 +303,6 @@ _.extend(Meteor._LivedataConnection.prototype, {
       });
     }
 
-    var isSimulation = enclosing && enclosing.isSimulation;
     if (Meteor.isClient) {
       // If on a client, run the stub, if we have one. The stub is
       // supposed to make some temporary writes to the database to
@@ -319,7 +318,11 @@ _.extend(Meteor._LivedataConnection.prototype, {
       // of the stub as our return value.
       var stub = self.method_handlers[name];
       if (stub) {
-        var invocation = new Meteor._MethodInvocation(true /* isSimulation */);
+        var setUserId = function(userId) {
+          self.setUserId(userId);
+        };
+        var invocation = new Meteor._MethodInvocation(
+          true /* isSimulation */, self.userId(), setUserId);
         try {
           var ret = Meteor._CurrentInvocation.withValue(invocation,function () {
             return stub.apply(invocation, args);
@@ -331,10 +334,10 @@ _.extend(Meteor._LivedataConnection.prototype, {
       }
 
       // If we're in a simulation, stop and return the result we have,
-      // rather than going on to do an RPC. This can only happen on
-      // the client (since we only bother with stubs and simulations
-      // on the client.) If there was not stub, we'll end up returning
-      // undefined.
+      // rather than going on to do an RPC. If there was no stub,
+      // we'll end up returning undefined.
+      var enclosing = Meteor._CurrentInvocation.get();
+      var isSimulation = enclosing && enclosing.isSimulation;
       if (isSimulation) {
         if (callback) {
           callback(exception, ret);
@@ -440,7 +443,7 @@ _.extend(Meteor._LivedataConnection.prototype, {
     var context = Meteor.deps && Meteor.deps.Context.current;
     if (context && !(context.id in self._userIdListeners)) {
       self._userIdListeners[context.id] = context;
-      context.on_invalidate(function () {
+      context.onInvalidate(function () {
         delete self._userIdListeners[context.id];
       });
     }

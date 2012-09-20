@@ -224,8 +224,19 @@ Template.todo_item.events({
     Meteor.setTimeout(function () {
       Todos.update(id, {$pull: {tags: tag}});
     }, 300);
+  },
+
+  'click .make-public': function () {
+    Todos.update(this._id, {$set: {privateTo: null}});
+  },
+
+  'click .make-private': function () {
+    Todos.update(this._id, {$set: {
+      privateTo: Meteor.user()._id
+    }});
   }
 });
+
 
 Template.todo_item.events(okCancelEvents(
   '#todo-input',

@@ -1,14 +1,16 @@
 // XXX namespacing
 
-Meteor._MethodInvocation = function (isSimulation, unblock) {
+Meteor._MethodInvocation = function (isSimulation, userId,
+                                     globallySetUserId, unblock) {
   var self = this;
 
   // true if we're running not the actual method, but a stub (that is,
-  // if we're on the client and presently running a simulation of a
-  // server-side method for latency compensation purposes). never true
-  // except in a client such as a browser, since there's no point in
-  // running stubs unless you have a zero-latency connection to the
-  // user.
+  // if we're on a client (which may be a browser, or in the future a
+  // server connecting to another server) and presently running a
+  // simulation of a server-side method for latency compensation
+  // purposes). not currently true except in a client such as a browser,
+  // since there's usually no point in running stubs unless you have a
+  // zero-latency connection to the user.
   this.isSimulation = isSimulation;
 
   // XXX Backwards compatibility only. Remove this before 1.0.

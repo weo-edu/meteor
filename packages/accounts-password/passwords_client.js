@@ -1,6 +1,7 @@
 (function () {
-
   Meteor.createUser = function (options, extra, callback) {
+    options = _.clone(options); // we'll be modifying options
+
     if (typeof extra === "function") {
       callback = extra;
       extra = {};
@@ -9,7 +10,6 @@
     if (!options.password)
       throw new Error("Must set options.password");
     var verifier = Meteor._srp.generateVerifier(options.password);
-
     // strip old password, replacing with the verifier object
     delete options.password;
     options.srp = verifier;
@@ -124,4 +124,90 @@
       });
     }
   };
+
+  // Sends an email to a user with a link that can be used to reset
+  // their password
+  //
+  // @param options {Object}
+  //   - email: (email)
+  // @param callback (optional) {Function(error|undefined)}
+  Meteor.forgotPassword = function(options, callback) {
+    if (!options.email)
+      throw new Error("Must pass options.email");
+    Meteor.call("forgotPassword", options, callback);
+  };
+
+  // Resets a password based on a token originally created by
+  // Meteor.forgotPassword, and then logs in the matching user.
+  //
+  // @param token {String}
+  // @param newPassword {String}
+  // @param callback (optional) {Function(error|undefined)}
+  Meteor.resetPassword = function(token, newPassword, callback) {
+    if (!token)
+      throw new Error("Need to pass token");
+    if (!newPassword)
+      throw new Error("Need to pass newPassword");
+
+    var verifier = Meteor._srp.generateVerifier(newPassword);
+    Meteor.apply(
+      "resetPassword", [token, verifier], {wait: true},
+      function (error, result) {
+        if (error || !result) {
+          error = error || new Error("No result from call to resetPassword");
+          callback && callback(error);
+        }
+
+        Meteor.accounts.makeClientLoggedIn(result.id, result.token);
+        callback && callback();
+      });
+  };
+
+  // Sets a user's first password based on a token originally created by
+  // Meteor.enrollAccount, and then logs in the matching user.
+  //
+  // @param token {String}
+  // @param password {String}
+  // @param callback (optional) {Function(error|undefined)}
+  Meteor.enrollAccount = function(token, password, callback) {
+    if (!token)
+      throw new Error("Need to pass token");
+    if (!password)
+      throw new Error("Need to pass password");
+
+    var verifier = Meteor._srp.generateVerifier(password);
+    Meteor.apply(
+      "enrollAccount", [token, verifier], {wait: true},
+      function (error, result) {
+        if (error || !result) {
+          error = error || new Error("No result from call to enrollAccount");
+          callback && callback(error);
+        }
+
+        Meteor.accounts.makeClientLoggedIn(result.id, result.token);
+        callback && callback();
+      });
+  };
+
+  // Validates a user's email address based on a token originally
+  // created by Meteor.accounts.sendValidationEmail
+  //
+  // @param token {String}
+  // @param callback (optional) {Function(error|undefined)}
+  Meteor.validateEmail = function(token, callback) {
+    if (!token)
+      throw new Error("Need to pass token");
+
+    Meteor.call(
+      "validateEmail", token,
+      function (error, result) {
+        if (error || !result) {
+          error = error || new Error("No result from call to validateUser");
+          callback && callback(error);
+        }
+
+        callback && callback();
+      });
+  };
 })();
+

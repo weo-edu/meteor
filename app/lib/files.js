@@ -219,10 +219,6 @@ var files = module.exports = {
     return ret;
   },
 
-  get_user_package_dir: function() {
-    return process.env.PACKAGE_DIR || '/usr/local/meteor-packages';
-  },
-
   // Return the directory that contains the core tool (the top-level
   // 'app' directory)
   get_core_dir: function () {

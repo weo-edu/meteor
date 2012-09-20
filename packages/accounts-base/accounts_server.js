@@ -137,6 +137,8 @@
 
   // Updates or creates a user after we authenticate with a 3rd party
   //
+  // NOTE: We trust any OAuth provider to properly validates email address
+  //
   // @param options {Object}
   //   - email (optional)
   //   - services {Object} e.g. {facebook: {id: (facebook user id), ...}}
@@ -160,7 +162,7 @@
     }
 
     var email = options.email;
-    var userByEmail = email && Meteor.users.findOne({emails: email});
+    var userByEmail = email && Meteor.users.findOne({"emails.email": email});
     var user;
     if (userByEmail) {
 
@@ -187,13 +189,17 @@
       var userByServiceUserId = Meteor.users.findOne(selector);
       if (userByServiceUserId) {
         user = userByServiceUserId;
-        if (email && user.emails.indexOf(email) === -1) {
-          // The user may have changed the email address associated with
-          // this service. Store the new one in addition to the old one.
+        if (email) {
+          // The user must have changed the email address associated
+          // with this service (since if we only reach this else
+          // clause if we didn't match the user by email to begin
+          // with). Store the new one in addition to the old one.
 
           // XXX we will probably also need a hook for updating users,
           // similar to Meteor.accounts.onCreateUser
-          Meteor.users.update(user, {$push: {emails: email}});
+          Meteor.users.update(
+            {_id: user._id},
+            {$push: {emails: {email: email, validated: true}}});
         }
 
         updateUserData();
@@ -204,7 +210,7 @@
         var attrs = {};
         attrs[serviceName] = options.services[serviceName];
         var user = {
-          emails: (email ? [email] : []),
+          emails: (email ? [{email: email, validated: true}] : []),
           services: attrs
         };
         user = Meteor.accounts.onCreateUserHook(options, extra, user);

@@ -1,8 +1,16 @@
 if (!Meteor.accounts) {
   Meteor.accounts = {};
+}
+
+if (!Meteor.accounts._options) {
   Meteor.accounts._options = {};
 }
 
+// @param options {Object} an object with fields:
+// - requireEmail {Boolean}
+// - requireUsername {Boolean}
+// - validateEmails {Boolean} Send validation emails to all new users
+//                            via the signup form
 Meteor.accounts.config = function(options) {
   Meteor.accounts._options = options;
 };

@@ -154,7 +154,7 @@ Meteor.Collection.prototype._defineMutationMethods = function() {
     m[self._prefix + 'insert'] = function (doc) {
       self._maybe_snapshot();
 
-      if (!this.is_simulation) {
+      if (!this.isSimulation) {
         if (self._restricted) {
           if (!self._allowInsert(this.userId(), doc))
             throw new Meteor.Error(403, "Access denied");
@@ -171,7 +171,7 @@ Meteor.Collection.prototype._defineMutationMethods = function() {
     m[self._prefix + 'update'] = function (selector, mutator, options) {
       self._maybe_snapshot();
 
-      if (this.is_simulation) {
+      if (this.isSimulation) {
         // insert returns nothing.  allow exceptions to propagate.
         self._collection.update(selector, mutator, options);
       } else {
@@ -191,7 +191,7 @@ Meteor.Collection.prototype._defineMutationMethods = function() {
     m[self._prefix + 'remove'] = function (selector) {
       self._maybe_snapshot();
 
-      if (this.is_simulation) {
+      if (this.isSimulation) {
         // remove returns nothing.  allow exceptions to propagate.
         self._collection.remove(selector);
       } else {
@@ -401,7 +401,7 @@ _.each(["insert", "update", "remove", "findAndModify"], function (name) {
     if (args.length && args[args.length - 1] instanceof Function)
       callback = args.pop();
 
-    if (Meteor.isClient && !callback)
+    if (Meteor.isClient && !callback) {
       // Client can't block, so it can't report errors by exception,
       // only by callback. If they forget the callback, give them a
       // default one that logs the error, so they aren't totally

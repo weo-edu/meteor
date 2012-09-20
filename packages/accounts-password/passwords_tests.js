@@ -1,4 +1,4 @@
-(function () {
+if (Meteor.isClient) (function () {
 
   // XXX note, only one test can do login/logout things at once! for
   // now, that is this test.
@@ -6,7 +6,8 @@
   var username = Meteor.uuid();
   var username2 = Meteor.uuid();
   var username3 = Meteor.uuid();
-  var email = Meteor.uuid() + '@example.com';
+  // use -intercept so that we don't print to the console
+  var email = Meteor.uuid() + '-intercept@example.com';
   var password = 'password';
   var password2 = 'password2';
   var password3 = 'password3';
@@ -115,21 +116,6 @@
         test.equal(Meteor.user().username, username);
       }));
     },
-    // change w/ no old password. allowed due to config.
-    function (test, expect) {
-      Meteor.changePassword(null, password3, expect(function (error) {
-        test.equal(error, undefined);
-        test.equal(Meteor.user().username, username);
-      }));
-    },
-    logoutStep,
-    // new password, success
-    function (test, expect) {
-      Meteor.loginWithPassword(email, password3, expect(function (error) {
-        test.equal(error, undefined);
-        test.equal(Meteor.user().username, username);
-      }));
-    },
     logoutStep,
     // create user with raw password
     function (test, expect) {
@@ -167,15 +153,45 @@
         test.equal(Meteor.user().touchedByOnCreateUser, true);
       }));
     },
-    // can't call onCreateUserHook twice
-    function(test, expect) {
-      Meteor.call('setupMoreThanOneOnCreateUserHook',
-                  {testOnCreateUserHook: true}, expect(function (error) {
-        test.equal(error.error, 999);
-      }));
-    },
     logoutStep
-    // XXX test Meteor.accounts.config(unsafePasswordChanges)
   ]);
 
+}) ();
+
+
+if (Meteor.isServer) (function () {
+
+  Tinytest.add(
+    'passwords - setup more than one onCreateUserHook',
+    function (test) {
+      test.throws(function() {
+        Meteor.accounts.onCreateUser(function () {});
+      });
+    });
+
+
+  Tinytest.add(
+    'passwords - createUser hooks',
+    function (test) {
+      var email = Meteor.uuid() + '@example.com';
+      test.throws(function () {
+        Meteor.createUser({email: email},
+                          {invalid: true}); // should fail the new user validators
+        });
+
+      // disable sending emails
+      var oldEmailSend = Email.send;
+      Email.send = function() {};
+      var userId = Meteor.createUser({email: email},
+                                     {testOnCreateUserHook: true});
+      Email.send = oldEmailSend;
+
+      test.isTrue(userId);
+      var user = Meteor.users.findOne(userId);
+      test.equal(user.touchedByOnCreateUser, true);
+    });
+
+
+
+  // XXX would be nice to test Meteor.accounts.config({forbidSignups: true})
 }) ();

@@ -11,16 +11,6 @@ Meteor.accounts.onCreateUser(function (options, extra, user) {
   }
 });
 
-Meteor.methods({
-  setupMoreThanOneOnCreateUserHook: function () {
-    try {
-      Meteor.accounts.onCreateUser(function () {});
-    } catch (exception) {
-      throw new Meteor.Error(999, "Test exception");
-    }
-  }
-});
-
 
 // Because this is global state that affects every client, we can't turn
 // it on and off during the tests. Doing so would mean two simultaneous
@@ -35,7 +25,7 @@ Meteor.methods({
 // For now, we just test the one configuration state. You can comment
 // out each configuration option and see that the tests fail.
 Meteor.accounts.config({
-  unsafePasswordChanges: true,
+  validateEmails: true,
   // The 'accounts - updateOrCreateUser' test needs accounts without
   // usernames or emails, so we can't test with these on.
   requireEmail: false,

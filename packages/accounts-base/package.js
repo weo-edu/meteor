@@ -5,6 +5,7 @@ Package.describe({
 Package.on_use(function (api) {
   api.use('underscore', 'server');
   api.use('localstorage-polyfill', 'client');
+  api.use('accounts-urls', 'client');
 
   // need this because of the Meteor.users collection but in the future
   // we'd probably want to abstract this away
@@ -18,7 +19,7 @@ Package.on_use(function (api) {
 });
 
 Package.on_test(function (api) {
-  api.use('accounts');
+  api.use('accounts-base');
   api.use('tinytest');
   api.add_files('accounts_tests.js', 'server');
 });

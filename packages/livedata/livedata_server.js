@@ -277,8 +277,12 @@ _.extend(Meteor._LivedataSession.prototype, {
         return;
       }
 
-      var invocation = new Meteor._MethodInvocation(false /* isSimulation */,
-                                                    unblock);
+      var setUserId = function(userId) {
+        self._setUserId(userId);
+      };
+
+      var invocation = new Meteor._MethodInvocation(
+        false /* isSimulation */, self.userId, setUserId, unblock);
       try {
         var ret =
           Meteor._CurrentWriteFence.withValue(fence, function () {
@@ -848,7 +852,23 @@ _.extend(Meteor._LivedataServer.prototype, {
     if (!handler)
       var exception = new Meteor.Error(404, "Method not found");
     else {
-      var invocation = new Meteor._MethodInvocation(false /* isSimulation */);
+      // If this is a method call from within another method, get the
+      // user state from the outer method, otherwise don't allow
+      // setUserId to be called
+      var userId = null;
+      var setUserId = function() {
+        throw new Error("Can't call setUserId on a server initiated method call");
+      };
+      var currentInvocation = Meteor._CurrentInvocation.get();
+      if (currentInvocation) {
+        userId = currentInvocation.userId();
+        setUserId = function(userId) {
+          currentInvocation.setUserId(userId);
+        };
+      }
+
+      var invocation = new Meteor._MethodInvocation(
+        false /* isSimulation */, userId, setUserId);
       try {
         var ret = Meteor._CurrentInvocation.withValue(invocation, function () {
           return handler.apply(invocation, args);
