@@ -245,6 +245,12 @@ _.extend(Meteor._LivedataSession.prototype, {
       // done.
       var fence = new Meteor._WriteFence;
       fence.onAllCommitted(function () {
+        // Retire the fence so that future writes are allowed.
+        // This means that callbacks like timers are free to use
+        // the fence, and if they fire before it's armed (for
+        // example, because the method waits for them) their
+        // writes will be included in the fence.
+        fence.retire();
         self.send({
           msg: 'data', methods: [msg.id]});
       });
@@ -271,12 +277,8 @@ _.extend(Meteor._LivedataSession.prototype, {
         return;
       }
 
-      var setUserId = function(userId) {
-        self._setUserId(userId);
-      };
-
-      var invocation = new Meteor._MethodInvocation(
-        false /* is_simulation */, self.userId, setUserId, unblock);
+      var invocation = new Meteor._MethodInvocation(false /* isSimulation */,
+                                                    unblock);
       try {
         var ret =
           Meteor._CurrentWriteFence.withValue(fence, function () {
@@ -328,26 +330,23 @@ _.extend(Meteor._LivedataSession.prototype, {
     else
       self.universal_subs.push(sub);
 
-    // Store a function to re-run the handler in case we want to rerun
-    // subscriptions, for example when the current user id changes
-    sub._runHandler = function() {
+    try {
       var res = handler.apply(sub, params || []);
+    } catch (e) {
+      Meteor._debug("Internal exception while starting subscription", sub_id,
+                    e.stack);
+      return;
+    }
 
-      // if Meteor._RemoteCollectionDriver is available (defined in
-      // mongo-livedata), automatically wire up handlers that return a
-      // Cursor.  otherwise, the handler is completely responsible for
-      // delivering its own data messages and registering stop
-      // functions.
-      //
-      // XXX generalize
-      if (Meteor._RemoteCollectionDriver && (res instanceof Meteor._Mongo.Cursor))
-        sub._publishCursor(res);
-      else if(res && '_publish' in res){
-        res._publish(sub);
-      }
-    };
-
-    sub._runHandler();
+    // if Meteor._RemoteCollectionDriver is available (defined in
+    // mongo-livedata), automatically wire up handlers that return a
+    // Cursor.  otherwise, the handler is completely responsible for
+    // delivering its own data messages and registering stop
+    // functions.
+    //
+    // XXX generalize
+    if (Meteor._RemoteCollectionDriver && (res instanceof Meteor._Mongo.Cursor))
+      sub._publishCursor(res);
   },
 
   // tear down specified subscription
@@ -849,23 +848,7 @@ _.extend(Meteor._LivedataServer.prototype, {
     if (!handler)
       var exception = new Meteor.Error(404, "Method not found");
     else {
-      // If this is a method call from within another method, get the
-      // user state from the outer method, otherwise don't allow
-      // setUserId to be called
-      var userId = null;
-      var setUserId = function() {
-        throw new Error("Can't call setUserId on a server initiated method call");
-      };
-      var currentInvocation = Meteor._CurrentInvocation.get();
-      if (currentInvocation) {
-        userId = currentInvocation.userId();
-        setUserId = function(userId) {
-          currentInvocation.setUserId(userId);
-        };
-      }
-
-      var invocation = new Meteor._MethodInvocation(
-        false /* is_simulation */, userId, setUserId);
+      var invocation = new Meteor._MethodInvocation(false /* isSimulation */);
       try {
         var ret = Meteor._CurrentInvocation.withValue(invocation, function () {
           return handler.apply(invocation, args);

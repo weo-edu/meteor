@@ -2,7 +2,6 @@
 
 Session = new ReactiveDict();
 
-
 if (Meteor._reload) {
   Meteor._reload.on_migrate('session', function () {
     // XXX sanitize and make sure it's JSONible?

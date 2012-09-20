@@ -6,6 +6,7 @@
 underscore
 backbone
 spiderable
+<<<<<<< HEAD
 accounts
 accounts-ui
 accounts-weibo
@@ -13,3 +14,6 @@ accounts-google
 accounts-facebook
 accounts-passwords
 streamio
+=======
+jquery
+>>>>>>> e1a7c2ff465aed7216651586f83aa38fd0155f10

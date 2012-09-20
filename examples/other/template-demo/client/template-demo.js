@@ -160,7 +160,7 @@ var autorun = function (f) {
       return;
     ctx = new Meteor.deps.Context;
     ctx.run(f);
-    ctx.on_invalidate(rerun);
+    ctx.onInvalidate(rerun);
   };
   rerun();
   return {
