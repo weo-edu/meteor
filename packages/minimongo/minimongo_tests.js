@@ -1151,3 +1151,32 @@ Tinytest.add("minimongo - pause", function (test) {
 
   h.stop();
 });
+
+Tinytest.add("minimongo - fields", function(test) {
+  var c = new LocalCollection();
+  c.insert({type: "kitten", name: "fluffy", address: {street: "cat"}});
+  c.insert({type: "kitten", name: "snookums", address: {street: "dog"}});
+  c.insert({type: "cryptographer", name: "alice", address: {street: "vista"}});
+  c.insert({type: "cryptographer", name: "bob", address: {street: "pickford"}});
+  c.insert({type: "cryptographer", name: "cara", address: {street: "fairfax"}});
+  test.equal(
+    c.find({type: 'cryptographer'}, {fields: ['name']}).fetch(), 
+    [{name: 'alice'}, {name: 'bob'}, {name: 'cara'}]
+  );
+  test.equal(
+    c.find({type: 'kitten'}, {fields: ['address.street']}).fetch(),
+    [{address: {street: "cat"}}, {address: {street: "dog"}}]
+  );
+
+  var operations = [];
+  var cbs = log_callbacks(operations);
+  var handle;
+
+  handle = c.find({type: 'kitten'}, {fields: ['address.street']}).observe(cbs);
+  test.equal(operations.shift(), ['added', {address: {street: "cat"}}, 0]);
+  test.equal(operations.shift(), ['added', {address: {street: "dog"}}, 1]);
+  c.update({name: 'fluffy'}, {$set: {'address.street': 'dog'}});
+  test.equal(operations.shift(), ['changed', {address: {street: "dog"}}, 0, {address: {street: "cat"}}]);
+  c.update({name: 'fluffy'}, {$set: {name: 'kitty'}});
+  test.length(operations,0);
+});
