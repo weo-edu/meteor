@@ -8,7 +8,8 @@
 // LiveResultsSet: the return value of a live query.
 
 LocalCollection = function () {
-  this.docs = {}; // _id -> document (also containing id)
+  this.docs = new TreeFacade(function(o) { return o._id; }, '_id'); // _id -> document (also containing id)
+  this.indices = {};
 
   this.next_qid = 1; // live query id generator
 
@@ -224,13 +225,15 @@ LocalCollection.Cursor.prototype._getRawObjects = function () {
   if (self.selector_id && (self.selector_id in self.collection.docs))
     return [self.collection.docs[self.selector_id]];
 
-  // slow path for arbitrary selector, sort, skip, limit
   var results = [];
-  for (var id in self.collection.docs) {
-    var doc = self.collection.docs[id];
-    if (self.selector_f(doc))
-      results.push(doc);
-  }
+  var index = self.collection.chooseIndex(self.selector_f.hints);
+  self._lastIndexUsed = index.key;
+  var hint = self.selector_f.hints && self.selector_f.hints[index.key];
+
+  index.traverse(function(n) {
+    self.selector_f(n.data) && results.push(n.data);
+    return true;
+  }, hint && hint[0]);
 
   if (self.sort_f)
     results.sort(self.sort_f);
@@ -273,7 +276,10 @@ LocalCollection.prototype.insert = function (doc) {
   if (!('_id' in doc))
     doc._id = LocalCollection.uuid();
   // XXX check to see that there is no object with this _id yet?
-  self.docs[doc._id] = doc;
+  self.docs.insert(doc._id, doc);
+  _.each(self.indices, function(index, k) {
+    index.insert(index.getKey(doc), doc);
+  });
 
   // trigger live queries that match
   for (var qid in self.queries) {
@@ -289,19 +295,43 @@ LocalCollection.prototype.remove = function (selector) {
   var query_remove = [];
 
   var selector_f = LocalCollection._compileSelector(selector);
-  for (var id in self.docs) {
-    var doc = self.docs[id];
-    if (selector_f(doc)) {
-      remove.push(id);
-      for (var qid in self.queries) {
+  var index = self.chooseIndex(selector_f.hints);
+  var hint = selector_f.hints && selector_f.hints[index.key] && selector_f.hints[index.key][0];
+
+  index.traverse(function(n) {
+    if(selector_f(n.data)) {
+      remove.push(n.data._id);
+      for(var qid in self.queries) {
         var query = self.queries[qid];
-        if (query.selector_f(doc))
-          query_remove.push([query, doc]);
+        if(query.selector_f(n.data))
+          query_remove.push([query, n.data]);
       }
     }
-  }
+    return true;
+  }, hint);
+  /*
+  self.docs.traverse(function(n, id) {
+    if(selector_f(n.data)) {
+      remove.push(id);
+      for(var qid in self.queries) {
+        var query = self.queries[qid];
+        if (query.selector_f(n.data))
+          query_remove.push([query, n.data]);
+      }
+    }
+    return true;
+  });*/
+
+  _.each(self.indices, function(index, k) {
+    index.traverse(function(n) {
+      if(remove.indexOf(n.data._id) !== -1)
+        index.remove(n);
+      return true;
+    });
+  });
+
   for (var i = 0; i < remove.length; i++) {
-    delete self.docs[remove[i]];
+    self.docs.remove(remove[i]);
   }
 
   // run live query callbacks _after_ we've removed the documents.
@@ -318,15 +348,15 @@ LocalCollection.prototype.update = function (selector, mod, options) {
   var self = this;
   var any = false;
   var selector_f = LocalCollection._compileSelector(selector);
-  for (var id in self.docs) {
-    var doc = self.docs[id];
-    if (selector_f(doc)) {
-      self._modifyAndNotify(doc, mod);
-      if (!options.multi)
-        return;
-      any = true;
+  var index = self.chooseIndex(selector_f.hints);
+  var hint = selector_f.hints && selector_f.hints[0];
+  index.traverse(function(n) {
+    if(selector_f(n.data)) {
+      self._modifyAndNotify(n.data, mod);
+      return options.multi;
     }
-  }
+    return true;
+  }, hint);
 
   if (options.upsert) {
     throw Error("upsert not yet implemented");
@@ -351,6 +381,19 @@ LocalCollection.prototype._modifyAndNotify = function (doc, mod) {
   var old_doc = LocalCollection._deepcopy(doc);
 
   LocalCollection._modify(doc, mod);
+
+  _.each(self.indices, function(index, k) {
+    if(index.getKey(doc) !== index.getKey(old_doc)) {
+      index.traverse(function(n) {
+        if(n.data._id === doc._id) {
+          index.remove(n);
+          index.insert(index.getKey(doc), doc);
+          return false;
+        }
+        return true;
+      }, {val: index.getKey(old_doc), dir: 'next'});
+    }
+  });
 
   for (var qid in self.queries) {
     var query = self.queries[qid];
@@ -451,9 +494,12 @@ LocalCollection._insertInSortedList = function (cmp, array, value) {
 // XXX test
 // XXX obviously this particular implementation will not be very efficient
 LocalCollection.prototype.snapshot = function () {
-  this.current_snapshot = {};
-  for (var id in this.docs)
-    this.current_snapshot[id] = JSON.parse(JSON.stringify(this.docs[id]));
+  var self = this;
+  self.current_snapshot = new TreeFacade(function(o) { return o._id; }, '_id');
+  self.docs.traverse(function(n, id) {
+    self.current_snapshot.insert(n.data._id, JSON.parse(JSON.stringify(n.data)));
+    return true;
+  });
 };
 
 // Restore (and destroy) the snapshot. If no snapshot exists, raise an
@@ -521,6 +567,54 @@ LocalCollection.prototype.resumeObservers = function () {
     LocalCollection._diffQuery(query.results_snapshot, query.results, query, true);
     query.results_snapshot = null;
   }
-
 };
+
+LocalCollection.prototype.chooseIndex = function(hints) {
+  var self = this,
+    key = null;
+  var index = _.find(self.indices, function(index, k) {
+    key = k;
+    return hints && hints[k];
+  });
+
+  return index || self.docs;
+}
+
+LocalCollection.prototype.ensureIndex = function(o) {
+  var self = this,
+    key = _.keys(o).join(',');
+
+  if(self.indices[key]) return;
+
+  self.indices[key] = new BSTree(buildKeyGetter(o), key);
+
+  if(self.docs) {
+    var index = self.indices[key];
+    self.docs.traverse(function(n, id) {
+      index.insert(index.getKey(n.data), n.data);
+      return true;
+    });
+  }
+}
+
+
+function buildKeyGetter(o) {
+  var keys = _.keys(o),
+    paths = [];
+  _.each(keys, function(k, i) {
+    paths.push('["' + k.split('.').join('"]["') + '"]');
+  });
+
+  var code = 'function(o) { return ';
+  _.each(paths, function(p, i) {
+    code += 'o' + p;
+  });
+
+  code += '; }';
+
+  var _func;
+  eval('(_func = ' + code + ')');
+  return _func;
+}
+
 

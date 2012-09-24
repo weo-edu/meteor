@@ -278,10 +278,13 @@ LocalCollection._compileSelector = function (selector) {
   // eval() does not return a value in IE8, nor does the spec say it
   // should. Assign to a local to get the value, instead.
   var _func;
+  var hints = {};
   eval("_func = (function(f,literals){return function(doc){return " +
-       LocalCollection._exprForSelector(selector, literals) +
+       LocalCollection._exprForSelector(selector, literals, hints) +
        ";};})");
-  return _func(LocalCollection._f, literals);
+  var f = _func(LocalCollection._f, literals);
+  f.hints = hints;
+  return f;
 };
 
 // XXX implement ordinal indexing: 'people.2.name'
@@ -289,17 +292,24 @@ LocalCollection._compileSelector = function (selector) {
 // Given an arbitrary Mongo-style query selector, return an expression
 // that evaluates to true if the document in 'doc' matches the
 // selector, else false.
-LocalCollection._exprForSelector = function (selector, literals) {
+LocalCollection._exprForSelector = function (selector, literals, hints) {
   var clauses = [];
   for (var key in selector) {
     var value = selector[key];
 
     if (key.substr(0, 1) === '$') { // no indexing into strings on IE7
       // whole-document predicate like {$or: [{x: 12}, {y: 12}]}
-      clauses.push(LocalCollection._exprForDocumentPredicate(key, value, literals));
+      clauses.push(LocalCollection._exprForDocumentPredicate(key, value, literals, hints));
     } else {
+      hints[key] = hints[key] || [];
+      var hint = {
+        dir: 'next',
+        val: value,
+        key: key
+      };
+      hints[key].push(hint);
       // else, it's a constraint on a particular key (or dotted keypath)
-      clauses.push(LocalCollection._exprForKeypathPredicate(key, value, literals));
+      clauses.push(LocalCollection._exprForKeypathPredicate(key, value, literals, hint));
     }
   };
 
@@ -311,11 +321,11 @@ LocalCollection._exprForSelector = function (selector, literals) {
 // selector, like '$or' in {$or: [{x: 12}, {y: 12}]}. 'value' is its
 // value in the selector. Return an expression that evaluates to true
 // if 'doc' matches this predicate, else false.
-LocalCollection._exprForDocumentPredicate = function (op, value, literals) {
+LocalCollection._exprForDocumentPredicate = function (op, value, literals, hints) {
   if (op === '$or') {
     var clauses = [];
     _.each(value, function (c) {
-      clauses.push(LocalCollection._exprForSelector(c, literals));
+      clauses.push(LocalCollection._exprForSelector(c, literals, hints));
     });
     if (clauses.length === 0) return 'true';
     return '(' + clauses.join('||') +')';
@@ -324,7 +334,7 @@ LocalCollection._exprForDocumentPredicate = function (op, value, literals) {
   if (op === '$and') {
     var clauses = [];
     _.each(value, function (c) {
-      clauses.push(LocalCollection._exprForSelector(c, literals));
+      clauses.push(LocalCollection._exprForSelector(c, literals, hints));
     });
     if (clauses.length === 0) return 'true';
     return '(' + clauses.join('&&') +')';
@@ -333,7 +343,7 @@ LocalCollection._exprForDocumentPredicate = function (op, value, literals) {
   if (op === '$nor') {
     var clauses = [];
     _.each(value, function (c) {
-      clauses.push("!(" + LocalCollection._exprForSelector(c, literals) + ")");
+      clauses.push("!(" + LocalCollection._exprForSelector(c, literals) + ")", hints);
     });
     if (clauses.length === 0) return 'true';
     return '(' + clauses.join('&&') +')';
@@ -353,18 +363,18 @@ LocalCollection._exprForDocumentPredicate = function (op, value, literals) {
 // Given a single 'dotted.key.path: value' constraint from a Mongo
 // query selector, return an expression that evaluates to true if the
 // document in 'doc' matches the constraint, else false.
-LocalCollection._exprForKeypathPredicate = function (keypath, value, literals) {
+LocalCollection._exprForKeypathPredicate = function (keypath, value, literals, hint) {
   var keyparts = keypath.split('.');
 
   // get the inner predicate expression
   var predcode = '';
   if (value instanceof RegExp) {
-    predcode = LocalCollection._exprForOperatorTest(value, literals);
+    predcode = LocalCollection._exprForOperatorTest(value, literals, hint);
   } else if ( !(typeof value === 'object')
               || value === null
               || value instanceof Array) {
     // it's something like {x.y: 12} or {x.y: [12]}
-    predcode = LocalCollection._exprForValueTest(value, literals);
+    predcode = LocalCollection._exprForValueTest(value, literals, hint);
   } else {
     // is it a literal document or a bunch of $-expressions?
     var is_literal = true;
@@ -377,9 +387,9 @@ LocalCollection._exprForKeypathPredicate = function (keypath, value, literals) {
 
     if (is_literal) {
       // it's a literal document, like {x.y: {a: 12}}
-      predcode = LocalCollection._exprForValueTest(value, literals);
+      predcode = LocalCollection._exprForValueTest(value, literals, hint);
     } else {
-      predcode = LocalCollection._exprForOperatorTest(value, literals);
+      predcode = LocalCollection._exprForOperatorTest(value, literals, hint);
     }
   }
 
@@ -412,9 +422,10 @@ LocalCollection._exprForKeypathPredicate = function (keypath, value, literals) {
 // searching 'x' if it is an array. This doesn't include regular
 // expressions (that's because mongo's $not operator works with
 // regular expressions but not other kinds of scalar tests.)
-LocalCollection._exprForValueTest = function (value, literals) {
+LocalCollection._exprForValueTest = function (value, literals, hint) {
   var expr;
 
+  hint.dir = 'equal';
   if (value === null) {
     // null has special semantics
     // http://www.mongodb.org/display/DOCS/Querying+and+nulls
@@ -442,14 +453,14 @@ LocalCollection._exprForValueTest = function (value, literals) {
 // expression that evaluates to true if the value in 'x' matches the
 // operator, or else false. This includes searching 'x' if necessary
 // if it's an array. In {x: /a/}, we consider /a/ to be an operator.
-LocalCollection._exprForOperatorTest = function (op, literals) {
+LocalCollection._exprForOperatorTest = function (op, literals, hint) {
   if (op instanceof RegExp) {
     return LocalCollection._exprForOperatorTest({$regex: op}, literals);
   } else {
     var clauses = [];
     for (var type in op)
       clauses.push(LocalCollection._exprForConstraint(type, op[type],
-                                                      op, literals));
+                                                      op, literals, hint));
     if (clauses.length === 0)
       return 'true';
     return '(' + clauses.join('&&') + ')';
@@ -462,18 +473,26 @@ LocalCollection._exprForOperatorTest = function (op, literals) {
 // matches the constraint, or else false. This includes searching 'x'
 // if it's an array (and it's appropriate to the constraint.)
 LocalCollection._exprForConstraint = function (type, arg, others,
-                                               literals) {
+                                               literals, hint) {
   var expr;
   var search = '_matches';
   var negate = false;
 
   if (type === '$gt') {
+    hint.val = arg;
+    hint.dir = 'next';
     expr = 'f._cmp(x,' + JSON.stringify(arg) + ')>0';
   } else if (type === '$lt') {
+    hint.dir = 'prev';
+    hint.val = arg;
     expr = 'f._cmp(x,' + JSON.stringify(arg) + ')<0';
   } else if (type === '$gte') {
+    hint.val = arg;
+    hint.dir = 'next';
     expr = 'f._cmp(x,' + JSON.stringify(arg) + ')>=0';
   } else if (type === '$lte') {
+    hint.dir = 'prev';
+    hint.val = arg;
     expr = 'f._cmp(x,' + JSON.stringify(arg) + ')<=0';
   } else if (type === '$all') {
     expr = 'f._all(x,' + JSON.stringify(arg) + ')';
@@ -536,7 +555,7 @@ LocalCollection._exprForConstraint = function (type, arg, others,
     // mongo doesn't support $regex inside a $not for some reason. we
     // do, because there's no reason not to that I can see.. but maybe
     // we should follow mongo's behavior?
-    expr = '!' + LocalCollection._exprForOperatorTest(arg, literals);
+    expr = '!' + LocalCollection._exprForOperatorTest(arg, literals, hint);
     search = null;
   } else {
     throw Error("Unrecognized key in selector: " + type);

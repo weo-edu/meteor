@@ -63,11 +63,13 @@ var log_callbacks = function (operations) {
 Tinytest.add("minimongo - basics", function (test) {
   var c = new LocalCollection();
 
+  c.ensureIndex({type: 1});
   c.insert({type: "kitten", name: "fluffy"});
   c.insert({type: "kitten", name: "snookums"});
   c.insert({type: "cryptographer", name: "alice"});
   c.insert({type: "cryptographer", name: "bob"});
   c.insert({type: "cryptographer", name: "cara"});
+
   test.equal(c.find().count(), 5);
   test.equal(c.find({type: "kitten"}).count(), 2);
   test.equal(c.find({type: "cryptographer"}).count(), 3);
@@ -609,6 +611,8 @@ Tinytest.add("minimongo - ordering", function (test) {
 
 Tinytest.add("minimongo - sort", function (test) {
   var c = new LocalCollection();
+  c.ensureIndex({a: 1});
+
   for (var i = 0; i < 50; i++)
     for (var j = 0; j < 2; j++)
       c.insert({a: i, b: j, _id: i + "_" + j});
@@ -888,6 +892,8 @@ Tinytest.add("minimongo - observe", function (test) {
   var handle;
 
   var c = new LocalCollection();
+  c.ensureIndex({a:1});
+
   handle = c.find({}, {sort: {a: 1}}).observe(cbs);
   test.isTrue(handle.collection === c);
 
@@ -1150,4 +1156,73 @@ Tinytest.add("minimongo - pause", function (test) {
 
 
   h.stop();
+});
+
+
+function genRandom() {
+  var c = new LocalCollection();
+
+  _.times(10000, function() {
+    c.insert({a: Math.floor(Math.random() * 100)});
+  });
+
+  return c;
+}
+
+var a = genRandom();
+Tinytest.add('minimongo - without btree speed', function(test) {
+  _.times(1, function() {
+    for(var i = 0; i < 100; i++) {
+      a.find({a: i}).fetch();
+    }
+  });
+});
+
+Tinytest.add('minimongo - building index', function(test) {
+  a.ensureIndex({a: 1});
+});
+
+Tinytest.add('minimongo - with btree speed', function(test) {
+  _.times(1, function() {
+    for(var i = 0; i < 100; i++) {
+      a.find({a: i}).fetch();
+    }
+  });
+});
+
+Tinytest.add('minimongo - ensureIndex nested paths', function(test) {
+  var c = new LocalCollection;
+  for(var i = 0; i < 100; i++) {
+    c.insert({a: {b: Math.floor(Math.random() * 100)}});
+  }
+
+  c.insert({a: {b: 150}, c: 3});
+
+  var cursor = c.find({'a.b': 150});
+  test.equal(cursor.fetch()[0].c, 3);
+  test.equal(cursor._lastIndexUsed, '_id');
+  c.ensureIndex({'a.b': 1});
+  cursor.rewind();
+  test.equal(cursor.fetch()[0].c, 3);
+  test.equal(cursor._lastIndexUsed, 'a.b');
+
+  delete c.indices['a.b'];
+
+  var results = [];
+  for(var i = 0; i < 100; i++) {
+    var cursor = c.find({'a.b': i});
+    var res = cursor.fetch();
+    res && results.push(_.pluck(res, '_id'));
+  }
+
+  c.ensureIndex({'a.b': 1});
+
+  for(var i = 0; i < 100; i++) {
+    var cursor = c.find({'a.b': i});
+    var res = cursor.fetch();
+    if(res) {
+      test.equal(cursor._lastIndexUsed, 'a.b');
+      test.equal(_.pluck(res, '_id').sort(), results[i].sort());
+    }
+  }
 });
