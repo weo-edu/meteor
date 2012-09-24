@@ -277,9 +277,10 @@ LocalCollection.prototype.insert = function (doc) {
     doc._id = LocalCollection.uuid();
   // XXX check to see that there is no object with this _id yet?
   self.docs.insert(doc._id, doc);
-  _.each(self.indices, function(index, k) {
+  for(var key in self.indices) {
+    var index = self.indices[key];
     index.insert(index.getKey(doc), doc);
-  });
+  }
 
   // trigger live queries that match
   for (var qid in self.queries) {
@@ -300,7 +301,7 @@ LocalCollection.prototype.remove = function (selector) {
 
   index.traverse(function(n) {
     if(selector_f(n.data)) {
-      remove.push(n.data._id);
+      remove.push(n.data);
       for(var qid in self.queries) {
         var query = self.queries[qid];
         if(query.selector_f(n.data))
@@ -309,29 +310,20 @@ LocalCollection.prototype.remove = function (selector) {
     }
     return true;
   }, hint);
-  /*
-  self.docs.traverse(function(n, id) {
-    if(selector_f(n.data)) {
-      remove.push(id);
-      for(var qid in self.queries) {
-        var query = self.queries[qid];
-        if (query.selector_f(n.data))
-          query_remove.push([query, n.data]);
-      }
-    }
-    return true;
-  });*/
-
-  _.each(self.indices, function(index, k) {
-    index.traverse(function(n) {
-      if(remove.indexOf(n.data._id) !== -1)
-        index.remove(n);
-      return true;
-    });
-  });
 
   for (var i = 0; i < remove.length; i++) {
-    self.docs.remove(remove[i]);
+    var doc = remove[i];
+
+    for(var k in self.indices) {
+      var index = self.indices[k];
+      index.traverse(function(n) {
+        if(n.data._id === doc._id)
+          index.remove(n);
+        return true;
+      }, {dir: 'equal', val: index.getKey(remove[i])});
+    }
+
+    self.docs.remove(doc._id);
   }
 
   // run live query callbacks _after_ we've removed the documents.
@@ -382,7 +374,8 @@ LocalCollection.prototype._modifyAndNotify = function (doc, mod) {
 
   LocalCollection._modify(doc, mod);
 
-  _.each(self.indices, function(index, k) {
+  for(var k in self.indices) {
+    var index = self.indices[k];
     if(index.getKey(doc) !== index.getKey(old_doc)) {
       index.traverse(function(n) {
         if(n.data._id === doc._id) {
@@ -393,7 +386,7 @@ LocalCollection.prototype._modifyAndNotify = function (doc, mod) {
         return true;
       }, {val: index.getKey(old_doc), dir: 'next'});
     }
-  });
+  }
 
   for (var qid in self.queries) {
     var query = self.queries[qid];
@@ -570,14 +563,16 @@ LocalCollection.prototype.resumeObservers = function () {
 };
 
 LocalCollection.prototype.chooseIndex = function(hints) {
-  var self = this,
-    key = null;
-  var index = _.find(self.indices, function(index, k) {
-    key = k;
-    return hints && hints[k];
-  });
+  var self = this;
+  if(! hints) return self.docs;
 
-  return index || self.docs;
+  for(var k in self.indices) {
+    if(hints[k]) {
+      return self.indices[k];
+    }
+  }
+
+  return self.docs;
 }
 
 LocalCollection.prototype.ensureIndex = function(o) {

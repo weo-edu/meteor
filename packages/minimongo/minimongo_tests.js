@@ -1162,7 +1162,7 @@ Tinytest.add("minimongo - pause", function (test) {
 function genRandom() {
   var c = new LocalCollection();
 
-  _.times(10000, function() {
+  _.times(1000, function() {
     c.insert({a: Math.floor(Math.random() * 100)});
   });
 
@@ -1226,3 +1226,15 @@ Tinytest.add('minimongo - ensureIndex nested paths', function(test) {
     }
   }
 });
+
+/*
+Tinytest.add('minimongo - index multiple selectors same key', function(test) {
+  var c = genRandom();
+  c.find({a: 5})
+  var results = [];
+  for(var i = 0; i < 100; i++) {
+    c.find({a: i}).fetch()[0];
+  }
+  c.ensureIndex({a: 1});
+
+})*/
