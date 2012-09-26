@@ -59,11 +59,14 @@ LocalCollection.Cursor = function (collection, selector, options) {
   if (!options) options = {};
 
   this.collection = collection;
+  this.selector = selector;
+  this.options = options;
 
   if ((typeof selector === "string") || (typeof selector === "number")) {
     // stash for fast path
     this.selector_id = selector;
     this.selector_f = LocalCollection._compileSelector(selector);
+    this.fields = options.fields;
   } else {
     this.selector_f = LocalCollection._compileSelector(selector);
     this.sort_f = options.sort ? LocalCollection._compileSort(options.sort) : null;
@@ -277,7 +280,11 @@ LocalCollection.Cursor.prototype._markAsReactive = function (options) {
   var context = Meteor.deps.Context.current;
 
   if (context) {
-    var invalidate = _.bind(context.invalidate, context);
+    var invalidate = function(type) {
+      console.log('invalidate');
+      context.invalidate();
+    }
+    //_.bind(context.invalidate, context);
     var handle = self.observe({added: options.added && invalidate,
                                removed: options.removed && invalidate,
                                changed: options.changed && invalidate,
@@ -520,6 +527,7 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
         LocalCollection._fields(doc,fields), 
         LocalCollection._fields(old_doc,fields))
       )) {
+    console.log('changed', query.cursor.collection, query.cursor.selector, query.cursor.options, doc, fields);
     query.changed(LocalCollection._deepcopy(doc), orig_idx, old_doc);
   }
 
