@@ -1,3 +1,13 @@
+Meteor._user_connected_callbacks = [];
+Meteor.userConnected = function(cb) {
+  Meteor._user_connected_callbacks.push(cb);
+}
+
+Meteor._user_disconnected_callbacks = [];
+Meteor.userDisconnected = function(cb) {
+  Meteor._user_disconnected_callbacks.push(cb);
+}
+
 /******************************************************************************/
 /* LivedataSession                                                            */
 /******************************************************************************/
@@ -81,6 +91,14 @@ _.extend(Meteor._LivedataSession.prototype, {
     }
     if (socket.meteor_session === self)
       socket.meteor_session = null;
+
+    if (self.userId) {
+      Fiber(function() {
+        _.each(Meteor._user_disconnected_callbacks, function(cb) {
+          cb(self.userId);
+        });
+      }).run();
+    }
   },
 
   // Should be called periodically to prune the method invocation
@@ -278,6 +296,7 @@ _.extend(Meteor._LivedataSession.prototype, {
       }
 
       var setUserId = function(userId) {
+
         self._setUserId(userId);
       };
 
@@ -321,6 +340,20 @@ _.extend(Meteor._LivedataSession.prototype, {
   // all subscriptions
   _setUserId: function(userId) {
     var self = this;
+    if (userId !== self.userId) {
+      Fiber(function() {
+        if (self.userId) {
+          _.each(Meteor._user_disconnected_callbacks, function(cb) {
+            cb(self.userId);
+          });
+        }
+        if (userId) {
+          _.each(Meteor._user_connected_callbacks, function(cb) {
+            cb(userId);
+          });
+        }
+      }).run();
+    }
     self.userId = userId;
     this._rerunAllSubscriptions();
   },
