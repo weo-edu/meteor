@@ -209,7 +209,7 @@ LocalCollection.Cursor.prototype.observe = function (options) {
     };
   };
 
-  var get_fields = function(f) {
+  var get_fields = function(f, change_check) {
     if (!self.fields)
       return f;
     else {
@@ -221,13 +221,15 @@ LocalCollection.Cursor.prototype.observe = function (options) {
           else
             return arg;
         });
+        if (change_check && _.isEqual(args[0],args[2]))
+          return
         f.apply(this, args);
       }
     }
   }
 
   query.added = if_not_paused(get_fields(options.added));
-  query.changed = if_not_paused(get_fields(options.changed));
+  query.changed = if_not_paused(get_fields(options.changed, true));
   query.moved = if_not_paused(get_fields(options.moved));
   query.removed = if_not_paused(get_fields(options.removed));
 
@@ -520,17 +522,8 @@ LocalCollection._removeFromResults = function (query, doc) {
 
 LocalCollection._updateInResults = function (query, doc, old_doc) {
   var orig_idx = LocalCollection._findInResults(query, doc);
-  var fields = query.cursor.fields;
-  if (!fields || 
-      (fields && 
-      !_.isEqual(
-        LocalCollection._fields(doc,fields), 
-        LocalCollection._fields(old_doc,fields))
-      )) {
-    console.log('changed', query.cursor.collection, query.cursor.selector, query.cursor.options, doc, fields);
-    query.changed(LocalCollection._deepcopy(doc), orig_idx, old_doc);
-  }
 
+  query.changed(LocalCollection._deepcopy(doc), orig_idx, old_doc);
 
   if (!query.sort_f)
     return;
