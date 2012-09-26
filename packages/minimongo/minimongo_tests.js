@@ -1179,4 +1179,22 @@ Tinytest.add("minimongo - fields", function(test) {
   test.equal(operations.shift(), ['changed', {address: {street: "dog"}}, 0, {address: {street: "cat"}}]);
   c.update({name: 'fluffy'}, {$set: {name: 'kitty'}});
   test.length(operations,0);
+  handle.stop();
+
+  handle = c.find(c.findOne({name: 'cara'})._id, {fields: ['address.street']}).observe(cbs);
+  test.equal(operations.shift(), ['added', {address: {street: "fairfax"}}, 0]);
+  c.update({name: 'cara'}, {$set: {'address.street': 'orange'}});
+  test.equal(operations.shift(), ['changed', {address: {street: "orange"}}, 0, {address: {street: "fairfax"}}]);
+  c.update({name: 'cara'}, {$set: {type: 'kitten'}});
+  test.length(operations,0);
+
+
+  c.pauseObservers();
+  c.update({name: 'cara'}, {$set: {type: 'cryptographer'}});
+  c.resumeObservers();
+  test.length(operations,0);
+
+
+
+
 });
