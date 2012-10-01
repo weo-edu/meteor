@@ -245,6 +245,12 @@ _.extend(Meteor._LivedataSession.prototype, {
       // done.
       var fence = new Meteor._WriteFence;
       fence.onAllCommitted(function () {
+        // Retire the fence so that future writes are allowed.
+        // This means that callbacks like timers are free to use
+        // the fence, and if they fire before it's armed (for
+        // example, because the method waits for them) their
+        // writes will be included in the fence.
+        fence.retire();
         self.send({
           msg: 'data', methods: [msg.id]});
       });
@@ -276,7 +282,7 @@ _.extend(Meteor._LivedataSession.prototype, {
       };
 
       var invocation = new Meteor._MethodInvocation(
-        false /* is_simulation */, self.userId, setUserId, unblock);
+        false /* isSimulation */, self.userId, setUserId, unblock);
       try {
         var ret =
           Meteor._CurrentWriteFence.withValue(fence, function () {
@@ -865,7 +871,7 @@ _.extend(Meteor._LivedataServer.prototype, {
       }
 
       var invocation = new Meteor._MethodInvocation(
-        false /* is_simulation */, userId, setUserId);
+        false /* isSimulation */, userId, setUserId);
       try {
         var ret = Meteor._CurrentInvocation.withValue(invocation, function () {
           return handler.apply(invocation, args);
