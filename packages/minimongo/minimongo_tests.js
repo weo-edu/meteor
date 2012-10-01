@@ -1159,11 +1159,12 @@ Tinytest.add("minimongo - pause", function (test) {
 });
 
 
-function genRandom() {
+function genRandom(n) {
+  n = n || 1000;
   var c = new LocalCollection();
 
-  _.times(1000, function() {
-    c.insert({a: Math.floor(Math.random() * 100)});
+  _.times(n, function() {
+    c.insert({a: Math.floor(Math.random() * 100), b: Math.floor(Math.random() * 100)});
   });
 
   return c;
@@ -1171,7 +1172,7 @@ function genRandom() {
 
 var a = genRandom();
 Tinytest.add('minimongo - without btree speed', function(test) {
-  _.times(1, function() {
+  _.times(5, function() {
     for(var i = 0; i < 100; i++) {
       a.find({a: i}).fetch();
     }
@@ -1183,7 +1184,7 @@ Tinytest.add('minimongo - building index', function(test) {
 });
 
 Tinytest.add('minimongo - with btree speed', function(test) {
-  _.times(1, function() {
+  _.times(5, function() {
     for(var i = 0; i < 100; i++) {
       a.find({a: i}).fetch();
     }
@@ -1225,6 +1226,67 @@ Tinytest.add('minimongo - ensureIndex nested paths', function(test) {
       test.equal(_.pluck(res, '_id').sort(), results[i].sort());
     }
   }
+});
+
+function resultsEqual(res, res2) {
+  return res.length === res2.length && _.all(res, function(item, i) {
+    return item._id === res2[i]._id;
+  });
+}
+
+Tinytest.add('minimongo - and/or operations with indexes', function(test) {
+  var c = genRandom();
+
+  var sort = {a: 1, b: 1, _id: 1};
+  var results = [];
+  var queries = [
+    {a: {$gt: 10, $lt: 90}},
+    {a: {$gt: 10}, b: {$lt: 10}},
+    {a: {$gte: 2}, $or: [{a: {$lte: 10}}, {a: {$gte: 90}}]}
+  ];
+
+  _.each(queries, function(q) {
+    results.push(c.find(q, {sort: sort}).fetch());
+  });
+
+  c.ensureIndex({a: 1});
+
+  _.each(queries, function(q, i) {
+    var cursor = c.find(q, {sort: sort});
+    var res = cursor.fetch();
+    test.isTrue(resultsEqual(results[i], res));
+    test.equal(cursor._lastIndexUsed, 'a');
+  })
+});
+
+Tinytest.add('minimongo - balanced index trees', function(test) {
+  var c = genRandom();
+  c.ensureIndex({a: 1});
+  test.isTrue(c.indices.a.isBalanced());
+
+  var n = 50000;
+
+  var c = new LocalCollection();
+  c.ensureIndex({a: 1});
+  _.times(n, function(i) {
+    c.insert({a: Math.floor(Math.random() * 100)});
+  });
+  test.isTrue(c.indices.a.isBalanced());
+
+  c = new LocalCollection();
+  c.ensureIndex({a: 1});
+  _.times(n, function(i) {
+    c.insert({a: i});
+  });
+  test.isTrue(c.indices.a.isBalanced());
+
+  c = new LocalCollection();
+  c.ensureIndex({a: 1});
+  _.times(n, function(i) {
+    c.insert({a: n-i});
+  });
+
+  test.isTrue(c.indices.a.isBalanced());
 });
 
 /*

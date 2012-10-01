@@ -226,14 +226,16 @@ LocalCollection.Cursor.prototype._getRawObjects = function () {
     return [self.collection.docs[self.selector_id]];
 
   var results = [];
-  var index = self.collection.chooseIndex(self.selector_f.hints);
+  var key = self.collection.chooseKeyAndFilterHints(self.selector_f.hints);
+  var index = (key && self.collection.indices[key]) || self.collection.docs;
   self._lastIndexUsed = index.key;
-  var hint = self.selector_f.hints && self.selector_f.hints[index.key];
+
+  self.range = self.range || self.collection.buildRange(self.selector_f.hints, key);
 
   index.traverse(function(n) {
     self.selector_f(n.data) && results.push(n.data);
     return true;
-  }, hint && hint[0]);
+  }, self.range);
 
   if (self.sort_f)
     results.sort(self.sort_f);
@@ -296,8 +298,8 @@ LocalCollection.prototype.remove = function (selector) {
   var query_remove = [];
 
   var selector_f = LocalCollection._compileSelector(selector);
-  var index = self.chooseIndex(selector_f.hints);
-  var hint = selector_f.hints && selector_f.hints[index.key] && selector_f.hints[index.key][0];
+  var key = self.chooseKeyAndFilterHints(selector_f.hints);
+  var index = (key && self.indices[key]) || self.docs;
 
   index.traverse(function(n) {
     if(selector_f(n.data)) {
@@ -309,18 +311,19 @@ LocalCollection.prototype.remove = function (selector) {
       }
     }
     return true;
-  }, hint);
+  }, this.buildRange(selector_f.hints, key));
 
   for (var i = 0; i < remove.length; i++) {
     var doc = remove[i];
 
     for(var k in self.indices) {
       var index = self.indices[k];
+      var key = index.getKey(remove[i]);
       index.traverse(function(n) {
         if(n.data._id === doc._id)
           index.remove(n);
         return true;
-      }, {dir: 'equal', val: index.getKey(remove[i])});
+      }, {min: key, max: key, minInclusive: true, maxInclusive: true});
     }
 
     self.docs.remove(doc._id);
@@ -340,15 +343,16 @@ LocalCollection.prototype.update = function (selector, mod, options) {
   var self = this;
   var any = false;
   var selector_f = LocalCollection._compileSelector(selector);
-  var index = self.chooseIndex(selector_f.hints);
-  var hint = selector_f.hints && selector_f.hints[0];
+  var key = self.chooseKeyAndFilterHints(selector_f.hints);
+  var index = (key && self.indices[key]) || self.docs;
+
   index.traverse(function(n) {
     if(selector_f(n.data)) {
       self._modifyAndNotify(n.data, mod);
       return options.multi;
     }
     return true;
-  }, hint);
+  }, this.buildRange(selector_f.hints, key));
 
   if (options.upsert) {
     throw Error("upsert not yet implemented");
@@ -384,7 +388,7 @@ LocalCollection.prototype._modifyAndNotify = function (doc, mod) {
           return false;
         }
         return true;
-      }, {val: index.getKey(old_doc), dir: 'next'});
+      }, {max: index.getKey(old_doc), maxInclusive: true});
     }
   }
 
@@ -464,22 +468,27 @@ LocalCollection._findInResults = function (query, doc) {
   throw Error("object missing from query");
 };
 
-LocalCollection._insertInSortedList = function (cmp, array, value) {
-  if (array.length === 0) {
+LocalCollection._insertInSortedList = function(cmp, array, value) {
+  if(array.length === 0) {
     array.push(value);
     return 0;
   }
 
-  for (var i = 0; i < array.length; i++) {
-    if (cmp(value, array[i]) < 0) {
-      array.splice(i, 0, value);
-      return i;
-    }
+  var low = 0,
+    high = array.length-1;
+
+  while(low <= high) {
+    mid = Math.floor((low + high) / 2);
+    if(cmp(array[mid], value) >= 0)
+      high = mid - 1;
+    else
+      low = mid + 1;
   }
 
-  array.push(value);
-  return array.length - 1;
+  array.splice(low, 0, value);
+  return low;
 };
+
 
 // At most one snapshot can exist at once. If one already existed,
 // overwrite it.
@@ -562,17 +571,53 @@ LocalCollection.prototype.resumeObservers = function () {
   }
 };
 
-LocalCollection.prototype.chooseIndex = function(hints) {
-  var self = this;
-  if(! hints) return self.docs;
 
-  for(var k in self.indices) {
-    if(hints[k]) {
-      return self.indices[k];
+LocalCollection.prototype.buildRange = function(hints, key) {
+  var range = {
+    minInclusive: true,
+    maxInclusive: true
+  };
+
+
+  for(k in hints) {
+    var hint = hints[k];
+
+    if(hint.dir <= 0) {
+      if(hint.val < range.max || range.max === undefined) {
+        range.max = hint.val;
+        range.maxInclusive = hint.inclusive;
+      } else if(hint.val === range.max) {
+        range.maxInclusive = range.maxInclusive && hint.inclusive;
+      }
+    }
+
+    if(hint.dir >= 0) {
+      if(hint.val > range.min || range.min === undefined) {
+        range.min = hint.val;
+        range.minInclusive = hint.inclusive;
+      }
+      else if(hint.val === range.min) {
+        range.minInclusive = range.minInclusive && hint.inclusive;
+      }
     }
   }
+  return range;
+}
 
-  return self.docs;
+LocalCollection.prototype.chooseKeyAndFilterHints = function(hints) {
+  var self = this,
+    key;
+
+  for(var k in hints) {
+    if(key && k !== key) {
+      delete hints[k];
+      continue;
+    }
+
+    if(self.indices[k]) key = k;
+  }
+
+  return key;
 }
 
 LocalCollection.prototype.ensureIndex = function(o) {
@@ -581,7 +626,7 @@ LocalCollection.prototype.ensureIndex = function(o) {
 
   if(self.indices[key]) return;
 
-  self.indices[key] = new BSTree(buildKeyGetter(o), key);
+  self.indices[key] = new RBTree(buildKeyGetter(o), key);
 
   if(self.docs) {
     var index = self.indices[key];

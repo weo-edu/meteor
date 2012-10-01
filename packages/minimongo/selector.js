@@ -303,7 +303,7 @@ LocalCollection._exprForSelector = function (selector, literals, hints) {
     } else {
       hints[key] = hints[key] || [];
       var hint = {
-        dir: 'next',
+        dir: 1,
         val: value,
         key: key
       };
@@ -343,7 +343,7 @@ LocalCollection._exprForDocumentPredicate = function (op, value, literals, hints
   if (op === '$nor') {
     var clauses = [];
     _.each(value, function (c) {
-      clauses.push("!(" + LocalCollection._exprForSelector(c, literals) + ")", hints);
+      clauses.push("!(" + LocalCollection._exprForSelector(c, literals, hints) + ")");
     });
     if (clauses.length === 0) return 'true';
     return '(' + clauses.join('&&') +')';
@@ -425,7 +425,8 @@ LocalCollection._exprForKeypathPredicate = function (keypath, value, literals, h
 LocalCollection._exprForValueTest = function (value, literals, hint) {
   var expr;
 
-  hint.dir = 'equal';
+  hint.dir = 0;
+  hint.inclusive = true;
   if (value === null) {
     // null has special semantics
     // http://www.mongodb.org/display/DOCS/Querying+and+nulls
@@ -480,18 +481,22 @@ LocalCollection._exprForConstraint = function (type, arg, others,
 
   if (type === '$gt') {
     hint.val = arg;
-    hint.dir = 'next';
+    hint.dir = 1;
+    hint.inclusive = false;
     expr = 'f._cmp(x,' + JSON.stringify(arg) + ')>0';
   } else if (type === '$lt') {
-    hint.dir = 'prev';
+    hint.inclusive = false;
+    hint.dir = -1;
     hint.val = arg;
     expr = 'f._cmp(x,' + JSON.stringify(arg) + ')<0';
   } else if (type === '$gte') {
     hint.val = arg;
-    hint.dir = 'next';
+    hint.dir = 1;
+    hint.inclusive = true;
     expr = 'f._cmp(x,' + JSON.stringify(arg) + ')>=0';
   } else if (type === '$lte') {
-    hint.dir = 'prev';
+    hint.inclusive = true;
+    hint.dir = -1;
     hint.val = arg;
     expr = 'f._cmp(x,' + JSON.stringify(arg) + ')<=0';
   } else if (type === '$all') {
