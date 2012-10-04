@@ -59,16 +59,20 @@ LocalCollection.Cursor = function (collection, selector, options) {
   if (!options) options = {};
 
   this.collection = collection;
+  this.selector = selector;
+  this.options = options;
 
   if ((typeof selector === "string") || (typeof selector === "number")) {
     // stash for fast path
     this.selector_id = selector;
     this.selector_f = LocalCollection._compileSelector(selector);
+    this.fields = options.fields;
   } else {
     this.selector_f = LocalCollection._compileSelector(selector);
     this.sort_f = options.sort ? LocalCollection._compileSort(options.sort) : null;
     this.skip = options.skip;
     this.limit = options.limit;
+    this.fields = options.fields;
   }
 
   this.db_objects = null;
@@ -109,8 +113,14 @@ LocalCollection.Cursor.prototype.forEach = function (callback) {
                           changed: true,
                           moved: true});
 
-  while (self.cursor_pos < self.db_objects.length)
-    callback(LocalCollection._deepcopy(self.db_objects[self.cursor_pos++]));
+  while (self.cursor_pos < self.db_objects.length) {
+    if (self.fields)
+      doc = LocalCollection._fields(self.db_objects[self.cursor_pos++],self.fields);
+    else
+      doc = LocalCollection._deepcopy(self.db_objects[self.cursor_pos++]);
+    callback(doc);
+  }
+    
 };
 
 LocalCollection.Cursor.prototype.map = function (callback) {
@@ -198,10 +208,30 @@ LocalCollection.Cursor.prototype.observe = function (options) {
         f.apply(this, arguments);
     };
   };
-  query.added = if_not_paused(options.added);
-  query.changed = if_not_paused(options.changed);
-  query.moved = if_not_paused(options.moved);
-  query.removed = if_not_paused(options.removed);
+
+  var get_fields = function(f, change_check) {
+    if (!self.fields)
+      return f;
+    else {
+      return function() {
+        var args = _.toArray(arguments)
+        args = _.map(args, function(arg) {
+          if ('object' === typeof arg)
+            return LocalCollection._fields(arg,self.fields);
+          else
+            return arg;
+        });
+        if (change_check && _.isEqual(args[0],args[2]))
+          return
+        f.apply(this, args);
+      }
+    }
+  }
+
+  query.added = if_not_paused(get_fields(options.added));
+  query.changed = if_not_paused(get_fields(options.changed, true));
+  query.moved = if_not_paused(get_fields(options.moved));
+  query.removed = if_not_paused(get_fields(options.removed));
 
   if (!options._suppress_initial && !self.collection.paused)
     for (var i = 0; i < query.results.length; i++)
@@ -224,15 +254,18 @@ LocalCollection.Cursor.prototype._getRawObjects = function () {
   var self = this;
 
   // fast path for single ID value
-  if (self.selector_id && (self.selector_id in self.collection.docs))
+  if (self.selector_id && (self.selector_id in self.collection.docs)) {
     return [self.collection.docs[self.selector_id]];
+  }
 
   // slow path for arbitrary selector, sort, skip, limit
   var results = [];
   for (var id in self.collection.docs) {
     var doc = self.collection.docs[id];
-    if (self.selector_f(doc))
+    if (self.selector_f(doc)) {
       results.push(doc);
+    }
+
   }
 
   if (self.sort_f)
@@ -353,7 +386,6 @@ LocalCollection.prototype.update = function (selector, mod, options) {
 
 LocalCollection.prototype._modifyAndNotify = function (doc, mod) {
   var self = this;
-
   var matched_before = {};
   for (var qid in self.queries)
     matched_before[qid] = self.queries[qid].selector_f(doc);
@@ -486,6 +518,7 @@ LocalCollection._removeFromResults = function (query, doc) {
 
 LocalCollection._updateInResults = function (query, doc, old_doc) {
   var orig_idx = LocalCollection._findInResults(query, doc);
+
   query.changed(LocalCollection._deepcopy(doc), orig_idx, old_doc);
 
   if (!query.sort_f)
