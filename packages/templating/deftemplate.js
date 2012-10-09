@@ -71,9 +71,11 @@
     })();
   }
 
-  var templateObjFromLandmark = function (landmark) {
+  var templateObjFromLandmark = function (landmark, name) {
     var template = templateInstanceData[landmark.id] || (
       templateInstanceData[landmark.id] = {
+        name: name,
+
         // set these once
         find: function (selector) {
           if (! landmark.hasDom())
@@ -171,6 +173,17 @@
             (this._tmpl_data.helpers = (this._tmpl_data.helpers || {}));
       for(var h in helperMap)
         helpers[h] = helperMap[h];
+    },
+    onRender: function(cb) {
+      console.log('onRender');
+      var render_cbs = 
+        (this._tmpl_data.render_cbs) = (this._tmpl_data.render_cbs || []);
+      render_cbs.push(cb);
+    },
+    nextRender: function(cb) {
+      var render_cbs = 
+        (this._tmpl_data.next_render_cbs) = (this._tmpl_data.next_render_cbs || []);
+      render_cbs.push(cb);
     }
   };
 
@@ -182,7 +195,7 @@
 
     // Define the function assigned to Template.<name>.
 
-    var partial = function (data) {
+    var partial = function (data, callbacks) {
       data = data || {};
       var tmpl = name && Template[name] || {};
       var tmplData = tmpl._tmpl_data || {};
@@ -191,21 +204,30 @@
         var html = Spark.createLandmark({
           preserve: tmplData.preserve || {},
           created: function () {
-            var template = templateObjFromLandmark(this);
+            var template = templateObjFromLandmark(this, name);
+            template.callbacks = callbacks
             template.data = data;
             tmpl.created && tmpl.created.call(template, tmpl);
+            _.each(tmplData.render_cbs, function(cb) {
+              template.onRender(cb.bind(template));
+            });
 
             if (data.id) {
-                Meteor.templatesById[data.id] = template;
-                _.each(Meteor.templatesByIdCallbacks[data.id], function (cb) {
-                  cb(template);
-                });
+              Meteor.templatesById[data.id] = template;
+              _.each(Meteor.templatesByIdCallbacks[data.id], function (cb) {
+                cb(template);
+              });
             }
 
           },
           rendered: function () {
             var template = templateObjFromLandmark(this);
             template.data = data;
+
+            _.each(tmplData.next_render_cbs, function(cb) {
+              template.nextRender(cb.bind(template));
+            });
+            tmplData.next_render_cbs = [];
 
             var path = template._id();
             if (template.firstRender && path in templateStoresByPath) {
@@ -216,13 +238,14 @@
             }
 
             tmpl.rendered && tmpl.rendered.call(template);
+
             template.emitRender();
 
             
             template.firstRender = false;
           },
           destroyed: function () {
-            var template = templateObjFromLandmark(this)
+            var template = templateObjFromLandmark(this);
             tmpl.destroyed &&
               tmpl.destroyed.call(template);
             template.emitDestroy();
