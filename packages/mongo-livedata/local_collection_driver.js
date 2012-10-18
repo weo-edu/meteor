@@ -27,7 +27,7 @@ Meteor._LocalCollectionDriver = new Meteor._LocalCollectionDriver;
 //speed up reload and ensure that first render after reload 
 //has same state as the last render before reload
 //XXX this is geting errors
-if (Meteor._reload) {
+/*if (Meteor._reload) {
   Meteor._reload.on_migrate('Collections',function() {
     var collections = {};
     _.each(Meteor._LocalCollectionDriver.collections,function(collection,name) {
@@ -38,4 +38,4 @@ if (Meteor._reload) {
   (function() {
     Meteor._LocalCollectionDriver.migrationData = Meteor._reload.migration_data('Collections') || {};
   })();
-}
+}*/
