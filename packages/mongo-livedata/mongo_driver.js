@@ -38,6 +38,10 @@ _Mongo = function (url) {
   });
 };
 
+_Mongo.ObjectId = function(id) {
+  return new MongoDB.ObjectID(id.toString());
+};
+
 _Mongo.prototype.withDB = function(cb) {
   var self = this;
   if (self.db) 
@@ -315,6 +319,19 @@ _Mongo._makeCursor = function (mongo, collection_name, selector, options) {
     if (err) {
       future.ret([false, err]);
       return;
+    }
+    if(typeof selector === 'string')
+      selector = {_id: _Mongo.ObjectId(selector)};
+    else if(_.isArray(selector)) {
+      try{
+        for(var i in selector) {
+          selector[i] = _Mongo.ObjectId(selector[i]);
+        }
+      } catch(e) {
+        //  Do nothing
+      }
+
+      selector = {_id: {$in: selector}};
     }
     var cursor = collection.find(selector, options.fields, {
       sort: options.sort, limit: options.limit, skip: options.skip});
