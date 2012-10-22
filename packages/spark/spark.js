@@ -1121,6 +1121,7 @@ Spark.createLandmark = function (options, htmlFunc) {
   options.exit = options.exit || function () {};
 
   options.enter.call(landmark);
+  
   try {
     var html = htmlFunc(landmark);
   } finally {

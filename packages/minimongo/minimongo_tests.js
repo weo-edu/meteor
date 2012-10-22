@@ -201,7 +201,10 @@ Tinytest.add("minimongo - misc", function (test) {
   var a = {a: [1, 2, 3], b: "x", c: true, d: {x: 12, y: [12]},
            f: null, g: new Date()};
   var b = LocalCollection._deepcopy(a);
-  test.isTrue(LocalCollection._f._equal(a, b));
+  // minimongo doesn't support Dates, so we *can't* test
+  // LocalCollection._f._equal here! (Currently _equal considers all dates equal
+  // on most browsers except IE7 where it considers all dates unequal.)
+  test.equal(a, b);
   a.a.push(4);
   test.length(b.a, 3);
   a.c = false;
@@ -211,10 +214,10 @@ Tinytest.add("minimongo - misc", function (test) {
   test.equal(b.d.z, 15);
   a.d.y.push(88);
   test.length(b.d.y, 1);
-  test.equal(a.g, b.g)
+  test.equal(a.g, b.g);
   b.g.setDate(b.g.getDate() + 1);
-  test.notEqual(a.g, b.g)
-  
+  test.notEqual(a.g, b.g);
+
   a = {x: function () {}};
   b = LocalCollection._deepcopy(a);
   a.x.a = 14;
@@ -1152,7 +1155,6 @@ Tinytest.add("minimongo - pause", function (test) {
   h.stop();
 });
 
-
 /*
   Things to test here:
   1.  Pre-skip insert with and without limit
@@ -1321,3 +1323,49 @@ Tinytest.add('minimongo - skip/limit reactivity', function(test) {
   test.equal(operations.pop()[0], 'added');
 });
 
+Tinytest.add("minimongo - fields", function(test) {
+  var c = new LocalCollection();
+  c.insert({type: "kitten", name: "fluffy", address: {street: "cat"}});
+  c.insert({type: "kitten", name: "snookums", address: {street: "dog"}});
+  c.insert({type: "cryptographer", name: "alice", address: {street: "vista"}});
+  c.insert({type: "cryptographer", name: "bob", address: {street: "pickford"}});
+  c.insert({type: "cryptographer", name: "cara", address: {street: "fairfax"}});
+  test.equal(
+    c.find({type: 'cryptographer'}, {fields: ['name']}).fetch(), 
+    [{name: 'alice'}, {name: 'bob'}, {name: 'cara'}]
+  );
+  test.equal(
+    c.find({type: 'kitten'}, {fields: ['address.street']}).fetch(),
+    [{address: {street: "cat"}}, {address: {street: "dog"}}]
+  );
+
+  var operations = [];
+  var cbs = log_callbacks(operations);
+  var handle;
+
+  handle = c.find({type: 'kitten'}, {fields: ['address.street']}).observe(cbs);
+  test.equal(operations.shift(), ['added', {address: {street: "cat"}}, 0]);
+  test.equal(operations.shift(), ['added', {address: {street: "dog"}}, 1]);
+  c.update({name: 'fluffy'}, {$set: {'address.street': 'dog'}});
+  test.equal(operations.shift(), ['changed', {address: {street: "dog"}}, 0, {address: {street: "cat"}}]);
+  c.update({name: 'fluffy'}, {$set: {name: 'kitty'}});
+  test.length(operations,0);
+  handle.stop();
+
+  handle = c.find(c.findOne({name: 'cara'})._id, {fields: ['address.street']}).observe(cbs);
+  test.equal(operations.shift(), ['added', {address: {street: "fairfax"}}, 0]);
+  c.update({name: 'cara'}, {$set: {'address.street': 'orange'}});
+  test.equal(operations.shift(), ['changed', {address: {street: "orange"}}, 0, {address: {street: "fairfax"}}]);
+  c.update({name: 'cara'}, {$set: {type: 'kitten'}});
+  test.length(operations,0);
+
+
+  c.pauseObservers();
+  c.update({name: 'cara'}, {$set: {type: 'cryptographer'}});
+  c.resumeObservers();
+  test.length(operations,0);
+
+
+
+
+});
