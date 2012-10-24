@@ -550,7 +550,11 @@ LocalCollection._findInResults = function (query, doc) {
   for (var i = 0; i < query.results.length; i++)
     if (query.results[i] === doc)
       return i;
-  throw Error("object missing from query");
+
+  //  XXX Commenting this out now because we
+  //  think it is not applicable when using skip/limit reactivity.
+  //  Is this the case?
+  //throw Error("object missing from query");
 };
 
 LocalCollection._insertInSortedList = function (cmp, array, value) {
