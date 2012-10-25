@@ -296,7 +296,7 @@ _.extend(Meteor._LivedataSession.prototype, {
       }
 
       var setUserId = function(userId) {
-
+        console.log('setUserId', userId);
         self._setUserId(userId);
       };
 
@@ -629,19 +629,20 @@ _.extend(Meteor._LivedataSubscription.prototype, {
     // lower priority subscriptions)
     self.pending_data = {};
     self.pending_complete = false;
-    for (var name in self.snapshot) {
+    //XXX 
+    /*for (var name in self.snapshot) {
       self.pending_data[name] = {};
       for (var id in self.snapshot[name]) {
         self.pending_data[name][id] = {};
         for (var key in self.snapshot[name][id])
           self.pending_data[name][id][key] = undefined;
       }
-    }
+    }*/
   },
 
-  _publishCursor: function (cursor, name) {
+  _publishCursor: function (cursor, complete) {
     var self = this;
-    var collection = name || cursor.collection_name;
+    var collection = cursor.collection_name;
 
     var observe_handle = cursor.observe({
       added: function (obj) {
@@ -667,7 +668,8 @@ _.extend(Meteor._LivedataSubscription.prototype, {
 
     // observe only returns after the initial added callbacks have
     // run.  mark subscription as completed.
-    self.complete();
+    if (complete === undefined || complete)
+      self.complete();
     self.flush();
 
     // register stop callback (expects lambda w/ no args).

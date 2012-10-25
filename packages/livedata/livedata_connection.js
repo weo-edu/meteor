@@ -201,6 +201,15 @@ _.extend(Meteor._LivedataConnection.prototype, {
     return true;
   },
 
+  get: function(name /* .. [arguments] .. */) {
+    var args = _.toArray(arguments);
+    var handle = null;
+    args.push(function() {
+      handle.stop();
+    });
+    handle = this.subscribe.apply(this, args);
+  },
+
   subscribe: function (name /* .. [arguments] .. callback */) {
     var self = this;
     var id;
