@@ -106,11 +106,17 @@ var PackageInstance = function (pkg, bundle) {
       });
       var non_js = [];
       var js = [];
-      _.each(files,function(file) {
-        if (!path.extname(file) === '.js') {
-          non_js.push(file);
+      var that = this;
+      _.each(files, function(file) {
+        var stats = fs.statSync(path.join(self.pkg.source_root, file));
+        if(stats.isDirectory()) {
+          that.add_dir(file, where);
         } else {
-          js.push(file);
+          if (!path.extname(file) === '.js') {
+            non_js.push(file);
+          } else {
+            js.push(file);
+          }
         }
       });
       this.add_files(non_js,where);
