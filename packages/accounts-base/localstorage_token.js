@@ -51,6 +51,28 @@
   };
 })();
 
+//XXX double check this;
+Meteor.loginConnection = function(con, errorCallback) {
+  con.apply('login', [{resume: Meteor.accounts.storedLoginToken()}], {wait: true}, function(error, result) {
+    if (error) {
+      errorCallback();
+      throw error;
+    }
+    var userId = result.id;
+    var token = result.token;
+    con.setUserId(userId);
+    con.onReconnect = function() {
+      Meteor.loginConnection(con, function(error, result) {
+        if (error) {
+          con.setUserId(null);
+          con.onReconnect = null;
+          throw error;
+        }
+      });
+    };
+  });
+};
+
 // Login with a Meteor access token
 //
 // XXX having errorCallback only here is weird since other login
