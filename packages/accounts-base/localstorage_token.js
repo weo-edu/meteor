@@ -53,19 +53,24 @@
 
 //XXX double check this;
 Meteor.loginConnection = function(con, errorCallback) {
+  if (!Meteor.accounts.storedLoginToken())
+    return;
   con.apply('login', [{resume: Meteor.accounts.storedLoginToken()}], {wait: true}, function(error, result) {
     if (error) {
-      errorCallback();
+      errorCallback && errorCallback();
+      console.log('login connect', error,error.stack);
       throw error;
     }
     var userId = result.id;
     var token = result.token;
     con.setUserId(userId);
     con.onReconnect = function() {
+      console.log('reconnect');
       Meteor.loginConnection(con, function(error, result) {
         if (error) {
           con.setUserId(null);
           con.onReconnect = null;
+          console.log('reconnect', error, error.stack);
           throw error;
         }
       });
