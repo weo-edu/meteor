@@ -1,10 +1,13 @@
-Meteor.accounts.validateNewUser(function (user) {
-  return !user.invalid;
+Accounts.validateNewUser(function (user) {
+  if (user.profile && user.profile.invalidAndThrowException)
+    throw new Meteor.Error(403, "An exception thrown within Accounts.validateNewUser");
+  return !(user.profile && user.profile.invalid);
 });
 
-Meteor.accounts.onCreateUser(function (options, extra, user) {
-  if (extra.testOnCreateUserHook) {
-    user.touchedByOnCreateUser = true;
+Accounts.onCreateUser(function (options, user) {
+  if (options.testOnCreateUserHook) {
+    user.profile = user.profile || {};
+    user.profile.touchedByOnCreateUser = true;
     return user;
   } else {
     return 'TEST DEFAULT HOOK';
@@ -24,10 +27,19 @@ Meteor.accounts.onCreateUser(function (options, extra, user) {
 //
 // For now, we just test the one configuration state. You can comment
 // out each configuration option and see that the tests fail.
-Meteor.accounts.config({
-  validateEmails: true,
-  // The 'accounts - updateOrCreateUser' test needs accounts without
-  // usernames or emails, so we can't test with these on.
-  requireEmail: false,
-  requireUsername: false
+Accounts.config({
+  sendVerificationEmail: true
+});
+
+
+// This test properly belongs in accounts-base/accounts_tests.js, but
+// this is where the tests that actually log in are.
+Meteor.methods({
+  testMeteorUser: function () { return Meteor.user(); },
+  clearUsernameAndProfile: function () {
+    if (!this.userId)
+      throw new Error("Not logged in!");
+    Meteor.users.update(this.userId,
+                        {$unset: {profile: 1, username: 1}});
+  }
 });

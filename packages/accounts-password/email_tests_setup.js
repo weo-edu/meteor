@@ -24,15 +24,16 @@
       return interceptedEmails[email];
     },
 
-    addEmailForTestAndValidate: function (email) {
+    addEmailForTestAndVerify: function (email) {
       Meteor.users.update(
-        {_id: this.userId()},
-        {$push: {emails: {email: email, validated: false}}});
-      Meteor.accounts.sendValidationEmail(this.userId(), email);
+        {_id: this.userId},
+        {$push: {emails: {address: email, verified: false}}});
+      Accounts.sendVerificationEmail(this.userId, email);
     },
 
     createUserOnServer: function (email) {
-      var userId = Meteor.createUser({email: email});
+      var userId = Accounts.createUser({email: email});
+      Accounts.sendEnrollmentEmail(userId);
       return Meteor.users.findOne(userId);
     }
   });

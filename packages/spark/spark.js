@@ -22,7 +22,7 @@
 
 // XXX in landmark-demo, if Template.timer.created throws an exception,
 // then it is never called again, even if you push the 'create a
-// timer' button again. the problem is almost certainly in atFlushTime
+// timer' button again. the problem is almost certainly in atFlush
 // (not hard to see what it is.)
 
 (function() {
@@ -60,6 +60,8 @@ Spark._ANNOTATION_LIST_ITEM = "item";
 // Set in tests to turn on extra UniversalEventListener sanity checks
 Spark._checkIECompliance = false;
 
+Spark._globalPreserves = {};
+
 var makeRange = function (type, start, end, inner) {
   var range = new LiveRange(Spark._TAG, start, end, inner);
   range.type = type;
@@ -88,6 +90,20 @@ var notifyWatchers = function (start, end) {
     if (walk.type === Spark._ANNOTATION_WATCH)
       walk.notify();
   tempRange.destroy();
+};
+
+var eventGuardActive = false;
+// Spark does DOM manipulation inside an event guard to prevent events
+// like "blur" from firing.  It would be nice to deliver these events
+// in some cases, but running fresh event handling code on an invalid
+// LiveRange tree can easily produce errors.
+// This guard was motivated by seeing errors in Todos when switching
+// windows while an input field is focused.
+var withEventGuard = function (func) {
+  var previous = eventGuardActive;
+  eventGuardActive = true;
+  try { return func(); }
+  finally { eventGuardActive = previous; }
 };
 
 Spark._createId = function () {
@@ -128,9 +144,19 @@ Spark._Renderer = function () {
 
 _.extend(Spark._Renderer.prototype, {
   // `what` can be a function that takes a LiveRange, or just a set of
-  // attributes to add to the liverange.  tag and what are optional.
-  // if no tag is passed, no liverange will be created.
-  annotate: function (html, type, what, unusedFunc) {
+  // attributes to add to the liverange.  type and what are optional.
+  // if no type is passed, no liverange will be created.
+  // If what is a function, it will be called no matter what, even
+  // if the annotated HTML was not used and no LiveRange was created,
+  // in which case it gets null as an argument.
+  annotate: function (html, type, what) {
+    if (typeof what !== 'function') {
+      var attribs = what;
+      what = function (range) {
+        if (range)
+          _.extend(range, attribs);
+      };
+    }
     // The annotation tags that we insert into HTML strings must be
     // unguessable in order to not create potential cross-site scripting
     // attack vectors, so we use random strings.  Even a well-written app
@@ -140,20 +166,15 @@ _.extend(Spark._Renderer.prototype, {
     // and not arbitrary user-entered data.
     var id = (type || '') + ":" + Spark._createId();
     this.annotations[id] = function (start, end) {
-      if (! start) {
-        // materialize called us with no args because this annotation
-        // wasn't used
-        unusedFunc && unusedFunc();
+      if ((! start) || (! type)) {
+        // ! start: materialize called us with no args because this
+        // annotation wasn't used
+        // ! type: no type given, don't generate a LiveRange
+        what(null);
         return;
       }
-      if (! type)
-        // no type given; don't generate a LiveRange
-        return;
       var range = makeRange(type, start, end);
-      if (what instanceof Function)
-        what(range);
-      else
-        _.extend(range, what);
+      what(range);
     };
 
     return "<$" + id + ">" + html + "</$" + id + ">";
@@ -324,8 +345,7 @@ var scheduleOnscreenSetup = function (frag, landmarkRanges) {
     finalized = true;
   };
 
-  var ctx = new Meteor.deps.Context;
-  ctx.onInvalidate(function () {
+  Meteor._atFlush(function () {
     if (finalized)
       return;
 
@@ -379,8 +399,6 @@ var scheduleOnscreenSetup = function (frag, landmarkRanges) {
     notifyWatchers(renderedRange.firstNode(), renderedRange.lastNode());
     renderedRange.destroy();
   });
-
-  ctx.invalidate();
 };
 
 Spark.render = function (htmlFunc) {
@@ -579,6 +597,8 @@ Spark.renderToRange = function (range, htmlFunc) {
   while ((walk = findParentOfType(Spark._ANNOTATION_LANDMARK, walk)))
     pc.addRoot(walk.preserve, range, tempRange, walk.containerNode());
 
+  pc.addRoot(Spark._globalPreserves, range, tempRange);
+
   // compute preservations (must do this before destroying tempRange)
   var preservations = pc.computePreservations(range, tempRange);
 
@@ -587,13 +607,15 @@ Spark.renderToRange = function (range, htmlFunc) {
   var results = {};
 
   // Patch! (using preservations)
-  range.operate(function (start, end) {
-    // XXX this will destroy all liveranges, including ones
-    // inside constant regions whose DOM nodes we are going
-    // to preserve untouched
-    Spark.finalize(start, end);
-    Spark._patch(start.parentNode, frag, start.previousSibling,
-                 end.nextSibling, preservations, results);
+  withEventGuard(function () {
+    range.operate(function (start, end) {
+      // XXX this will destroy all liveranges, including ones
+      // inside constant regions whose DOM nodes we are going
+      // to preserve untouched
+      Spark.finalize(start, end);
+      Spark._patch(start.parentNode, frag, start.previousSibling,
+                   end.nextSibling, preservations, results);
+    });
   });
 
   _.each(results.regionPreservations, function (landmarkRange) {
@@ -655,6 +677,10 @@ var getListener = function () {
       // of enclosing liveranges to defend against the case where user
       // event handlers change the DOM.
 
+      if (eventGuardActive)
+        // swallow the event
+        return;
+
       var ranges = [];
       var walk = findRangeOfType(Spark._ANNOTATION_EVENTS,
                                  event.currentTarget);
@@ -715,6 +741,9 @@ Spark.attachEvents = withRenderer(function (eventMap, html, _renderer) {
 
   html = _renderer.annotate(
     html, Spark._ANNOTATION_EVENTS, function (range) {
+      if (! range)
+        return;
+
       _.each(eventTypes, function (t) {
         listener.addType(t);
       });
@@ -781,66 +810,39 @@ Spark.isolate = function (htmlFunc, name) {
   if (!renderer)
     return htmlFunc();
 
-  var ctx = new Meteor.deps.Context;
-  ctx.templateName = name;
-  return renderer.annotate(
-    ctx.run(htmlFunc), Spark._ANNOTATION_ISOLATE, function (range) {
-      range.finalize = function () {
-        // Spark.finalize() was called on us (presumably because we were
-        // removed from the document.) Tear down our structures without
-        // doing any more updates. note that range is about to be
-        // destroyed by finalize.
-        range = null;
-        ctx.invalidate();
-      };
-
-      var refresh = function () {
-        if (! range)
-          return; // killed by finalize. range has already been destroyed.
-
-        ctx = new Meteor.deps.Context;
-        ctx.templateName = name;
-        Spark.renderToRange(range, function () {
-          return ctx.run(htmlFunc);
+  var range;
+  var firstRun = true;
+  var retHtml;
+  Meteor.autorun(function (handle) {
+    if (firstRun) {
+      retHtml = renderer.annotate(
+        htmlFunc(), Spark._ANNOTATION_ISOLATE,
+        function (r) {
+          if (! r) {
+            // annotation not used; kill our context
+            handle.stop();
+          } else {
+            range = r;
+            range.finalize = function () {
+              // Spark.finalize() was called on our range (presumably
+              // because it was removed from the document.)  Kill
+              // this context and stop rerunning.
+              handle.stop();
+            };
+          }
         });
-        ctx.onInvalidate(refresh);
-      };
+      firstRun = false;
+    } else {
+      Spark.renderToRange(range, htmlFunc);
+    }
+  });
 
-      ctx.onInvalidate(refresh);
-    });
+  return retHtml;
 };
 
 /******************************************************************************/
 /* Lists                                                                      */
 /******************************************************************************/
-
-// Run 'f' at flush()-time. If atFlushTime is called multiple times,
-// we guarantee that the 'f's will run in the order of their
-// respective atFlushTime calls.
-//
-// XXX either break this out into a separate package or fold it into
-// deps
-var atFlushQueue = [];
-var atFlushContext = null;
-var atFlushTime = function (f) {
-  atFlushQueue.push(f);
-
-  if (! atFlushContext) {
-    atFlushContext = new Meteor.deps.Context;
-    atFlushContext.onInvalidate(function () {
-      var f;
-      while ((f = atFlushQueue.shift())) {
-        // Since atFlushContext is truthy, if f() calls atFlushTime
-        // reentrantly, it's guaranteed to append to atFlushQueue and
-        // not contruct a new atFlushContext.
-        f();
-      }
-      atFlushContext = null;
-    });
-
-    atFlushContext.invalidate();
-  }
-};
 
 Spark.list = function (cursor, itemFunc, elseFunc) {
   elseFunc = elseFunc || function () { return ''; };
@@ -869,8 +871,8 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
 
   // Get the renderer, if any
   var renderer = Spark._currentRenderer.get();
-  var annotate = renderer ?
-    _.bind(renderer.annotate, renderer) :
+  var maybeAnnotate = renderer ?
+        _.bind(renderer.annotate, renderer) :
     function (html) { return html; };
 
   // Render the initial contents. If we have a renderer, create a
@@ -884,11 +886,11 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
   else {
     for (var i = 0; i < initialContents.length; i++) {
       (function (i) {
-        html += annotate(itemFunc(initialContents[i]),
-                         Spark._ANNOTATION_LIST_ITEM,
-                         function (range) {
-                           itemRanges[i] = range;
-                         });
+        html += maybeAnnotate(itemFunc(initialContents[i]),
+                              Spark._ANNOTATION_LIST_ITEM,
+                              function (range) {
+                                itemRanges[i] = range;
+                              });
       })(i); // scope i to closure
     }
   }
@@ -899,13 +901,15 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
     handle.stop();
     stopped = true;
   };
-  html = annotate(html, Spark._ANNOTATION_LIST, function (range) {
-    outerRange = range;
-    outerRange.finalize = cleanup;
-  }, function () {
-    // We never ended up on the screen (caller discarded our return
-    // value)
-    cleanup();
+  html = maybeAnnotate(html, Spark._ANNOTATION_LIST, function (range) {
+    if (! range) {
+      // We never ended up on the screen (caller discarded our return
+      // value)
+      cleanup();
+    } else {
+      outerRange = range;
+      outerRange.finalize = cleanup;
+    }
   });
 
   // No renderer? Then we have no way to update the returned html and
@@ -926,9 +930,9 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
   };
 
   var later = function (f) {
-    atFlushTime(function () {
+    Meteor._atFlush(function () {
       if (! stopped)
-        f();
+        withEventGuard(f);
     });
   };
 
@@ -1130,6 +1134,12 @@ Spark.createLandmark = function (options, htmlFunc) {
 
   return renderer.annotate(
     html, Spark._ANNOTATION_LANDMARK, function (range) {
+      if (! range) {
+        // annotation not used
+        options.destroyed && options.destroyed.call(landmark);
+        return;
+      }
+
       _.extend(range, {
         preserve: preserve,
         constant: !! options.constant,
@@ -1148,9 +1158,6 @@ Spark.createLandmark = function (options, htmlFunc) {
 
       landmark._range = range;
       renderer.landmarkRanges.push(range);
-    }, function () {
-      // "annotation not used" callback
-      options.destroyed && options.destroyed.call(landmark);
     });
 };
 

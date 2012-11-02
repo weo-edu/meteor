@@ -157,7 +157,7 @@ var run = function () {
         return;
       }
 
-      res.writeHead(200, {'Content-Type': 'text/html'});
+      res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});
       if (supported_browser(req.headers['user-agent']))
         res.write(app_html);
       else

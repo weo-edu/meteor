@@ -1,12 +1,14 @@
-Meteor.accounts.emailTemplates = {
+Accounts.emailTemplates = {
   from: "Meteor Accounts <no-reply@meteor.com>",
+  siteName: Meteor.absoluteUrl().replace(/^https?:\/\//, '').replace(/\/$/, ''),
 
   resetPassword: {
     subject: function(user) {
-      return "How to reset your password on " + Meteor.absoluteUrl();
+      return "How to reset your password on " + Accounts.emailTemplates.siteName;
     },
     text: function(user, url) {
-      var greeting = user.name ? ("Hello " + user.name + ",") : "Hello,";
+      var greeting = (user.profile && user.profile.name) ?
+            ("Hello " + user.profile.name + ",") : "Hello,";
       return greeting + "\n"
         + "\n"
         + "To reset your password, simply click the link below.\n"
@@ -16,15 +18,16 @@ Meteor.accounts.emailTemplates = {
         + "Thanks.\n";
     }
   },
-  validateEmail: {
+  verifyEmail: {
     subject: function(user) {
-      return "How to validate your account email on " + Meteor.absoluteUrl();
+      return "How to verify email address on " + Accounts.emailTemplates.siteName;
     },
     text: function(user, url) {
-      var greeting = user.name ? ("Hello " + user.name + ",") : "Hello,";
+      var greeting = (user.profile && user.profile.name) ?
+            ("Hello " + user.profile.name + ",") : "Hello,";
       return greeting + "\n"
         + "\n"
-        + "To validate your account email, simply click the link below.\n"
+        + "To verify your account email, simply click the link below.\n"
         + "\n"
         + url + "\n"
         + "\n"
@@ -33,10 +36,11 @@ Meteor.accounts.emailTemplates = {
   },
   enrollAccount: {
     subject: function(user) {
-      return "An account has been created for you on " + Meteor.absoluteUrl();
+      return "An account has been created for you on " + Accounts.emailTemplates.siteName;
     },
     text: function(user, url) {
-      var greeting = user.name ? ("Hello " + user.name + ",") : "Hello,";
+      var greeting = (user.profile && user.profile.name) ?
+            ("Hello " + user.profile.name + ",") : "Hello,";
       return greeting + "\n"
         + "\n"
         + "To start using the service, simply click the link below.\n"
