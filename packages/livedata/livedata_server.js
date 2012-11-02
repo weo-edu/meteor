@@ -135,6 +135,7 @@ _.extend(Meteor._LivedataSession.prototype, {
     }
     self._stopAllSubscriptions();
     self.in_queue = self.out_queue = [];
+    delete Meteor.default_server.sessions[self.id];
   },
 
   // Send a message (queueing it if no socket is connected right now.)
@@ -677,6 +678,7 @@ _.extend(Meteor._LivedataSubscription.prototype, {
   }
 });
 
+
 /******************************************************************************/
 /* LivedataServer                                                             */
 /******************************************************************************/
@@ -770,13 +772,18 @@ Meteor._LivedataServer = function () {
   // minutes. Also run result cache cleanup.
   // XXX at scale, we'll want to have a separate timer for each
   // session, and stagger them
+  var cleanupAbandonedTime = 5 * 60 * 1000;
   Meteor.setInterval(function () {
     var now = +(new Date);
-    _.each(self.sessions, function (s) {
+    console.log('cleaning up sessions:', _.keys(self.sessions).length);
+
+    for(var id in self.sessions) {
+      var s = self.sessions[id];
       s.cleanup();
-      if (!s.socket && (now - s.last_detach_time) > 15 * 60 * 1000)
+      if(! s.socket && (now - s.last_detach_time) > cleanupAbandonedTime) {
         s.destroy();
-    });
+      }
+    }
   }, 1 * 60 * 1000);
 };
 
