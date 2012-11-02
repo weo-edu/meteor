@@ -67,20 +67,11 @@
 
         _.each(pending, function (ctx) {
           _.each(ctx._callbacks, function (f) {
-<<<<<<< HEAD
-            if(Context.logInvalidateStack) {
-              _.each(ctx.errs, function(err) {
-                printUserStack(err.stack);
-              });
-            }
-            f(ctx); // XXX wrap in try?
-=======
             try {
               f(ctx);
             } catch (e) {
               Meteor._debug("Exception from Meteor.flush:", e.stack);
             }
->>>>>>> 68dafc94c5f1eb6cf2350ee74e9f65130f665bc5
           });
           delete ctx._callbacks; // maybe help the GC
         });

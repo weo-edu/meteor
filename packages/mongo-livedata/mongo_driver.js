@@ -7,8 +7,9 @@
  * these outside of a fiber they will explode!
  */
 
+var path = __meteor_bootstrap__.require('path');
 var MongoDB = __meteor_bootstrap__.require('mongodb');
-var Future = __meteor_bootstrap__.require('fibers/future');
+var Future = __meteor_bootstrap__.require(path.join('fibers', 'future'));
 
 // js2-mode AST blows up when parsing 'future.return()', so alias.
 Future.prototype.ret = Future.prototype.return;
@@ -247,6 +248,7 @@ _Mongo.prototype.findAndModify = function(collection_name, selector, sort, mod, 
   });
 
   var res = future.wait();
+  console.log('find and Modify server', selector, res);
   if(! res[0])
     throw res[1];
 
@@ -415,21 +417,42 @@ _Mongo.Cursor.prototype.count = function () {
   return self._synchronousCount().wait();
 };
 
+_Mongo.Cursor.prototype._getRawObjects = function (ordered) {
+  var self = this;
+  if (ordered) {
+    return self.fetch();
+  } else {
+    var results = {};
+    self.forEach(function (doc) {
+      results[doc._id] = doc;
+    });
+    return results;
+  }
+};
+
 // options to contain:
-//  * callbacks:
+//  * callbacks for observe():
 //    - added (object, before_index)
-//    - changed (new_object, at_index)
+//    - changed (new_object, at_index, old_object)
 //    - moved (object, old_index, new_index) - can only fire with changed()
-//    - removed (old_object, at_index)
+//    - removed (object, at_index)
+//  * callbacks for _observeUnordered():
+//    - added (object)
+//    - changed (new_object)
+//    - removed (object)
 //
 // attributes available on returned LiveResultsSet
 //  * stop(): end updates
 
 _Mongo.Cursor.prototype.observe = function (options) {
-  return new _Mongo.LiveResultsSet(this, options);
+  return new _Mongo.LiveResultsSet(this, true, options);
 };
 
-_Mongo.LiveResultsSet = function (cursor, options) {
+_Mongo.Cursor.prototype._observeUnordered = function (options) {
+  return new _Mongo.LiveResultsSet(this, false, options);
+};
+
+_Mongo.LiveResultsSet = function (cursor, ordered, options) {
   var self = this;
 
   // copy my cursor, so that the observe can run independently from
@@ -442,9 +465,11 @@ _Mongo.LiveResultsSet = function (cursor, options) {
   // expose collection name
   self.collection_name = cursor.collection_name;
 
+  self.ordered = ordered;
+
   // previous results snapshot.  on each poll cycle, diffs against
   // results drives the callbacks.
-  self.results = [];
+  self.results = ordered ? [] : {};
 
   // state for polling
   self.dirty = false; // do we need polling?
@@ -480,8 +505,9 @@ _Mongo.LiveResultsSet = function (cursor, options) {
   // user callbacks
   self.added = options.added;
   self.changed = options.changed;
-  self.moved = options.moved;
   self.removed = options.removed;
+  if (ordered)
+    self.moved = options.moved;
 
   // run the first _poll() cycle synchronously.
   self.poll_running = true;
@@ -534,10 +560,11 @@ _Mongo.LiveResultsSet.prototype._doPoll = function () {
 
   // Get the new query results
   self.cursor.rewind();
-  var new_results = self.cursor.fetch();
+  var new_results = self.cursor._getRawObjects(self.ordered);
   var old_results = self.results;
 
-  LocalCollection._diffQuery(old_results, new_results, self, true);
+  LocalCollection._diffQuery(
+    self.ordered, old_results, new_results, self, true);
   self.results = new_results;
 
 };

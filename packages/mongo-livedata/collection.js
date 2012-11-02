@@ -172,8 +172,9 @@ _.each(["insert", "update", "remove", "findAndModify"], function (name) {
     var callback;
     var ret;
 
-    if (args.length && args[args.length - 1] instanceof Function)
+    if (args.length && args[args.length - 1] instanceof Function) {
       callback = args.pop();
+    }
 
     if (Meteor.isClient && !callback) {
       // Client can't block, so it can't report errors by exception,
@@ -197,6 +198,7 @@ _.each(["insert", "update", "remove", "findAndModify"], function (name) {
       ret = args[0]._id = Meteor.uuid();
     }
 
+    var res = null;
     if (self._manager && self._manager !== Meteor.default_server) {
       // just remote to another endpoint, propagate return value or
       // exception.
@@ -204,26 +206,39 @@ _.each(["insert", "update", "remove", "findAndModify"], function (name) {
         // asynchronous: on success, callback should return ret
         // (document ID for insert, undefined for update and
         // remove), not the method's result.
-        self._manager.apply(self._prefix + name, args, function (error, result) {
+        res = self._manager.apply(self._prefix + name, args, function (error, result) {
+          if (name === 'findAndModify') {
+            ret = res;
+          }
+
           callback(error, !error && ret);
         });
+
       } else {
+        console.log('else no callback');
         // synchronous: propagate exception
-        self._manager.apply(self._prefix + name, args);
+        res = self._manager.apply(self._prefix + name, args);
       }
+
+      if(name === 'findAndModify')
+        ret = res;
 
     } else {
       // it's my collection.  descend into the collection object
       // and propagate any exception.
       try {
-        self._collection[name].apply(self._collection, args);
+        res = self._collection[name].apply(self._collection, args);
       } catch (e) {
         if (callback) {
+          console.log('other case test');
           callback(e);
           return null;
         }
         throw e;
       }
+
+      if(name === 'findAndModify')
+        ret = res;
 
       // on success, return *ret*, not the manager's return value.
       callback && callback(null, ret);

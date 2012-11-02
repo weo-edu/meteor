@@ -149,6 +149,8 @@ var toc = [
         {instance: "cursor", name: "observe"}
       ],
       {type: "spacer"},
+      "Meteor.uuid",
+      {type: "spacer"},
       {name: "Selectors", style: "noncode"},
       {name: "Modifiers", style: "noncode"},
       {name: "Sort specifiers", style: "noncode"},
@@ -173,6 +175,10 @@ var toc = [
       {name: "Meteor.loginWithGoogle", id: "meteor_loginwithexternalservice"},
       {name: "Meteor.loginWithTwitter", id: "meteor_loginwithexternalservice"},
       {name: "Meteor.loginWithWeibo", id: "meteor_loginwithexternalservice"},
+      {type: "spacer"},
+
+      {name: "{{currentUser}}", id: "meteor_currentuser"},
+      {name: "{{currentUserLoaded}}", id: "meteor_currentuserloaded"},
       {type: "spacer"},
 
       "Accounts.config",

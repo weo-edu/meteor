@@ -355,7 +355,7 @@ Template.api.find = {
      descr: "Sort order (default: natural order)"},
     {name: "skip",
      type: "Number",
-     descr: "Number of result to skip at the beginning"},
+     descr: "Number of results to skip at the beginning"},
     {name: "limit",
      type: "Number",
      descr: "Maximum number of results to return"},
@@ -365,7 +365,7 @@ Template.api.find = {
      descr: "Dictionary of fields to return or exclude."},
     {name: "reactive",
      type: "Boolean",
-     descr: "Default true; pass false to disable reactivity"}
+     descr: "Default `true`; pass `false` to disable reactivity"}
   ]
 };
 
@@ -387,7 +387,7 @@ Template.api.findone = {
      descr: "Sort order (default: natural order)"},
     {name: "skip",
      type: "Number",
-     descr: "Number of result to skip at the beginning"},
+     descr: "Number of results to skip at the beginning"},
     {name: "fields",
      type: "Object: field specifier",
      type_link: "fieldspecifiers",
@@ -538,9 +538,17 @@ Template.api.cursor_observe = {
   descr: ["Watch a query.  Receive callbacks as the result set changes."],
   args: [
     {name: "callbacks",
-     type: "Object (may include added, changed, moved, removed callbacks)",
+     type: "Object (may include `added`, `changed`, `moved`, `removed` callbacks)",
      descr: "Functions to call to deliver the result set as it changes"}
   ]
+};
+
+Template.api.uuid = {
+  id: "meteor_uuid",
+  name: "Meteor.uuid()",
+  locus: "Anywhere",
+  descr: ["Returns a Universally Unique Identifier."],
+  args: [ ]
 };
 
 Template.api.selectors = {
@@ -687,6 +695,12 @@ Template.api.user = {
   descr: ["Get the current user record, or `null` if no user is logged in. A reactive data source."]
 };
 
+Template.api.currentUser = {
+  id: "meteor_currentuser",
+  name: "{{currentUser}}",
+  locus: "Handlebars templates",
+  descr: ["Calls [Meteor.user()](#meteor_user). Use `{{#if currentUser}}` to check whether the user is logged in."]
+};
 
 Template.api.userId = {
   id: "meteor_userid",
@@ -708,6 +722,13 @@ Template.api.userLoaded = {
   name: "Meteor.userLoaded()",
   locus: "Client",
   descr: ["Determine if the current user document is fully loaded in [`Meteor.users`](#meteor_users). A reactive data source."]
+};
+
+Template.api.currentUserLoaded = {
+  id: "meteor_currentuserloaded",
+  name: "{{currentUserLoaded}}",
+  locus: "Handlebars templates",
+  descr: ["Calls [Meteor.userLoaded()](#meteor_userloaded)."]
 };
 
 
@@ -789,7 +810,7 @@ Template.api.accounts_config = {
     {
       name: "forbidClientAccountCreation",
       type: "Boolean",
-      descr: "[`createUser`](#accounts_createuser) requests from the client will be rejected."
+      descr: "Calls to [`createUser`](#accounts_createuser) from the client will be rejected. In addition, if you are using [accounts-ui](#accountsui), the \"Create account\" link will not be available."
     }
   ]
 };
@@ -1353,7 +1374,7 @@ Template.api.template_preserve = {
   args: [
     {name: "selectors",
      type: "Array or Object",
-     descr: "Array of selectors that each match at most one element, such as `['.thing1', '.thing2']`, or, alternatively, a dictionary of selectors and node-labeling functions (see below)."}
+     descr: "Array of CSS selectors that each match at most one element, such as `['.thing1', '.thing2']`, or, alternatively, a dictionary of selectors and node-labeling functions (see below)."}
   ]
 };
 

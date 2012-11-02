@@ -53,7 +53,7 @@
   //setup migration for template stores
   var templateStoresByPath = {};
   if (Meteor._reload) {
-    Meteor._reload.on_migrate('templateStores',function() {
+    Meteor._reload.onMigrate('templateStores',function() {
       var stores = {}
       _.each(templateInstanceData,function(template) {
         stores[template._id()] = template.store;
@@ -61,7 +61,7 @@
       return [true,stores];
     });
     (function() {
-      var migration_data = Meteor._reload.migration_data('templateStores');
+      var migration_data = Meteor._reload.migrationData('templateStores');
       if (migration_data) {
         templateStoresByPath = migration_data;
 

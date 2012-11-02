@@ -40,9 +40,9 @@
 
 //XXX double check this;
 Meteor.loginConnection = function(con, errorCallback) {
-  if (!Meteor.accounts.storedLoginToken())
+  if (!Accounts._storedLoginToken())
     return;
-  con.apply('login', [{resume: Meteor.accounts.storedLoginToken()}], {wait: true}, function(error, result) {
+  con.apply('login', [{resume: Accounts._storedLoginToken()}], {wait: true}, function(error, result) {
     if (error) {
       errorCallback && errorCallback();
       console.log('login connect', error,error.stack);
