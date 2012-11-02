@@ -205,7 +205,7 @@ _.extend(Meteor._LivedataConnection.prototype, {
     var args = _.toArray(arguments);
     var handle = null;
     args.push(function() {
-      handle.stop();
+      handle && handle.stop();
     });
     handle = this.subscribe.apply(this, args);
   },
