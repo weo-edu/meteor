@@ -127,10 +127,10 @@ _.extend(Meteor._LivedataSession.prototype, {
 
   // Destroy this session. Stop all processing and tear everything
   // down. If a socket was attached, close it.
-  destroy: function () {
+  destroy: function (closed) {
     var self = this;
     if (self.socket) {
-      self.socket.close();
+      closed || self.socket.close();
       self.detach(self.socket);
     }
     self._stopAllSubscriptions();
@@ -174,7 +174,8 @@ _.extend(Meteor._LivedataSession.prototype, {
   // other.)
   processMessage: function (msg_in, socket) {
     var self = this;
-    if (socket !== self.socket)
+    console.log('processing message');
+    if (socket !== self.socket && ! socket.disconnected)
       return;
 
     self.in_queue.push(msg_in);
@@ -184,18 +185,20 @@ _.extend(Meteor._LivedataSession.prototype, {
 
     var processNext = function () {
       var msg = self.in_queue.shift();
-      if (!msg) {
+      console.log('processing next in_queue', self.in_queue.length, msg);
+      if (!msg || socket.disconnected) {
         self.worker_running = false;
         return;
       }
 
       Fiber(function () {
         var blocked = true;
-
+        console.log('blocking', self.in_queue.length);
         var unblock = function () {
           if (!blocked)
             return; // idempotent
           blocked = false;
+          console.log('unblock');
           processNext();
         };
 
@@ -404,12 +407,15 @@ _.extend(Meteor._LivedataSession.prototype, {
   _stopAllSubscriptions: function () {
     var self = this;
 
+    console.log('test1');
     _.each(self.named_subs, function (sub, id) {
+      console.log('test2');
       sub.stop();
     });
     self.named_subs = {};
 
     _.each(self.universal_subs, function (sub) {
+      console.log('test3');
       sub.stop();
     });
     self.universal_subs = [];
@@ -419,8 +425,9 @@ _.extend(Meteor._LivedataSession.prototype, {
   // the wire
   _rerunAllSubscriptions: function () {
     var self = this;
-
+    console.log('rerunall');
     var rerunSub = function(sub) {
+      console.log('rerunsub');
       sub._teardown();
       sub._userId = self.userId;
       sub._runHandler();
@@ -428,7 +435,7 @@ _.extend(Meteor._LivedataSession.prototype, {
     var flushSub = function(sub) {
       sub.flush();
     };
-
+    console.log('rerunall middle');
     self.dontFlush = true;
     _.each(self.named_subs, rerunSub);
     _.each(self.universal_subs, rerunSub);
@@ -436,6 +443,7 @@ _.extend(Meteor._LivedataSession.prototype, {
     self.dontFlush = false;
     _.each(self.named_subs, flushSub);
     _.each(self.universal_subs, flushSub);
+    console.log('rerunall end');
   },
 
   // RETURN the current value for a particular key, as given by the
@@ -553,6 +561,7 @@ _.extend(Meteor._LivedataSubscription.prototype, {
 
     for (var name in self.pending_data)
       for (var id in self.pending_data[name]) {
+        console.log('flush inner loop');
         // construct outbound DDP data message
         var msg = {msg: 'data', collection: name, id: id};
 
@@ -622,10 +631,12 @@ _.extend(Meteor._LivedataSubscription.prototype, {
 
   _teardown: function() {
     var self = this;
+    console.log('starting teardown');
     // tell listeners, so they can clean up
     for (var i = 0; i < self.stop_callbacks.length; i++)
       (self.stop_callbacks[i])();
 
+    console.log('ending teardown');
     // remove our data from the client (possibly unshadowing data from
     // lower priority subscriptions)
     self.pending_data = {};
@@ -763,8 +774,11 @@ Meteor._LivedataServer = function () {
     });
 
     socket.on('close', function () {
-      if (socket.meteor_session)
-        socket.meteor_session.detach(socket);
+      if (socket.meteor_session) {
+        console.log('start destroy socket');
+        socket.meteor_session.destroy(true);
+        console.log('end destroy socket');
+      }
     });
   });
 
@@ -873,7 +887,7 @@ _.extend(Meteor._LivedataServer.prototype, {
   // @param callback {Optional Function}
   apply: function (name, args, options, callback) {
     var self = this;
-
+    console.log('starting apply method');
     // We were passed 3 arguments. They may be either (name, args, options)
     // or (name, args, callback)
     if (!callback && typeof options === 'function') {
@@ -930,6 +944,7 @@ _.extend(Meteor._LivedataServer.prototype, {
     }
     if (exception)
       throw exception;
+    console.log('ending apply method');
     return ret;
   },
 

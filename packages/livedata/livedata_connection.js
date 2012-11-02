@@ -441,6 +441,7 @@ _.extend(Meteor._LivedataConnection.prototype, {
     if (context && !(context.id in self._userIdListeners)) {
       self._userIdListeners[context.id] = context;
       context.onInvalidate(function () {
+        console.log('userId onInvalidate');
         delete self._userIdListeners[context.id];
       });
     }
@@ -451,6 +452,7 @@ _.extend(Meteor._LivedataConnection.prototype, {
     var self = this;
     self._userId = userId;
     _.each(self._userIdListeners, function (context) {
+      console.log('invalidating useridlisteners context');
       context.invalidate();
     });
   },
@@ -501,11 +503,12 @@ _.extend(Meteor._LivedataConnection.prototype, {
     // Mark all currently ready subscriptions as 'unready'.
     var all_subs = self.subs.find({}).fetch();
     self.unready_subscriptions = {};
+    console.log('iterating subs');
     _.each(all_subs, function (sub) {
       if (!self.sub_ready_callbacks[sub._id])
         self.unready_subscriptions[sub._id] = true;
     });
-
+    console.log('done iterating subs');
     // Do not clear the database here. That happens once all the subs
     // are re-ready and we process pending_data.
   },
@@ -538,6 +541,7 @@ _.extend(Meteor._LivedataConnection.prototype, {
     // with authoritative changes from server.
 
     var messagesPerStore = {};
+    console.log('iterating pending data');
     _.each(self.pending_data, function (msg) {
       if (msg.collection && msg.id && self.stores[msg.collection]) {
         if (_.has(messagesPerStore, msg.collection))
@@ -547,6 +551,7 @@ _.extend(Meteor._LivedataConnection.prototype, {
       }
     });
 
+    console.log('done iterating pending data');
     _.each(self.stores, function (s, name) {
       s.beginUpdate(_.has(messagesPerStore, name) ? messagesPerStore[name] : 0);
     });
@@ -684,6 +689,7 @@ _.extend(Meteor._LivedataConnection.prototype, {
       self._deliverMethodResponse(m, msg);
     }
 
+    console.log('delivering result');
     // if we were blocking a migration, see if it's now possible to
     // continue
     if (self.retry_migrate && self._readyToMigrate()) {
@@ -724,6 +730,7 @@ _.extend(Meteor._LivedataConnection.prototype, {
   },
 
   _callOnReconnectAndSendAppropriateOutstandingMethods: function() {
+    console.log('call on reconnect');
     var self = this;
     var old_outstanding_methods = self.outstanding_methods;
     var old_outstanding_wait_method = self.outstanding_wait_method;
@@ -795,7 +802,9 @@ _.extend(Meteor, {
       // recurse.
       Meteor.autosubscribe(sub_func);
       // unsub after re-subbing, to avoid bouncing.
+      console.log('running autosubs');
       _.each(local_subs, function (x) { x.stop(); });
+      console.log('done running autosubs');
     });
 
     context.run(function () {

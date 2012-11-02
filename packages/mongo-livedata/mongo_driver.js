@@ -526,10 +526,12 @@ _Mongo.LiveResultsSet.prototype._unthrottled_markDirty = function () {
     return; // only one instance can run at once. just tell it to re-cycle.
   self.poll_running = true;
 
+  console.log('unthrottled mark dirty');
   Fiber(function () {
     self.dirty = false;
     var writes_for_cycle = self.pending_writes;
     self.pending_writes = [];
+    console.log('running poll');
     self._doPoll(); // could yield, and set self.dirty
     _.each(writes_for_cycle, function (w) {w.committed();});
 
@@ -558,7 +560,9 @@ _Mongo.LiveResultsSet.prototype._doPoll = function () {
   var new_results = self.cursor.fetch();
   var old_results = self.results;
 
+  console.log('doing poll');
   LocalCollection._diffQuery(old_results, new_results, self, true);
+  console.log('done doing poll');
   self.results = new_results;
 
 };

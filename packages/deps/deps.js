@@ -17,6 +17,7 @@
     run: function (f) {
       var previous = Context.current;
       Context.current = this;
+      console.log('running dep');
       try { return f(); }
       finally { Context.current = previous; }
     },

@@ -9,9 +9,11 @@
     //   If unsuccessful (for example, if the user closed the oauth login popup),
     //     returns null
     login: function(options) {
+      console.log('start login');
       var result = tryAllLoginHandlers(options);
       if (result !== null)
         this.setUserId(result.id);
+      console.log('end login', (new Error).stack);
       return result;
     },
 

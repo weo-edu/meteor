@@ -5,7 +5,6 @@
 // deepcopy: if true, elements of new_results that are passed to callbacks are
 //          deepcopied first
 LocalCollection._diffQuery = function (old_results, new_results, observer, deepcopy) {
-
   var new_presence_of_id = {};
   _.each(new_results, function (doc) {
     if (new_presence_of_id[doc._id])
