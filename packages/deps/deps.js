@@ -17,7 +17,6 @@
     run: function (f) {
       var previous = Context.current;
       Context.current = this;
-      console.log('running dep');
       try { return f(); }
       finally { Context.current = previous; }
     },
@@ -68,12 +67,11 @@
 
         _.each(pending, function (ctx) {
           _.each(ctx._callbacks, function (f) {
-            if(Context.logInvalidateStack) {
-              _.each(ctx.errs, function(err) {
-                printUserStack(err.stack);
-              });
+            try {
+              f(ctx);
+            } catch (e) {
+              Meteor._debug("Exception from Meteor.flush:", e.stack);
             }
-            f(ctx); // XXX wrap in try?
           });
           delete ctx._callbacks; // maybe help the GC
         });

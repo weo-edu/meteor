@@ -16,7 +16,6 @@ _.extend(Meteor, {
       if (proxy_write)
         proxy_write.committed();
     });
-    console.log('refresh');
   }
 });
 

@@ -1,10 +1,24 @@
-// old_results: array of documents.
-// new_results: array of documents.
-// observer: object with 'added', 'changed', 'moved',
-//           'removed' functions (each optional)
-// deepcopy: if true, elements of new_results that are passed to callbacks are
-//          deepcopied first
-LocalCollection._diffQuery = function (old_results, new_results, observer, deepcopy) {
+// ordered: bool.
+// old_results and new_results: collections of documents.
+//    if ordered, they are arrays.
+//    if unordered, they are maps {_id: doc}.
+// observer: object with 'added', 'changed', 'removed',
+//           and (if ordered) 'moved' functions (each optional)
+// deepcopy: if true, elements of new_results that are passed
+//           to callbacks are deepcopied first.
+LocalCollection._diffQuery = function (ordered, oldResults, newResults,
+                                       observer, deepcopy) {
+  if (ordered)
+    LocalCollection._diffQueryOrdered(
+      oldResults, newResults, observer, deepcopy);
+  else
+    LocalCollection._diffQueryUnordered(
+      oldResults, newResults, observer, deepcopy);
+};
+
+LocalCollection._diffQueryOrdered =
+  function (old_results, new_results, observer, deepcopy) {
+    
   var new_presence_of_id = {};
   _.each(new_results, function (doc) {
     if (new_presence_of_id[doc._id])
@@ -191,9 +205,8 @@ LocalCollection._diffQuery = function (old_results, new_results, observer, deepc
             Meteor._debug("Assertion failed while diffing: nonmonotonic lcs data");
           // no move
           scan_to(old_doc_idx);
-          if (! _.isEqual(old_doc, new_doc)) {
-            observer.changed && observer.changed(
-              mdc(new_doc), new_idx + bump_list.length, old_doc);
+          if (observer.changed && ! _.isEqual(old_doc, new_doc)) {
+            observer.changed(mdc(new_doc), new_idx + bump_list.length, old_doc);
           }
           old_idx++;
         } else {
@@ -221,8 +234,8 @@ LocalCollection._diffQuery = function (old_results, new_results, observer, deepc
           }
           if (from_idx != to_idx)
             observer.moved && observer.moved(mdc(old_doc), from_idx, to_idx);
-          if (! _.isEqual(old_doc, new_doc)) {
-            observer.changed && observer.changed(mdc(new_doc), to_idx, old_doc);
+          if (observer.changed && ! _.isEqual(old_doc, new_doc)) {
+            observer.changed(mdc(new_doc), to_idx, old_doc);
           }
         }
       }
@@ -238,4 +251,32 @@ LocalCollection._diffQuery = function (old_results, new_results, observer, deepc
                   bump_list);
   }
 
+};
+
+LocalCollection._diffQueryUnordered = function (oldResults, newResults,
+                                                observer, deepcopy) {
+  if (observer.moved) {
+    throw new Error("_diffQueryUnordered called with a moved observer!");
+  }
+
+  // "maybe deepcopy"
+  var mdc = (deepcopy ? LocalCollection._deepcopy : _.identity);
+
+  _.each(newResults, function (newDoc) {
+    if (_.has(oldResults, newDoc._id)) {
+      var oldDoc = oldResults[newDoc._id];
+      if (observer.changed && !_.isEqual(oldDoc, newDoc)) {
+        observer.changed(mdc(newDoc), oldDoc);
+      }
+    } else {
+      observer.added && observer.added(mdc(newDoc));
+    }
+  });
+
+  if (observer.removed) {
+    _.each(oldResults, function (oldDoc) {
+      if (!_.has(newResults, oldDoc._id))
+        observer.removed(oldDoc);
+    });
+  }
 };

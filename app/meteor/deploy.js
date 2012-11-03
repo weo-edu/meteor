@@ -9,9 +9,10 @@ var tty = require('tty');
 var request = require('request');
 var qs = require('querystring');
 var path = require('path');
-var files = require('../lib/files.js');
-var _ = require('../lib/third/underscore.js');
+var files = require(path.join(__dirname, '..', 'lib', 'files.js'));
+var _ = require(path.join(__dirname, '..', 'lib', 'third', 'underscore.js'));
 var keypress = require('keypress');
+var child_process = require('child_process');
 
 //
 // configuration
@@ -19,18 +20,13 @@ var keypress = require('keypress');
 
 var DEPLOY_HOSTNAME = process.env.DEPLOY_HOSTNAME || 'deploy.meteor.com';
 
-
-// Set stdin to be blocking, reversing node's normal setting of
-// O_NONBLOCK on process.stdin.
-//
-// This uses a meteor hack to node. See admin/generate-dev-bundle.sh.
-//
-// This fixes the "meteor mongo" repl and keeps node from bringing down
-// the Emacs shell on exit.
-if (process.stdin.isTTY &&
-    process.stdin._handle && process.stdin._handle.setBlocking)
-  process.stdin._handle.setBlocking(true);
-
+if (process.env.EMACS == "t") {
+  // Hack to set stdin to be blocking, reversing node's normal setting of
+  // O_NONBLOCK on the evaluation of process.stdin (because Node unblocks stdio
+  // when forking). This fixes execution of Mongo from within Emacs shell.
+  process.stdin;
+  child_process.spawn('true', [], {stdio: 'inherit'});
+}
 
 // available RPCs are: deploy (with set-password), delete, logs,
 // mongo_cred.  each RPC might require a password, which we
@@ -75,13 +71,13 @@ var deploy_app = function (url, app_dir, opt_debug, opt_tests,
 
 var bundle_and_deploy = function (site, app_dir, opt_debug, opt_tests,
                                   password, set_password) {
-  var build_dir = path.join(app_dir, '.meteor/local/build_tar');
+  var build_dir = path.join(app_dir, '.meteor', 'local', 'build_tar');
   var bundle_path = path.join(build_dir, 'bundle');
   var bundle_opts = { skip_dev_bundle: true, no_minify: !!opt_debug,
                       include_tests: opt_tests };
 
   process.stdout.write('Deploying to ' + site + '.  Bundling ... ');
-  var bundler = require('../lib/bundler.js');
+  var bundler = require(path.join(__dirname, '..', 'lib', 'bundler.js'));
   var errors = bundler.bundle(app_dir, bundle_path, bundle_opts);
   if (errors) {
     process.stdout.write("\n\nErrors prevented deploying:\n");
@@ -98,8 +94,8 @@ var bundle_and_deploy = function (site, app_dir, opt_debug, opt_tests,
   if (password) opts.password = password;
   if (set_password) opts.set_password = set_password;
 
-  var spawn = require('child_process').spawn;
-  var tar = spawn('tar', ['czf', '-', 'bundle'], {cwd: build_dir});
+  var tar = child_process.spawn(
+    'tar', ['czf', '-', 'bundle'], {cwd: build_dir});
 
   var rpc = meteor_rpc('deploy', 'POST', site, opts, function (err, body) {
     if (err) {
@@ -231,19 +227,18 @@ var parse_url = function (url) {
 };
 
 var run_mongo_shell = function (url) {
-  var mongo_path = path.join(files.get_dev_bundle(), 'mongodb/bin/mongo');
+  var mongo_path = path.join(files.get_dev_bundle(), 'mongodb', 'bin', 'mongo');
   var mongo_url = require('url').parse(url);
   var auth = mongo_url.auth && mongo_url.auth.split(':');
-  var spawn = require('child_process').spawn;
 
   var args = [];
   if (auth) args.push('-u', auth[0]);
   if (auth) args.push('-p', auth[1]);
   args.push(mongo_url.hostname + ':' + mongo_url.port + mongo_url.pathname);
 
-  var proc = spawn(mongo_path,
-                   args,
-                   { stdio: 'inherit' });
+  var proc = child_process.spawn(mongo_path,
+                                 args,
+                                 { stdio: 'inherit' });
 };
 
 // hash the password so we never send plaintext over the wire. Doesn't

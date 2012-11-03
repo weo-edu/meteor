@@ -47,11 +47,10 @@ Meteor._Stream = function (url) {
     retry_count: 0
   };
 
-  self.status_listeners = {}; // context.id -> context
+  self.status_listeners = (Meteor.deps && new Meteor.deps._ContextSet);
   self.status_changed = function () {
-    _.each(self.status_listeners, function (context) {
-      context.invalidate();
-    });
+    if (self.status_listeners)
+      self.status_listeners.invalidateAll();
   };
 
   //// Retry logic
@@ -118,13 +117,8 @@ _.extend(Meteor._Stream.prototype, {
   // Get current status. Reactive.
   status: function () {
     var self = this;
-    var context = Meteor.deps && Meteor.deps.Context.current;
-    if (context && !(context.id in self.status_listeners)) {
-      self.status_listeners[context.id] = context;
-      context.onInvalidate(function () {
-        delete self.status_listeners[context.id];
-      });
-    }
+    if (self.status_listeners)
+      self.status_listeners.addCurrentContext();
     return self.current_status;
   },
 
@@ -133,7 +127,7 @@ _.extend(Meteor._Stream.prototype, {
     var self = this;
 
     if (self.current_status.connected) {
-      if (options && options.force) {
+      if (options && options._force) {
         // force reconnect.
         self._disconnected();
       } // else, noop.
@@ -327,20 +321,12 @@ _.extend(Meteor._Stream.prototype, {
       // first message we get when we're connecting goes to _connected,
       // which connects us. All subsequent messages (while connected) go to
       // the callback.
+      console.log(data.id);
       if (self.current_status.status === "connecting")
         self._connected(data.data);
       else if (self.current_status.connected)
         _.each(self.event_callbacks.message, function (callback) {
-          try {
-            callback(data.data);
-          } catch (e) {
-            // XXX sockjs catches and silently ignores any exceptions
-            // that we raise here. not sure what we should do, but for
-            // now, just print the exception so you are at least aware
-            // that something went wrong.
-            // XXX improve error message
-            Meteor._debug("Exception while processing message", e.stack);
-          }
+          callback(data.data);
         });
 
       self._heartbeat_received();

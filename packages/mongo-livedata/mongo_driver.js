@@ -7,8 +7,9 @@
  * these outside of a fiber they will explode!
  */
 
+var path = __meteor_bootstrap__.require('path');
 var MongoDB = __meteor_bootstrap__.require('mongodb');
-var Future = __meteor_bootstrap__.require('fibers/future');
+var Future = __meteor_bootstrap__.require(path.join('fibers', 'future'));
 
 // js2-mode AST blows up when parsing 'future.return()', so alias.
 Future.prototype.ret = Future.prototype.return;
@@ -122,13 +123,6 @@ _Mongo.prototype.insert = function (collection_name, document) {
 
   var write = self._maybeBeginWrite();
 
-  var finish = Meteor.bindEnvironment(function () {
-    Meteor.refresh({collection: collection_name});
-    write.committed();
-  }, function (e) {
-    Meteor._debug("Exception while completing insert: " + e.stack);
-  });
-
   var future = new Future;
   self._withCollection(collection_name, function (err, collection) {
     if (err) {
@@ -137,17 +131,13 @@ _Mongo.prototype.insert = function (collection_name, document) {
     }
 
     collection.insert(document, {safe: true}, function (err) {
-      if (err) {
-        future.ret(err);
-        return;
-      }
-
-      finish();
-      future.ret();
+      future.ret(err);
     });
   });
 
   var err = future.wait();
+  Meteor.refresh({collection: collection_name});
+  write.committed();
   if (err)
     throw err;
 };
@@ -164,13 +154,6 @@ _Mongo.prototype.remove = function (collection_name, selector) {
 
   var write = self._maybeBeginWrite();
 
-  var finish = Meteor.bindEnvironment(function () {
-    Meteor.refresh({collection: collection_name});
-    write.committed();
-  }, function (e) {
-    Meteor._debug("Exception while completing remove: " + e.stack);
-  });
-
   // XXX does not allow options. matches the client.
   selector = _Mongo._rewriteSelector(selector);
 
@@ -182,17 +165,13 @@ _Mongo.prototype.remove = function (collection_name, selector) {
     }
 
     collection.remove(selector, {safe: true}, function (err) {
-      if (err) {
-        future.ret(err);
-        return;
-      }
-
-      finish();
-      future.ret();
+      future.ret(err);
     });
   });
 
   var err = future.wait();
+  Meteor.refresh({collection: collection_name});
+  write.committed();
   if (err)
     throw err;
 };
@@ -208,13 +187,6 @@ _Mongo.prototype.update = function (collection_name, selector, mod, options) {
   }
 
   var write = self._maybeBeginWrite();
-
-  var finish = Meteor.bindEnvironment(function () {
-    Meteor.refresh({collection: collection_name});
-    write.committed();
-  }, function (e) {
-    Meteor._debug("Exception while completing update: " + e.stack);
-  });
 
   selector = _Mongo._rewriteSelector(selector);
   if (!options) options = {};
@@ -232,17 +204,13 @@ _Mongo.prototype.update = function (collection_name, selector, mod, options) {
     if (options.multi) opts.multi = true;
 
     collection.update(selector, mod, opts, function (err) {
-      if (err) {
-        future.ret(err);
-        return;
-      }
-
-      finish();
-      future.ret();
+      future.ret(err);
     });
   });
 
   var err = future.wait();
+  Meteor.refresh({collection: collection_name});
+  write.committed();
   if (err)
     throw err;
 };
@@ -304,6 +272,32 @@ _Mongo.prototype.findOne = function (collection_name, selector, options) {
   return self.find(collection_name, selector, options).fetch()[0];
 };
 
+// We'll actually design an index API later. For now, we just pass through to
+// Mongo's, but make it synchronous.
+_Mongo.prototype._ensureIndex = function (collectionName, index, options) {
+  var self = this;
+  options = _.extend({safe: true}, options);
+
+  // We expect this function to be called at startup, not from within a method,
+  // so we don't interact with the write fence.
+  var future = new Future;
+  self._withCollection(collectionName, function (err, collection) {
+    if (err) {
+      future.throw(err);
+      return;
+    }
+    // XXX do we have to bindEnv or Fiber.run this callback?
+    collection.ensureIndex(index, options, function (err, indexName) {
+      if (err) {
+        future.throw(err);
+        return;
+      }
+      future.ret();
+    });
+  });
+  future.wait();
+};
+
 // Cursors
 
 // Returns a _Mongo.Cursor, or throws an exception on
@@ -359,8 +353,21 @@ _Mongo.Cursor = function (mongo, collection_name, selector, options, cursor) {
   self.selector = selector;
   self.options = options;
   self.cursor = cursor;
+  self._synchronousNextObject = Future.wrap(cursor.nextObject.bind(cursor));
+  self._synchronousCount = Future.wrap(cursor.count.bind(cursor));
 
   self.visited_ids = {};
+};
+
+_Mongo.Cursor.prototype._nextObject = function () {
+  var self = this;
+  while (true) {
+    var doc = self._synchronousNextObject().wait();
+    if (!doc || !doc._id) return null;
+    if (self.visited_ids[doc._id]) continue;
+    self.visited_ids[doc._id] = true;
+    return doc;
+  }
 };
 
 // XXX Make more like ECMA forEach:
@@ -368,19 +375,12 @@ _Mongo.Cursor = function (mongo, collection_name, selector, options, cursor) {
 _Mongo.Cursor.prototype.forEach = function (callback) {
   var self = this;
 
-  var wrappedNextObject = Future.wrap(self.cursor.nextObject.bind(self.cursor));
-
   // We implement the loop ourself instead of using self.cursor.each, because
   // "each" will call its callback outside of a fiber which makes it much more
   // complex to make this function synchronous.
   while (true) {
-    var doc = wrappedNextObject().wait();
-    if (!doc || !doc._id)
-      return;
-    // Have we already seen this doc (Mongo cursors can return duplicates)?
-    if (self.visited_ids[doc._id])
-      continue;
-    self.visited_ids[doc._id] = true;
+    var doc = self._nextObject();
+    if (!doc) return;
     callback(doc);
   }
 };
@@ -408,49 +408,50 @@ _Mongo.Cursor.prototype.rewind = function () {
 
 _Mongo.Cursor.prototype.fetch = function () {
   var self = this;
-  var future = new Future;
-
-  self.cursor.toArray(function (err, res) {
-    future.ret([err, res]);
-  });
-
-  var result = future.wait();
-  if (result[0])
-    throw result[0];
-  // dedup
-  return _.uniq(result[1], false, function(doc) {
-    return doc._id; });
+  return self.map(_.identity);
 };
 
 _Mongo.Cursor.prototype.count = function () {
   var self = this;
-  var future = new Future;
+  return self._synchronousCount().wait();
+};
 
-  self.cursor.count(function (err, res) {
-    future.ret([err, res]);
-  });
-
-  var result = future.wait();
-  if (result[0])
-    throw result[0];
-  return result[1];
+_Mongo.Cursor.prototype._getRawObjects = function (ordered) {
+  var self = this;
+  if (ordered) {
+    return self.fetch();
+  } else {
+    var results = {};
+    self.forEach(function (doc) {
+      results[doc._id] = doc;
+    });
+    return results;
+  }
 };
 
 // options to contain:
-//  * callbacks:
+//  * callbacks for observe():
 //    - added (object, before_index)
-//    - changed (new_object, at_index)
+//    - changed (new_object, at_index, old_object)
 //    - moved (object, old_index, new_index) - can only fire with changed()
-//    - removed (old_object, at_index)
+//    - removed (object, at_index)
+//  * callbacks for _observeUnordered():
+//    - added (object)
+//    - changed (new_object)
+//    - removed (object)
 //
 // attributes available on returned LiveResultsSet
 //  * stop(): end updates
 
 _Mongo.Cursor.prototype.observe = function (options) {
-  return new _Mongo.LiveResultsSet(this, options);
+  return new _Mongo.LiveResultsSet(this, true, options);
 };
 
-_Mongo.LiveResultsSet = function (cursor, options) {
+_Mongo.Cursor.prototype._observeUnordered = function (options) {
+  return new _Mongo.LiveResultsSet(this, false, options);
+};
+
+_Mongo.LiveResultsSet = function (cursor, ordered, options) {
   var self = this;
 
   // copy my cursor, so that the observe can run independently from
@@ -463,9 +464,11 @@ _Mongo.LiveResultsSet = function (cursor, options) {
   // expose collection name
   self.collection_name = cursor.collection_name;
 
+  self.ordered = ordered;
+
   // previous results snapshot.  on each poll cycle, diffs against
   // results drives the callbacks.
-  self.results = [];
+  self.results = ordered ? [] : {};
 
   // state for polling
   self.dirty = false; // do we need polling?
@@ -501,8 +504,9 @@ _Mongo.LiveResultsSet = function (cursor, options) {
   // user callbacks
   self.added = options.added;
   self.changed = options.changed;
-  self.moved = options.moved;
   self.removed = options.removed;
+  if (ordered)
+    self.moved = options.moved;
 
   // run the first _poll() cycle synchronously.
   self.poll_running = true;
@@ -526,12 +530,10 @@ _Mongo.LiveResultsSet.prototype._unthrottled_markDirty = function () {
     return; // only one instance can run at once. just tell it to re-cycle.
   self.poll_running = true;
 
-  console.log('unthrottled mark dirty');
   Fiber(function () {
     self.dirty = false;
     var writes_for_cycle = self.pending_writes;
     self.pending_writes = [];
-    console.log('running poll');
     self._doPoll(); // could yield, and set self.dirty
     _.each(writes_for_cycle, function (w) {w.committed();});
 
@@ -557,12 +559,11 @@ _Mongo.LiveResultsSet.prototype._doPoll = function () {
 
   // Get the new query results
   self.cursor.rewind();
-  var new_results = self.cursor.fetch();
+  var new_results = self.cursor._getRawObjects(self.ordered);
   var old_results = self.results;
 
-  console.log('doing poll');
-  LocalCollection._diffQuery(old_results, new_results, self, true);
-  console.log('done doing poll');
+  LocalCollection._diffQuery(
+    self.ordered, old_results, new_results, self, true);
   self.results = new_results;
 
 };

@@ -9,11 +9,9 @@
     //   If unsuccessful (for example, if the user closed the oauth login popup),
     //     returns null
     login: function(options) {
-      console.log('start login');
       var result = tryAllLoginHandlers(options);
       if (result !== null)
         this.setUserId(result.id);
-      console.log('end login', (new Error).stack);
       return result;
     },
 
@@ -22,7 +20,7 @@
     }
   });
 
-  Meteor.accounts._loginHandlers = [];
+  Accounts._loginHandlers = [];
 
   // Try all of the registered login handlers until one of them
   // doesn't return `undefined` (NOT null), meaning it handled this
@@ -30,7 +28,7 @@
   var tryAllLoginHandlers = function (options) {
     var result = undefined;
 
-    _.find(Meteor.accounts._loginHandlers, function(handler) {
+    _.find(Accounts._loginHandlers, function(handler) {
 
       var maybeResult = handler(options);
       if (maybeResult !== undefined) {
@@ -53,21 +51,25 @@
   // - `undefined`, meaning don't handle;
   // - `null`, meaning the user didn't actually log in;
   // - {id: userId, accessToken: *}, if the user logged in successfully.
-  Meteor.accounts.registerLoginHandler = function(handler) {
-    Meteor.accounts._loginHandlers.push(handler);
+  Accounts.registerLoginHandler = function(handler) {
+    Accounts._loginHandlers.push(handler);
   };
 
   // support reconnecting using a meteor login token
-  Meteor.accounts.registerLoginHandler(function(options) {
+  Accounts._generateStampedLoginToken = function () {
+    return {token: Meteor.uuid(), when: +(new Date)};
+  };
+
+  Accounts.registerLoginHandler(function(options) {
     if (options.resume) {
-      var loginToken = Meteor.accounts._loginTokens
-            .findOne({_id: options.resume});
-      if (!loginToken)
+      var user = Meteor.users.findOne(
+        {"services.resume.loginTokens.token": options.resume});
+      if (!user)
         throw new Meteor.Error(403, "Couldn't find login token");
 
       return {
-        token: loginToken._id,
-        id: loginToken.userId
+        token: options.resume,
+        id: user._id
       };
     } else {
       return undefined;
@@ -76,59 +78,104 @@
 
 
   ///
+  /// CURRENT USER
+  ///
+  Meteor.userId = function () {
+    // This function only works if called inside a method. In theory, it
+    // could also be called from publish statements, since they also
+    // have a userId associated with them. However, given that publish
+    // functions aren't reactive, using any of the infomation from
+    // Meteor.user() in a publish function will always use the value
+    // from when the function first runs. This is likely not what the
+    // user expects. The way to make this work in a publish is to do
+    // Meteor.find(this.userId()).observe and recompute when the user
+    // record changes.
+    var currentInvocation = Meteor._CurrentInvocation.get();
+    if (!currentInvocation)
+      throw new Error("Meteor.userId can only be invoked in method calls. Use this.userId in publish functions.");
+    return currentInvocation.userId;
+  };
+
+  Meteor.user = function () {
+    var userId = Meteor.userId();
+    if (!userId)
+      return null;
+    return Meteor.users.findOne(userId);
+  };
+
+  ///
   /// CREATE USER HOOKS
   ///
   var onCreateUserHook = null;
-  Meteor.accounts.onCreateUser = function (func) {
+  Accounts.onCreateUser = function (func) {
     if (onCreateUserHook)
       throw new Error("Can only call onCreateUser once");
     else
       onCreateUserHook = func;
   };
 
-  var defaultCreateUserHook = function (options, extra, user) {
-    if (!_.isEmpty(
-      _.intersection(
-        _.keys(extra),
-        ['services', 'private', 'username', 'email', 'emails'])))
-      throw new Meteor.Error(400, "Disallowed fields in extra");
-
-    if (Meteor.accounts._options.requireEmail &&
-        (!user.emails || !user.emails.length))
-      throw new Meteor.Error(400, "Email address required.");
-
-    if (Meteor.accounts._options.requireUsername &&
-        !user.username)
-      throw new Meteor.Error(400, "Username required.");
-
-
-    return _.extend(user, extra);
+  // XXX see comment on Accounts.createUser in passwords_server about adding a
+  // second "server options" argument.
+  var defaultCreateUserHook = function (options, user) {
+    if (options.profile)
+      user.profile = options.profile;
+    return user;
   };
-  Meteor.accounts.onCreateUserHook = function (options, extra, user) {
-    var fullUser;
+  Accounts.insertUserDoc = function (options, user) {
+    // add created at timestamp (and protect passed in user object from
+    // modification)
+    user = _.extend({createdAt: +(new Date)}, user);
 
+    var result = {};
+    if (options.generateLoginToken) {
+      var stampedToken = Accounts._generateStampedLoginToken();
+      result.token = stampedToken.token;
+      Meteor._ensure(user, 'services', 'resume');
+      if (_.has(user.services.resume, 'loginTokens'))
+        user.services.resume.loginTokens.push(stampedToken);
+      else
+        user.services.resume.loginTokens = [stampedToken];
+    }
+
+    var fullUser;
     if (onCreateUserHook) {
-      fullUser = onCreateUserHook(options, extra, user);
+      fullUser = onCreateUserHook(options, user);
 
       // This is *not* part of the API. We need this because we can't isolate
       // the global server environment between tests, meaning we can't test
       // both having a create user hook set and not having one set.
       if (fullUser === 'TEST DEFAULT HOOK')
-        fullUser = defaultCreateUserHook(options, extra, user);
+        fullUser = defaultCreateUserHook(options, user);
     } else {
-      fullUser = defaultCreateUserHook(options, extra, user);
+      fullUser = defaultCreateUserHook(options, user);
     }
 
     _.each(validateNewUserHooks, function (hook) {
-      if (!hook(user))
+      if (!hook(fullUser))
         throw new Meteor.Error(403, "User validation failed");
     });
 
-    return fullUser;
+    try {
+      result.id = Meteor.users.insert(fullUser);
+    } catch (e) {
+      // XXX string parsing sucks, maybe
+      // https://jira.mongodb.org/browse/SERVER-3069 will get fixed one day
+      if (e.name !== 'MongoError') throw e;
+      var match = e.err.match(/^E11000 duplicate key error index: ([^ ]+)/);
+      if (!match) throw e;
+      if (match[1].indexOf('$emails.address') !== -1)
+        throw new Meteor.Error(403, "Email already exists.");
+      if (match[1].indexOf('username') !== -1)
+        throw new Meteor.Error(403, "Username already exists.");
+      // XXX better error reporting for services.facebook.id duplicate, etc
+      throw e;
+    }
+
+    return result;
   };
 
   var validateNewUserHooks = [];
-  Meteor.accounts.validateNewUser = function (func) {
+  Accounts.validateNewUser = function (func) {
     validateNewUserHooks.push(func);
   };
 
@@ -137,111 +184,145 @@
   /// MANAGING USER OBJECTS
   ///
 
-  // Updates or creates a user after we authenticate with a 3rd party
+  // Updates or creates a user after we authenticate with a 3rd party.
   //
-  // NOTE: We trust any OAuth provider to properly validates email address
-  //
-  // @param options {Object}
-  //   - email (optional)
-  //   - services {Object} e.g. {facebook: {id: (facebook user id), ...}}
-  // @param extra {Object, optional} Any additional fields to place on the user objet
-  // @returns {String} userId
-  Meteor.accounts.updateOrCreateUser = function(options, extra) {
-    extra = extra || {};
+  // @param serviceName {String} Service name (eg, twitter).
+  // @param serviceData {Object} Data to store in the user's record
+  //        under services[serviceName]. Must include an "id" field
+  //        which is a unique identifier for the user in the service.
+  // @param options {Object, optional} Other options to pass to insertUserDoc
+  //        (eg, profile)
+  // @returns {Object} Object with token and id keys, like the result
+  //        of the "login" method.
+  Accounts.updateOrCreateUserFromExternalService = function(
+    serviceName, serviceData, options) {
+    options = _.clone(options || {});
 
-    var updateUserData = function() {
-      // don't overwrite existing fields
-      var newKeys = _.without(_.keys(extra), _.keys(user));
-      var newAttrs = _.pick(extra, newKeys);
-      Meteor.users.update(user, {$set: newAttrs});
-    };
+    if (serviceName === "password" || serviceName === "resume")
+      throw new Error(
+        "Can't use updateOrCreateUserFromExternalService with internal service "
+          + serviceName);
+    if (!_.has(serviceData, 'id'))
+      throw new Error(
+        "Service data for service " + serviceName + " must include id");
 
-    if (_.keys(options.services).length > 0) {
-      if (_.keys(options.services).length > 1) {
-        throw new Error("Can't pass more than one service to updateOrCreateUser");
-      }
-      var serviceName = _.keys(options.services)[0];
-    }
+    // Look for a user with the appropriate service user id.
+    var selector = {};
+    selector["services." + serviceName + ".id"] = serviceData.id;
+    var user = Meteor.users.findOne(selector);
 
-    var email = options.email;
-    var userByEmail = email && Meteor.users.findOne({"emails.email": email});
-    var user;
-    if (userByEmail) {
-
-      // If we know about this email address that is our user.
-      // Update the information from this service.
-      user = userByEmail;
-      if (options.services && (!user.services || !user.services[serviceName])) {
-        var attrs = {};
-        attrs["services." + serviceName] = options.services[serviceName];
-
-        // XXX we will probably also need a hook for updating users,
-        // similar to Meteor.accounts.onCreateUser
-        Meteor.users.update(user, {$set: attrs});
-      }
-
-      updateUserData();
-      return user._id;
-    } else if (options.services) {
-
-      // If not, look for a user with the appropriate service user id.
-      // Update the user's email.
-      var selector = {};
-      selector["services." + serviceName + ".id"] = options.services[serviceName].id;
-      var userByServiceUserId = Meteor.users.findOne(selector);
-      if (userByServiceUserId) {
-        user = userByServiceUserId;
-        if (email) {
-          // The user must have changed the email address associated
-          // with this service (since if we only reach this else
-          // clause if we didn't match the user by email to begin
-          // with). Store the new one in addition to the old one.
-
-          // XXX we will probably also need a hook for updating users,
-          // similar to Meteor.accounts.onCreateUser
-          Meteor.users.update(
-            {_id: user._id},
-            {$push: {emails: {email: email, validated: true}}});
-        }
-
-        updateUserData();
-        return user._id;
-      } else {
-
-        // Create a new user
-        var attrs = {};
-        attrs[serviceName] = options.services[serviceName];
-        var user = {
-          emails: (email ? [{email: email, validated: true}] : []),
-          services: attrs
-        };
-        user = Meteor.accounts.onCreateUserHook(options, extra, user);
-        return Meteor.users.insert(user);
-      }
+    if (user) {
+      // We *don't* process options (eg, profile) for update, but we do replace
+      // the serviceData (eg, so that we keep an unexpired access token and
+      // don't cache old email addresses in serviceData.email).
+      // XXX provide an onUpdateUser hook which would let apps update
+      //     the profile too
+      var stampedToken = Accounts._generateStampedLoginToken();
+      var setAttrs = {};
+      setAttrs["services." + serviceName] = serviceData;
+      // XXX Maybe we should re-use the selector above and notice if the update
+      //     touches nothing?
+      Meteor.users.update(
+        user._id,
+        {$set: setAttrs,
+         $push: {'services.resume.loginTokens': stampedToken}});
+      return {token: stampedToken.token, id: user._id};
+    } else {
+      // Create a new user with the service data. Pass other options through to
+      // insertUserDoc.
+      user = {services: {}};
+      user.services[serviceName] = serviceData;
+      options.generateLoginToken = true;
+      return Accounts.insertUserDoc(options, user);
     }
   };
 
 
   ///
-  /// PUBLISHING USER OBJECTS
+  /// PUBLISHING DATA
   ///
 
-  // Always publish the current user's record to the client.
-  Meteor.publish(null, function() {
-    if (this.userId())
-      return Meteor.users.find({_id: this.userId()},
-                               {fields: {services: 0, private: 0}});
-    else
+  // Publish the current user's record to the client.
+  // XXX This should just be a universal subscription, but we want to know when
+  //     we've gotten the data after a 'login' method, which currently requires
+  //     us to unsub, sub, and wait for onComplete. This is wasteful because
+  //     we're actually guaranteed to have the data by the time that 'login'
+  //     returns. But we don't expose a callback to Meteor.apply which lets us
+  //     know when the data has been processed (ie, quiescence, or at least
+  //     partial quiescence).
+  Meteor.publish("meteor.currentUser", function() {
+    if (this.userId)
+      return Meteor.users.find(
+        {_id: this.userId},
+        {fields: {profile: 1, username: 1, emails: 1}});
+    else {
+      this.complete();
       return null;
+    }
   }, {is_auto: true});
 
   // If autopublish is on, also publish everyone else's user record.
   Meteor.default_server.onAutopublish(function () {
     var handler = function () {
       return Meteor.users.find(
-        {}, {fields: {services: 0, private: 0, emails: 0}});
+        {}, {fields: {profile: 1, username: 1}});
     };
     Meteor.default_server.publish(null, handler, {is_auto: true});
   });
+
+  // Publish all login service configuration fields other than secret.
+  Meteor.publish("meteor.loginServiceConfiguration", function () {
+    return Accounts.loginServiceConfiguration.find({}, {fields: {secret: 0}});
+  }, {is_auto: true}); // not techincally autopublish, but stops the warning.
+
+  // Allow a one-time configuration for a login service. Modifications
+  // to this collection are also allowed in insecure mode.
+  Meteor.methods({
+    "configureLoginService": function(options) {
+      // Don't let random users configure a service we haven't added yet (so
+      // that when we do later add it, it's set up with their configuration
+      // instead of ours).
+      if (!Accounts[options.service])
+        throw new Meteor.Error(403, "Service unknown");
+      if (Accounts.loginServiceConfiguration.findOne({service: options.service}))
+        throw new Meteor.Error(403, "Service " + options.service + " already configured");
+      Accounts.loginServiceConfiguration.insert(options);
+    }
+  });
+
+
+  ///
+  /// RESTRICTING WRITES TO USER OBJECTS
+  ///
+
+  Meteor.users.allow({
+    // clients can modify the profile field of their own document, and
+    // nothing else.
+    update: function (userId, docs, fields, modifier) {
+      // if there is more than one doc, at least one of them isn't our
+      // user record.
+      if (docs.length !== 1)
+        return false;
+      // make sure it is our record
+      var user = docs[0];
+      if (user._id !== userId)
+        return false;
+
+      // user can only modify the 'profile' field. sets to multiple
+      // sub-keys (eg profile.foo and profile.bar) are merged into entry
+      // in the fields list.
+      if (fields.length !== 1 || fields[0] !== 'profile')
+        return false;
+
+      return true;
+    },
+    fetch: ['_id'] // we only look at _id.
+  });
+
+  /// DEFAULT INDEXES ON USERS
+  Meteor.users._ensureIndex('username', {unique: 1, sparse: 1});
+  Meteor.users._ensureIndex('emails.address', {unique: 1, sparse: 1});
+  Meteor.users._ensureIndex('services.resume.loginTokens.token',
+                            {unique: 1, sparse: 1});
 }) ();
 
