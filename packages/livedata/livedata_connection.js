@@ -1,6 +1,6 @@
 if (Meteor.isServer) {
   // XXX namespacing
-  var Future = __meteor_bootstrap__.require('fibers/future');
+  var Future = __meteor_bootstrap__.require(path.join('fibers', 'future'));
 }
 
 // list of subscription tokens outstanding during a
@@ -12,8 +12,16 @@ Meteor._capture_subs = null;
 
 // @param url {String|Object} URL to Meteor app or sockjs endpoint (deprecated),
 //     or an object as a test hook (see code)
-Meteor._LivedataConnection = function (url, restart_on_update) {
+// Options:
+//   reloadOnUpdate: should we try to reload when the server says
+//                      there's new code available?
+//   reloadWithOutstanding: is it OK to reload if there are outstanding methods?
+Meteor._LivedataConnection = function (url, options) {
   var self = this;
+  options = _.extend({
+    reloadOnUpdate: false,
+    reloadWithOutstanding: false
+  }, options);
 
   // as a test hook, allow passing a stream instead of a url.
   if (typeof url === "object") {
@@ -30,6 +38,8 @@ Meteor._LivedataConnection = function (url, restart_on_update) {
   self.method_handlers = {}; // name -> func
   self.next_method_id = 1;
 
+  self.last_rcvd_id = 0;
+  
   // --- Three classes of outstanding methods ---
 
   // 1. either already sent, or waiting to be sent with no special
@@ -59,7 +69,7 @@ Meteor._LivedataConnection = function (url, restart_on_update) {
   // name -> updates for (yet to be created) collection
   self.queued = {};
   // if we're blocking a migration, the retry func
-  self.retry_migrate = null;
+  self._retryMigrate = null;
 
   // metadata for subscriptions
   self.subs = new LocalCollection;
@@ -67,20 +77,26 @@ Meteor._LivedataConnection = function (url, restart_on_update) {
   // yet ready.
   self.sub_ready_callbacks = {};
 
+  // Per-connection scratch area. This is only used internally, but we
+  // should have real and documented API for this sort of thing someday.
+  self.sessionData = {};
+
   // just for testing
   self.quiesce_callbacks = [];
 
-  var reload_key = "Server-" + url;
-  Meteor._reload.on_migrate(reload_key, function (retry) {
-    if (!self._readyToMigrate()) {
-      if (self.retry_migrate)
-        throw new Error("Two migrations in progress?");
-      self.retry_migrate = retry;
-      return false;
-    } else {
-      return [true];
-    }
-  });
+  // Block auto-reload while we're waiting for method responses.
+  if (!options.reloadWithOutstanding) {
+    Meteor._reload.onMigrate(function (retry) {
+      if (!self._readyToMigrate()) {
+        if (self._retryMigrate)
+          throw new Error("Two migrations in progress?");
+        self._retryMigrate = retry;
+        return false;
+      } else {
+        return [true];
+      }
+    });
+  }
 
   // Setup stream (if not overriden above)
   self.stream = self.stream || new Meteor._Stream(self.url);
@@ -97,6 +113,8 @@ Meteor._LivedataConnection = function (url, restart_on_update) {
       return;
     }
 
+    self.last_rcvd_id = msg.msg_id;
+    
     if (msg.msg === 'connected')
       self._livedata_connected(msg);
     else if (msg.msg === 'data')
@@ -116,9 +134,12 @@ Meteor._LivedataConnection = function (url, restart_on_update) {
     // NOTE: reset is called even on the first connection, so this is
     // the only place we send this message.
     var msg = {msg: 'connect'};
-    if (self.last_session_id)
+    if (self.last_session_id) {
       msg.session = self.last_session_id;
-    self.stream.send(JSON.stringify(msg));
+      msg.last_rcvd_id = self.last_rcvd_id;
+      console.log('reconnecting', self.last_rcvd_id);
+    }
+    self.stream.send(msg);
 
     // Now, to minimize setup latency, go ahead and blast out all of
     // our pending methods ands subscriptions before we've even taken
@@ -145,12 +166,11 @@ Meteor._LivedataConnection = function (url, restart_on_update) {
     // add new subscriptions at the end. this way they take effect after
     // the handlers and we don't see flicker.
     self.subs.find().forEach(function (sub) {
-      self.stream.send(JSON.stringify(
-        {msg: 'sub', id: sub._id, name: sub.name, params: sub.args}));
+      self.stream.send({msg: 'sub', id: sub._id, name: sub.name, params: sub.args});
     });
   });
 
-  if (restart_on_update) {
+  if (options.reloadOnUpdate) {
     self.stream.on('update_available', function () {
       // Start trying to migrate to a new version. Until all packages
       // signal that they're ready for a migration, the app will
@@ -162,10 +182,9 @@ Meteor._LivedataConnection = function (url, restart_on_update) {
   // we never terminate the observe(), since there is no way to
   // destroy a LivedataConnection.. but this shouldn't matter, since we're
   // the only one that holds a reference to the self.subs collection
-  self.subs_token = self.subs.find({}).observe({
+  self.subs_token = self.subs.find({})._observeUnordered({
     added: function (sub) {
-      self.stream.send(JSON.stringify({
-        msg: 'sub', id: sub._id, name: sub.name, params: sub.args}));
+      self.stream.send({msg: 'sub', id: sub._id, name: sub.name, params: sub.args});
     },
     changed: function (sub) {
       if (sub.count <= 0) {
@@ -174,7 +193,7 @@ Meteor._LivedataConnection = function (url, restart_on_update) {
       }
     },
     removed: function (obj) {
-      self.stream.send(JSON.stringify({msg: 'unsub', id: obj._id}));
+      self.stream.send({msg: 'unsub', id: obj._id});
     }
   });
 };
@@ -205,7 +224,7 @@ _.extend(Meteor._LivedataConnection.prototype, {
     var args = _.toArray(arguments);
     var handle = null;
     args.push(function() {
-      handle.stop();
+      handle && handle.stop();
     });
     handle = this.subscribe.apply(this, args);
   },
@@ -218,7 +237,11 @@ _.extend(Meteor._LivedataConnection.prototype, {
     if (args.length && typeof args[args.length - 1] === "function")
       var callback = args.pop();
 
-    var existing = self.subs.find({name: name, args: args}, {reactive: false}).fetch();
+    // Look for existing subs (ignore those with count=0, since they're going to
+    // get removed on the next time through the event loop).
+    var existing = self.subs.find(
+      {name: name, args: args, count: {$gt: 0}},
+      {reactive: false}).fetch();
 
     if (existing && existing[0]) {
       // already subbed, inc count.
@@ -318,8 +341,11 @@ _.extend(Meteor._LivedataConnection.prototype, {
         var setUserId = function(userId) {
           self.setUserId(userId);
         };
-        var invocation = new Meteor._MethodInvocation(
-          true /* isSimulation */, self.userId(), setUserId);
+        var invocation = new Meteor._MethodInvocation({
+          isSimulation: true,
+          userId: self.userId(), setUserId: setUserId,
+          sessionData: self.sessionData
+        });
         try {
           var ret = Meteor._CurrentInvocation.withValue(invocation,function () {
             return stub.apply(invocation, args);
@@ -353,7 +379,7 @@ _.extend(Meteor._LivedataConnection.prototype, {
       // go to log.
       if (exception && !exception.expected)
         Meteor._debug("Exception while simulating the effect of invoking '" +
-                      name + "'", exception.stack);
+                      name + "'", exception, exception.stack);
     }
 
     // At this point we're definitely doing an RPC, and we're going to
@@ -403,7 +429,7 @@ _.extend(Meteor._LivedataConnection.prototype, {
       else
         self.outstanding_methods.push(method_object);
 
-      self.stream.send(JSON.stringify(msg));
+      self.stream.send(msg);
     }
 
     // Even if we are waiting on other method calls mark this method
@@ -433,30 +459,26 @@ _.extend(Meteor._LivedataConnection.prototype, {
 
   ///
   /// Reactive user system
-  /// XXX Can/should this be generalized pattern?
   ///
   userId: function () {
     var self = this;
-    var context = Meteor.deps && Meteor.deps.Context.current;
-    if (context && !(context.id in self._userIdListeners)) {
-      self._userIdListeners[context.id] = context;
-      context.onInvalidate(function () {
-        delete self._userIdListeners[context.id];
-      });
-    }
+    if (self._userIdListeners)
+      self._userIdListeners.addCurrentContext();
     return self._userId;
   },
 
   setUserId: function (userId) {
     var self = this;
+    // Avoid invalidating listeners if setUserId is called with current value.
+    if (self._userId === userId)
+      return;
     self._userId = userId;
-    _.each(self._userIdListeners, function (context) {
-      context.invalidate();
-    });
+    if (self._userIdListeners)
+      self._userIdListeners.invalidateAll();
   },
 
   _userId: null,
-  _userIdListeners: {}, // context.id -> context
+  _userIdListeners: Meteor.deps && new Meteor.deps._ContextSet,
 
   // PRIVATE: called when we are up-to-date with the server. intended
   // for use only in tests. currently, you are very limited in what
@@ -505,7 +527,6 @@ _.extend(Meteor._LivedataConnection.prototype, {
       if (!self.sub_ready_callbacks[sub._id])
         self.unready_subscriptions[sub._id] = true;
     });
-
     // Do not clear the database here. That happens once all the subs
     // are re-ready and we process pending_data.
   },
@@ -657,6 +678,8 @@ _.extend(Meteor._LivedataConnection.prototype, {
         if (i !== self.blocked_methods.length) {
           self.outstanding_wait_method = self.blocked_methods[i];
           self.blocked_methods = _.rest(self.blocked_methods, i+1);
+        } else {
+          self.blocked_methods = [];
         }
 
         // Send any new outstanding methods after we reshift the
@@ -686,9 +709,9 @@ _.extend(Meteor._LivedataConnection.prototype, {
 
     // if we were blocking a migration, see if it's now possible to
     // continue
-    if (self.retry_migrate && self._readyToMigrate()) {
-      self.retry_migrate();
-      self.retry_migrate = null;
+    if (self._retryMigrate && self._readyToMigrate()) {
+      self._retryMigrate();
+      self._retryMigrate = null;
     }
   },
 
@@ -711,10 +734,10 @@ _.extend(Meteor._LivedataConnection.prototype, {
   _sendOutstandingMethods: function() {
     var self = this;
     _.each(self.outstanding_methods, function (m) {
-      self.stream.send(JSON.stringify(m.msg));
+      self.stream.send(m.msg);
     });
     if (self.outstanding_wait_method)
-      self.stream.send(JSON.stringify(self.outstanding_wait_method.msg));
+      self.stream.send(self.outstanding_wait_method.msg);
   },
 
   _livedata_error: function (msg) {
@@ -754,12 +777,12 @@ _.extend(Meteor._LivedataConnection.prototype, {
       // them
       _.each(old_outstanding_methods, function(method) {
         self.outstanding_methods.push(method);
-        self.stream.send(JSON.stringify(method.msg));
+        self.stream.send(method.msg);
       });
 
       self.outstanding_wait_method = old_outstanding_wait_method;
       if (self.outstanding_wait_method)
-        self.stream.send(JSON.stringify(self.outstanding_wait_method.msg));
+        self.stream.send(self.outstanding_wait_method.msg);
 
       self.blocked_methods = old_blocked_methods;
     }
@@ -781,8 +804,9 @@ _.extend(Meteor, {
   //     "/",
   //     "http://subdomain.meteor.com/sockjs" (deprecated),
   //     "/sockjs" (deprecated)
-  connect: function (url, _restartOnUpdate) {
-    var ret = new Meteor._LivedataConnection(url, _restartOnUpdate);
+  connect: function (url, _reloadOnUpdate) {
+    var ret = new Meteor._LivedataConnection(
+      url, {reloadOnUpdate: _reloadOnUpdate});
     Meteor._LivedataConnection._allConnections.push(ret); // hack. see below.
     return ret;
   },

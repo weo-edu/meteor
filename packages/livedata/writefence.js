@@ -70,6 +70,7 @@ _.extend(Meteor._WriteFence.prototype, {
     });
     self.arm();
     future.wait();
+    console.log('arming and waiting');
   },
 
   _maybeFire: function () {

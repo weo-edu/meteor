@@ -1,30 +1,31 @@
 (function () {
 
-  Meteor.accounts.google.setSecret = function (secret) {
-    Meteor.accounts.google._secret = secret;
-  };
-
-  Meteor.accounts.oauth.registerService('google', 2, function(query) {
+  Accounts.oauth.registerService('google', 2, function(query) {
 
     var accessToken = getAccessToken(query);
     var identity = getIdentity(accessToken);
 
     return {
-      options: {
-        email: identity.email,
-        services: {google: {id: identity.id, accessToken: accessToken}}
+      serviceData: {
+        id: identity.id,
+        accessToken: accessToken,
+        email: identity.email
       },
-      extra: {name: identity.name}
+      options: {profile: {name: identity.name}}
     };
   });
 
   var getAccessToken = function (query) {
+    var config = Accounts.loginServiceConfiguration.findOne({service: 'google'});
+    if (!config)
+      throw new Accounts.ConfigError("Service not configured");
+
     var result = Meteor.http.post(
       "https://accounts.google.com/o/oauth2/token", {params: {
         code: query.code,
-        client_id: Meteor.accounts.google._clientId,
-        client_secret: Meteor.accounts.google._secret,
-        redirect_uri: Meteor.accounts.google._appUrl + "/_oauth/google?close",
+        client_id: config.clientId,
+        client_secret: config.secret,
+        redirect_uri: Meteor.absoluteUrl("_oauth/google?close"),
         grant_type: 'authorization_code'
       }});
 

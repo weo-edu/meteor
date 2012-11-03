@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BUNDLE_VERSION=0.2.3
+BUNDLE_VERSION=0.2.5
 
 # OS Check. Put here because here is where we download the precompiled
 # bundles that are arch specific.
@@ -102,4 +102,4 @@ if [ "$(ulimit -n)" != "unlimited" ] ; then
 fi
 
 export NODE_PATH="$DEV_BUNDLE/lib/node_modules"
-exec "$DEV_BUNDLE/bin/node" "$METEOR" "$@"
+exec "$DEV_BUNDLE/bin/node" "--prof" "$METEOR" "$@"

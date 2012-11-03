@@ -41,6 +41,8 @@ Meteor._LivedataSession = function (server) {
   // map from collection name -> id -> key -> subscription id -> true
   self.provides_key = {};
 
+  self.last_sent_id = 0;
+
   // if set, ignore flush requests on any subsubcription on this
   // session. when set this back to false, don't forget to call flush
   // manually. this is sometimes needed because subscriptions
@@ -48,6 +50,10 @@ Meteor._LivedataSession = function (server) {
   self.dontFlush = false;
 
   self.userId = null;
+
+  // Per-connection scratch area. This is only used internally, but we
+  // should have real and documented API for this sort of thing someday.
+  self.sessionData = {};
 };
 
 _.extend(Meteor._LivedataSession.prototype, {
@@ -63,7 +69,7 @@ _.extend(Meteor._LivedataSession.prototype, {
     self.socket = socket;
     self.last_connect_time = +(new Date);
     _.each(self.out_queue, function (msg) {
-      self.socket.send(JSON.stringify(msg));
+      self.send(msg, true);
     });
     self.out_queue = [];
 
@@ -127,24 +133,25 @@ _.extend(Meteor._LivedataSession.prototype, {
 
   // Destroy this session. Stop all processing and tear everything
   // down. If a socket was attached, close it.
-  destroy: function () {
+  destroy: function (closed) {
     var self = this;
     if (self.socket) {
-      self.socket.close();
+      closed || self.socket.close();
       self.detach(self.socket);
     }
     self._stopAllSubscriptions();
     self.in_queue = self.out_queue = [];
-    delete Meteor.default_server.sessions[self.id];
   },
 
   // Send a message (queueing it if no socket is connected right now.)
   // It should be a JSON object (it will be stringified.)
-  send: function (msg) {
+  send: function (msg, dontQueue) {
     var self = this;
-    if (self.socket)
+    if (self.socket) {
+      msg.msg_id = ++self.last_sent_id;
       self.socket.send(JSON.stringify(msg));
-    else
+    }
+    else if(! dontQueue)
       self.out_queue.push(msg);
   },
 
@@ -174,7 +181,7 @@ _.extend(Meteor._LivedataSession.prototype, {
   // other.)
   processMessage: function (msg_in, socket) {
     var self = this;
-    if (socket !== self.socket)
+    if (socket !== self.socket && ! socket.disconnected)
       return;
 
     self.in_queue.push(msg_in);
@@ -184,14 +191,13 @@ _.extend(Meteor._LivedataSession.prototype, {
 
     var processNext = function () {
       var msg = self.in_queue.shift();
-      if (!msg) {
+      if (!msg || socket.disconnected) {
         self.worker_running = false;
         return;
       }
 
       Fiber(function () {
         var blocked = true;
-
         var unblock = function () {
           if (!blocked)
             return; // idempotent
@@ -297,12 +303,15 @@ _.extend(Meteor._LivedataSession.prototype, {
       }
 
       var setUserId = function(userId) {
-        console.log('setUserId', userId);
         self._setUserId(userId);
       };
 
-      var invocation = new Meteor._MethodInvocation(
-        false /* isSimulation */, self.userId, setUserId, unblock);
+      var invocation = new Meteor._MethodInvocation({
+        isSimulation: false,
+        userId: self.userId, setUserId: setUserId,
+        unblock: unblock,
+        sessionData: self.sessionData
+      });
       try {
         var ret =
           Meteor._CurrentWriteFence.withValue(fence, function () {
@@ -357,6 +366,12 @@ _.extend(Meteor._LivedataSession.prototype, {
     }
     self.userId = userId;
     this._rerunAllSubscriptions();
+
+    // XXX figure out the login token that was just used, and set up an observe
+    // on the user doc so that deleting the user or the login token disconnects
+    // the session. For now, if you want to make sure that your deleted users
+    // don't have any continuing sessions, you can restart the server, but we
+    // should make it automatic.
   },
 
   _startSubscription: function (handler, priority, sub_id, params) {
@@ -371,7 +386,13 @@ _.extend(Meteor._LivedataSession.prototype, {
     // Store a function to re-run the handler in case we want to rerun
     // subscriptions, for example when the current user id changes
     sub._runHandler = function() {
-      var res = handler.apply(sub, params || []);
+      try {
+        var res = handler.apply(sub, params || []);
+      } catch (e) {
+        Meteor._debug("Internal exception while starting subscription", sub_id,
+                      e.stack);
+        return;
+      }
 
       // if Meteor._RemoteCollectionDriver is available (defined in
       // mongo-livedata), automatically wire up handlers that return a
@@ -419,16 +440,14 @@ _.extend(Meteor._LivedataSession.prototype, {
   // the wire
   _rerunAllSubscriptions: function () {
     var self = this;
-
     var rerunSub = function(sub) {
       sub._teardown();
-      sub._userId = self.userId;
+      sub.userId = self.userId;
       sub._runHandler();
     };
     var flushSub = function(sub) {
       sub.flush();
     };
-
     self.dontFlush = true;
     _.each(self.named_subs, rerunSub);
     _.each(self.universal_subs, rerunSub);
@@ -468,6 +487,12 @@ Meteor._LivedataSubscription = function (session, sub_id, priority) {
   // LivedataSession
   this.session = session;
 
+  // Give access to sessionData in subscriptions as well as
+  // methods. This is not currently used, but is included for
+  // consistency. We should have real and documented API for this sort
+  // of thing someday.
+  this._sessionData = session.sessionData;
+
   // my subscription ID (generated by client, null for universal subs).
   this.sub_id = sub_id;
 
@@ -494,7 +519,7 @@ Meteor._LivedataSubscription = function (session, sub_id, priority) {
   // stop callbacks to g/c this sub.  called w/ zero arguments.
   this.stop_callbacks = [];
 
-  this._userId = session.userId;
+  this.userId = session.userId;
 };
 
 _.extend(Meteor._LivedataSubscription.prototype, {
@@ -616,10 +641,6 @@ _.extend(Meteor._LivedataSubscription.prototype, {
     self.pending_complete = false;
   },
 
-  userId: function() {
-    return this._userId;
-  },
-
   _teardown: function() {
     var self = this;
     // tell listeners, so they can clean up
@@ -645,12 +666,12 @@ _.extend(Meteor._LivedataSubscription.prototype, {
     var self = this;
     var collection = cursor.collection_name;
 
-    var observe_handle = cursor.observe({
+    var observe_handle = cursor._observeUnordered({
       added: function (obj) {
         self.set(collection, obj._id, obj);
         self.flush();
       },
-      changed: function (obj, old_idx, old_obj) {
+      changed: function (obj, old_obj) {
         var set = {};
         _.each(obj, function (v, k) {
           if (!_.isEqual(v, old_obj[k]))
@@ -661,7 +682,7 @@ _.extend(Meteor._LivedataSubscription.prototype, {
         self.unset(collection, obj._id, dead_keys);
         self.flush();
       },
-      removed: function (old_obj, old_idx) {
+      removed: function (old_obj) {
         self.unset(collection, old_obj._id, _.keys(old_obj));
         self.flush();
       }
@@ -705,7 +726,7 @@ Meteor._LivedataServer = function () {
       var msg = {msg: 'error', reason: reason};
       if (offending_message)
         msg.offending_message = offending_message;
-      socket.send(JSON.stringify(msg));
+      socket.meteor_session && socket.meteor_session.send(msg);
     };
 
     socket.on('message', function (raw_msg) {
@@ -730,21 +751,24 @@ Meteor._LivedataServer = function () {
           // XXX session resumption does not work yet!
           // https://app.asana.com/0/159908330244/577350817064
           // disabled here:
-          /*
-          if (msg.session)
-            var old_session = self.sessions[msg.session];
-          if (old_session) {
+          if (msg.session && self.sessions[msg.session]) {
             // Resuming a session
-            socket.meteor_session = old_session;
+            socket.meteor_session = self.sessions[msg.session];
+            console.log('resuming session', msg, msg.last_rcvd_id, socket.meteor_session.last_sent_id);
+            if(msg.last_rcvd_id !== socket.meteor_session.last_sent_id) {
+              Fiber(function() {
+                socket.meteor_session._rerunAllSubscriptions();
+              }).run();
+            }
           }
-          else */ {
+          else {
             // Creating a new session
             socket.meteor_session = new Meteor._LivedataSession(self);
             self.sessions[socket.meteor_session.id] = socket.meteor_session;
           }
 
-          socket.send(JSON.stringify({msg: 'connected',
-                                      session: socket.meteor_session.id}));
+          socket.meteor_session.send({msg: 'connected',
+                                      session: socket.meteor_session.id});
           // will kick off previous connection, if any
           socket.meteor_session.connect(socket);
           return;
@@ -763,27 +787,34 @@ Meteor._LivedataServer = function () {
     });
 
     socket.on('close', function () {
-      if (socket.meteor_session)
+      socket.disconnected = true;
+      if (socket.meteor_session) {
+        console.log('socket closed, detaching session');
         socket.meteor_session.detach(socket);
+      }
     });
   });
 
-  // Every minute, clean up sessions that have been abandoned for 15
-  // minutes. Also run result cache cleanup.
+  // Every minute, clean up sessions that have been abandoned for a
+  // minute. Also run result cache cleanup.
   // XXX at scale, we'll want to have a separate timer for each
-  // session, and stagger them
-  var cleanupAbandonedTime = 5 * 60 * 1000;
+  //     session, and stagger them
+  // XXX when we get resume working again, we might keep sessions
+  //     open longer (but stop running their diffs!)
   Meteor.setInterval(function () {
     var now = +(new Date);
-    console.log('cleaning up sessions:', _.keys(self.sessions).length);
-
-    for(var id in self.sessions) {
-      var s = self.sessions[id];
+    var destroyedIds = [];
+    _.each(self.sessions, function (s, id) {
       s.cleanup();
-      if(! s.socket && (now - s.last_detach_time) > cleanupAbandonedTime) {
+      if (!s.socket && (now - s.last_detach_time) > 60 * 1000) {
         s.destroy();
+        destroyedIds.push(id);
       }
-    }
+    });
+    _.each(destroyedIds, function (id) {
+      delete self.sessions[id];
+    });
+    console.log('remaining sessions', _.keys(self.sessions).length);
   }, 1 * 60 * 1000);
 };
 
@@ -873,7 +904,6 @@ _.extend(Meteor._LivedataServer.prototype, {
   // @param callback {Optional Function}
   apply: function (name, args, options, callback) {
     var self = this;
-
     // We were passed 3 arguments. They may be either (name, args, options)
     // or (name, args, callback)
     if (!callback && typeof options === 'function') {
@@ -906,14 +936,17 @@ _.extend(Meteor._LivedataServer.prototype, {
       };
       var currentInvocation = Meteor._CurrentInvocation.get();
       if (currentInvocation) {
-        userId = currentInvocation.userId();
+        userId = currentInvocation.userId;
         setUserId = function(userId) {
           currentInvocation.setUserId(userId);
         };
       }
 
-      var invocation = new Meteor._MethodInvocation(
-        false /* isSimulation */, userId, setUserId);
+      var invocation = new Meteor._MethodInvocation({
+        isSimulation: false,
+        userId: userId, setUserId: setUserId,
+        sessionData: self.sessionData
+      });
       try {
         var ret = Meteor._CurrentInvocation.withValue(invocation, function () {
           return handler.apply(invocation, args);

@@ -1,10 +1,12 @@
+var path = require('path');
+
 Package.describe({
   summary: "Session variable",
   internal: true
 });
 
 // XXX hack -- need a way to use a package at bundle time
-var _ = require('../../packages/underscore/underscore.js');
+var _ = require(path.join('..', '..', 'packages', 'underscore', 'underscore.js'));
 
 Package.on_use(function (api, where) {
   where = where || ['client', 'server'];
@@ -22,10 +24,7 @@ Package.on_use(function (api, where) {
 });
 
 Package.on_test(function (api) {
-  api.use('session', ['client', 'server']);
-  api.use('test-helpers', ['client', 'server']);
   api.use('tinytest');
-
-  api.add_files('session_tests.js', ['client', 'server']);
-  api.add_files('session_client_tests.js', ['client']);
+  api.use('session', 'client');
+  api.add_files('session_tests.js', 'client');
 });
