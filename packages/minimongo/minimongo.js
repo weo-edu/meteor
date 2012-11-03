@@ -506,7 +506,7 @@ LocalCollection._insertInResults = function (query, doc, dontFireEvent) {
         }
         else if(query.skipped === query.cursor.skip) {
           query.skipped++;
-          query.results = query.cursor._getRawObjects();
+          query.results = query.cursor._getRawObjects(true);
           query.added(LocalCollection._deepcopy(query.results[0]), 0);
           return;
         }
@@ -514,7 +514,7 @@ LocalCollection._insertInResults = function (query, doc, dontFireEvent) {
         if(query.results.length > 0 && query.sort_f(doc, query.results[0]) < 0) {
           var oldLimit = query.cursor.limit;
           query.cursor.limit = 1;
-          var objs = query.cursor._getRawObjects();
+          var objs = query.cursor._getRawObjects(true);
           doc = objs[0];
           query.cursor.limit = oldLimit;
           dontFireEvent = false;
@@ -537,7 +537,7 @@ LocalCollection._insertInResults = function (query, doc, dontFireEvent) {
     }
   } else {
     query.added(LocalCollection._deepcopy(doc));
-    query.results[doc._id];
+    query.results[doc._id] = doc;
   }
 }
 
@@ -552,7 +552,7 @@ LocalCollection._removeFromResults = function (query, doc) {
       //  If the item just removed caused us to be 1 short of our limit
       //  then we need to re-evaluate
       if(query.cursor.limit && (query.results.length + 1) === query.cursor.limit) {
-        var objs = query.cursor._getRawObjects();
+        var objs = query.cursor._getRawObjects(true);
         if(objs[query.cursor.limit-1]) {
           i = query.cursor.limit - 1;
           doc = objs[i];
@@ -569,7 +569,7 @@ LocalCollection._removeFromResults = function (query, doc) {
         query.results.shift();
 
         if(query.cursor.limit) {
-          var objs = query.cursor._getRawObjects();
+          var objs = query.cursor._getRawObjects(true);
           if(objs.length >= query.results.length) {
             doc = objs.pop();
             query.results.push(doc);
@@ -613,7 +613,7 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
   query.cursor.limit = old;
 
   if(query.cursor.limit && query.cursor.limit === (query.results.length+1)) {
-    var objs = query.cursor._getRawObjects();
+    var objs = query.cursor._getRawObjects(true);
     if(objs.length === (query.results.length+1))
       LocalCollection._insertInResults(query, objs.pop());
   }

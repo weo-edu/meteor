@@ -268,6 +268,8 @@ LocalCollection._diffQueryUnordered = function (oldResults, newResults,
       if (observer.changed && !_.isEqual(oldDoc, newDoc)) {
         observer.changed(mdc(newDoc), oldDoc);
       }
+
+      //delete oldResults[newDoc._id];
     } else {
       observer.added && observer.added(mdc(newDoc));
     }

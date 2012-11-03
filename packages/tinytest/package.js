@@ -8,7 +8,7 @@ Package.on_use(function (api) {
   // before packages when testing. This makes sure that tests see
   // backward-compatibility hooks, at least if they use tinytest.
   api.use('past');
-
+  api.use('reload');
   api.use('underscore', ['client', 'server']);
 
   api.add_files('tinytest.js', ['client', 'server']);
