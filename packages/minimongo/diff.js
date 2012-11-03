@@ -269,7 +269,7 @@ LocalCollection._diffQueryUnordered = function (oldResults, newResults,
         observer.changed(mdc(newDoc), oldDoc);
       }
 
-      //delete oldResults[newDoc._id];
+      delete oldResults[newDoc._id];
     } else {
       observer.added && observer.added(mdc(newDoc));
     }
@@ -277,8 +277,7 @@ LocalCollection._diffQueryUnordered = function (oldResults, newResults,
 
   if (observer.removed) {
     _.each(oldResults, function (oldDoc) {
-      if (!_.has(newResults, oldDoc._id))
-        observer.removed(oldDoc);
+      observer.removed(oldDoc);
     });
   }
 };
