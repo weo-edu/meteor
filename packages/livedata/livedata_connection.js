@@ -38,6 +38,8 @@ Meteor._LivedataConnection = function (url, options) {
   self.method_handlers = {}; // name -> func
   self.next_method_id = 1;
 
+  self.last_rcvd_id = 0;
+  
   // --- Three classes of outstanding methods ---
 
   // 1. either already sent, or waiting to be sent with no special
@@ -111,6 +113,8 @@ Meteor._LivedataConnection = function (url, options) {
       return;
     }
 
+    self.last_rcvd_id = msg.msg_id;
+    
     if (msg.msg === 'connected')
       self._livedata_connected(msg);
     else if (msg.msg === 'data')
@@ -132,7 +136,8 @@ Meteor._LivedataConnection = function (url, options) {
     var msg = {msg: 'connect'};
     if (self.last_session_id) {
       msg.session = self.last_session_id;
-      msg.last_rcvd_id = self.stream.last_rcvd_id;
+      msg.last_rcvd_id = self.last_rcvd_id;
+      console.log('reconnecting', self.last_rcvd_id);
     }
     self.stream.send(msg);
 

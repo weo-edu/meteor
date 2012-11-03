@@ -754,8 +754,12 @@ Meteor._LivedataServer = function () {
           if (msg.session && self.sessions[msg.session]) {
             // Resuming a session
             socket.meteor_session = self.sessions[msg.session];
-            if(msg.last_rcvd_id !== socket.meteor_session.last_sent_id)
-              socket.meteor_session._rerunAllSubscriptions();
+            console.log('resuming session', msg, msg.last_rcvd_id, socket.meteor_session.last_sent_id);
+            if(msg.last_rcvd_id !== socket.meteor_session.last_sent_id) {
+              Fiber(function() {
+                socket.meteor_session._rerunAllSubscriptions();
+              }).run();
+            }
           }
           else {
             // Creating a new session
