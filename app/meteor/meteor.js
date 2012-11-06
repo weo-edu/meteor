@@ -181,7 +181,7 @@ Commands.push({
       process.exit(1);
     }
 
-    if (!path.existsSync('./.meteor/routes') && files.find_app_dir(appname)) {
+    if (!fs.existsSync('./.meteor/routes') && files.find_app_dir(appname)) {
       process.stderr.write(
 "You can't create a Meteor project inside another Meteor project.\n");
       process.exit(1);
@@ -622,7 +622,7 @@ Commands.push({
       var portsPerApp = 4;
 
       _.each(fs.readdirSync(process.cwd()),function(p) {
-        if (p[0] !== '.' && path.existsSync(path.join(p,'.meteor'))) {
+        if (p[0] !== '.' && fs.existsSync(path.join(p,'.meteor'))) {
           var dir = p;
           var name = p;
           if(p !== 'root'){
