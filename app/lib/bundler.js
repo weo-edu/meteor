@@ -100,6 +100,10 @@ var PackageInstance = function (pkg, bundle) {
       });
     },
 
+    pkg_dir: function() {
+      return self.pkg.source_root;
+    },
+
     add_dir: function(dir,where) {
       var files = _.map(fs.readdirSync(path.join(self.pkg.source_root, dir)),function(file) {
         return path.join(dir,file);

@@ -1,5 +1,3 @@
-//require('nodetime').profile();
-
 ////////// Requires //////////
 
 require("fibers");

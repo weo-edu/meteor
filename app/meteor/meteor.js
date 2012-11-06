@@ -181,7 +181,7 @@ Commands.push({
       process.exit(1);
     }
 
-    if (!path.existsSync('./.meteor/routes') && files.find_app_dir(appname)) {
+    if (!fs.existsSync('./.meteor/routes') && files.find_app_dir(appname)) {
       process.stderr.write(
 "You can't create a Meteor project inside another Meteor project.\n");
       process.exit(1);
@@ -598,6 +598,7 @@ Commands.push({
   func: function(argv) {
     var opt = require('optimist')
       .alias('port', 'p').default('port', parseInt(process.env.ROUTER_PORT, 10))
+      .boolean('production')
       .describe('port', 'Set the base port of your router proxy.  Each subsequent subapp will consume the next 4 following ports.')
       .describe('prefix', 'Set an additional routing prefix for your subapps, defaults to none (when set, path will look like "app!<prefix>-<subapp>"');
 
@@ -621,7 +622,7 @@ Commands.push({
       var portsPerApp = 4;
 
       _.each(fs.readdirSync(process.cwd()),function(p) {
-        if (p[0] !== '.' && path.existsSync(path.join(p,'.meteor'))) {
+        if (p[0] !== '.' && fs.existsSync(path.join(p,'.meteor'))) {
           var dir = p;
           var name = p;
           if(p !== 'root'){
@@ -685,7 +686,12 @@ Commands.push({
         env.METEOR_SUBAPP_PREFIX = subapp_prefix;
         env.METEOR_SUBAPP_NAME = appName;
         env.MONGO_URL = mongo_url;
-        var p = spawn('meteor',['--port',app.port],{cwd: app.dir, env: env});
+
+        var args = ['--port', app.port];
+        if(new_argv.production)
+          args = args.concat('--production');
+
+        var p = spawn('meteor',args,{cwd: app.dir, env: env});
         children.push(p);
 
         p.stdout.on('data',function(data) {
@@ -774,6 +780,7 @@ Commands.push({
         req.url = '/' + parts.join('/');
       }
 
+      /*
       //  XXX Hack - this exists only to modify the returning headers
       //  to match what was sent, in order to pass IOS security check.
       //  Hopefully they will update to a more recent websocket standard
@@ -793,7 +800,7 @@ Commands.push({
         }
 
         return data;
-      };
+      };*/
 
 //      app.proxy.proxyWebSocketRequest(req, socket, head);
       p.proxy.proxyWebSocketRequest(req, socket, head, 

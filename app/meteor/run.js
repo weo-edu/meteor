@@ -505,28 +505,12 @@ exports.run = function (app_dir, bundle_opts, port) {
       kill_server(test_server_handle);
 
     server_log = [];
-
     var errors = [];
-
     var ignore = [];
-    /*if(path.existsSync(path.join(app_dir, '.meteor/routes'))){
-      var dirs = fs.readdirSync('./');
-      _.each(dirs, function(val, key){
-        if(val[0] != '.' && val != 'root'){
-          bundle_opts.subapp = val;
-          errors.concat(bundler.bundle(path.join(app_dir, val), path.join(app_dir, val, '.meteor/local/build'), bundle_opts));
-          bundler.ignore_files.push('/^' + val + '$/');
-        }
-      });
-    }
 
-    bundle_opts.subapp = 'root';
-    errors.concat(bundler.bundle(app_dir, bundle_path, bundle_opts));*/
     console.log('start bundle', +new Date());
     errors = bundler.bundle(app_dir, bundle_path, bundle_opts);
     console.log('end bundle', +new Date());
-
-
 
     var deps_raw;
     try {
