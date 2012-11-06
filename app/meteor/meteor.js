@@ -689,7 +689,7 @@ Commands.push({
 
         var args = ['--port', app.port];
         if(new_argv.production)
-          args.concat('--production');
+          args = args.concat('--production');
 
         var p = spawn('meteor',args,{cwd: app.dir, env: env});
         children.push(p);
