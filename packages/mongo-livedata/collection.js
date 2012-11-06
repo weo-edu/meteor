@@ -110,6 +110,8 @@ Meteor.Collection = function (name, options) {
       var handler = function () { return self.find(); };
       self._manager.publish(null, handler, {is_auto: true});
     });
+
+  Meteor.Collection.emitter && Meteor.Collection.emitter.emit('new', name, self._collection);
 };
 
 ///
@@ -215,7 +217,6 @@ _.each(["insert", "update", "remove", "findAndModify"], function (name) {
         });
 
       } else {
-        console.log('else no callback');
         // synchronous: propagate exception
         res = self._manager.apply(self._prefix + name, args);
       }
@@ -228,9 +229,9 @@ _.each(["insert", "update", "remove", "findAndModify"], function (name) {
       // and propagate any exception.
       try {
         res = self._collection[name].apply(self._collection, args);
+        Meteor.Collection.emitter && Meteor.Collection.emitter.emit('mutation', self._name, name, args);
       } catch (e) {
         if (callback) {
-          console.log('other case test');
           callback(e);
           return null;
         }
@@ -372,6 +373,7 @@ Meteor.Collection.prototype._defineMutationMethods = function() {
         if (this.isSimulation || (!self._restricted && self._isInsecure())) {
           self._collection[method].apply(
             self._collection, _.toArray(arguments));
+          Meteor.Collection.emitter && Meteor.Collection.emitter.emit('mutation', self._name, method, _.toArray(arguments));
         } else if (self._restricted) {
           // short circuit if there is no way it will pass.
           if (self._validators[method].allow.length === 0) {
@@ -384,6 +386,7 @@ Meteor.Collection.prototype._defineMutationMethods = function() {
                 '_validated' + method.charAt(0).toUpperCase() + method.slice(1);
           var argsWithUserId = [this.userId].concat(_.toArray(arguments));
           self[validatedMethodName].apply(self, argsWithUserId);
+          Meteor.Collection.emitter && Meteor.Collection.emitter.emit('mutation', self._name, method, _.toArray(arguments));
         } else {
           throw new Meteor.Error(403, "Access denied");
         }

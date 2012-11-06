@@ -111,7 +111,7 @@ _Mongo.prototype._maybeBeginWrite = function () {
 // well-defined -- a write "has been made" if it's returned, and an
 // observer "has been notified" if its callback has returned.
 
-_Mongo.prototype.insert = function (collection_name, document) {
+_Mongo.prototype.insert = function (collection_name, document, write) {
   var self = this;
 
   if (collection_name === "___meteor_failure_test_collection" &&
@@ -130,9 +130,14 @@ _Mongo.prototype.insert = function (collection_name, document) {
       return;
     }
 
-    collection.insert(document, {safe: true}, function (err) {
-      future.ret(err);
-    });
+    if (write !== false) {
+      collection.insert(document, {safe: true}, function (err) {
+        future.ret(err);
+      });
+    } else {
+      future.ret();
+    }
+    
   });
 
   var err = future.wait();
@@ -142,7 +147,7 @@ _Mongo.prototype.insert = function (collection_name, document) {
     throw err;
 };
 
-_Mongo.prototype.remove = function (collection_name, selector) {
+_Mongo.prototype.remove = function (collection_name, selector, write) {
   var self = this;
 
   if (collection_name === "___meteor_failure_test_collection" &&
@@ -164,9 +169,14 @@ _Mongo.prototype.remove = function (collection_name, selector) {
       return;
     }
 
-    collection.remove(selector, {safe: true}, function (err) {
-      future.ret(err);
-    });
+    if (write !== false) {
+      collection.remove(selector, {safe: true}, function (err) {
+        future.ret(err);
+      });
+    } else {
+      future.ret();
+    }
+    
   });
 
   var err = future.wait();
@@ -203,9 +213,14 @@ _Mongo.prototype.update = function (collection_name, selector, mod, options) {
     if (options.upsert) opts.upsert = true;
     if (options.multi) opts.multi = true;
 
-    collection.update(selector, mod, opts, function (err) {
-      future.ret(err);
-    });
+    if (options.write !== false) {
+      collection.update(selector, mod, opts, function (err) {
+        future.ret(err);
+      });
+    } else {
+      future.ret();
+    }
+    
   });
 
   var err = future.wait();
