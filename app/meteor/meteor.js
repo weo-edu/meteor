@@ -780,6 +780,7 @@ Commands.push({
         req.url = '/' + parts.join('/');
       }
 
+      /*
       //  XXX Hack - this exists only to modify the returning headers
       //  to match what was sent, in order to pass IOS security check.
       //  Hopefully they will update to a more recent websocket standard
@@ -799,7 +800,7 @@ Commands.push({
         }
 
         return data;
-      };
+      };*/
 
 //      app.proxy.proxyWebSocketRequest(req, socket, head);
       p.proxy.proxyWebSocketRequest(req, socket, head, 
