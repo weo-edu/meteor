@@ -59,12 +59,8 @@ function install_dev_bundle {
     fi
 
     mv "$TMPDIR" "$SCRIPT_DIR/dev_bundle"
-<<<<<<< HEAD
     make -C "$SCRIPT_DIR/dev_bundle/lib/node_modules/mongodb/node_modules/bson/"
-    
-=======
 
->>>>>>> f897bc42a96d44b2ad65043dc15ccc5ce5afa92f
     echo "Installed dependency kit v${BUNDLE_VERSION} in dev_bundle."
     echo
 
