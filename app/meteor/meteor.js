@@ -689,7 +689,10 @@ Commands.push({
         env.METEOR_SUBAPP_PREFIX = subapp_prefix;
         env.METEOR_SUBAPP_NAME = appName;
         env.MONGO_URL = mongo_url;
+<<<<<<< HEAD
         env.ENABLE_NODETIME = new_argv.profile;
+=======
+>>>>>>> f897bc42a96d44b2ad65043dc15ccc5ce5afa92f
 
         var args = ['--port', app.port];
         if(new_argv.production)
