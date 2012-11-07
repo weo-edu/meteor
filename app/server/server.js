@@ -1,3 +1,6 @@
+if(process.env.ENABLE_NODETIME)
+  require('nodetime').profile();
+
 ////////// Requires //////////
 
 require("fibers");

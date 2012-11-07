@@ -599,6 +599,9 @@ Commands.push({
     var opt = require('optimist')
       .alias('port', 'p').default('port', parseInt(process.env.ROUTER_PORT, 10))
       .boolean('production')
+      .boolean('profile')
+      .describe('production', 'enable production mode on all subapps')
+      .describe('profile', 'enable nodetime profiler on all subapps')
       .describe('port', 'Set the base port of your router proxy.  Each subsequent subapp will consume the next 4 following ports.')
       .describe('prefix', 'Set an additional routing prefix for your subapps, defaults to none (when set, path will look like "app!<prefix>-<subapp>"');
 
@@ -690,7 +693,9 @@ Commands.push({
         var args = ['--port', app.port];
         if(new_argv.production)
           args = args.concat('--production');
-
+        if(new_argv.profile)
+          env.ENABLE_NODETIME = 'true';
+        
         var p = spawn('meteor',args,{cwd: app.dir, env: env});
         children.push(p);
 
