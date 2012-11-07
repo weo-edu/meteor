@@ -110,11 +110,8 @@ Meteor.Collection = function (name, options) {
       var handler = function () { return self.find(); };
       self._manager.publish(null, handler, {is_auto: true});
     });
-<<<<<<< HEAD
-=======
 
   Meteor.Collection.emitter && Meteor.Collection.emitter.emit('new', name, self._collection);
->>>>>>> f897bc42a96d44b2ad65043dc15ccc5ce5afa92f
 };
 
 ///
@@ -220,10 +217,6 @@ _.each(["insert", "update", "remove", "findAndModify"], function (name) {
         });
 
       } else {
-<<<<<<< HEAD
-        console.log('else no callback');
-=======
->>>>>>> f897bc42a96d44b2ad65043dc15ccc5ce5afa92f
         // synchronous: propagate exception
         res = self._manager.apply(self._prefix + name, args);
       }
@@ -236,15 +229,9 @@ _.each(["insert", "update", "remove", "findAndModify"], function (name) {
       // and propagate any exception.
       try {
         res = self._collection[name].apply(self._collection, args);
-<<<<<<< HEAD
-      } catch (e) {
-        if (callback) {
-          console.log('other case test');
-=======
         Meteor.Collection.emitter && Meteor.Collection.emitter.emit('mutation', self._name, name, args);
       } catch (e) {
         if (callback) {
->>>>>>> f897bc42a96d44b2ad65043dc15ccc5ce5afa92f
           callback(e);
           return null;
         }
@@ -386,10 +373,7 @@ Meteor.Collection.prototype._defineMutationMethods = function() {
         if (this.isSimulation || (!self._restricted && self._isInsecure())) {
           self._collection[method].apply(
             self._collection, _.toArray(arguments));
-<<<<<<< HEAD
-=======
           Meteor.Collection.emitter && Meteor.Collection.emitter.emit('mutation', self._name, method, _.toArray(arguments));
->>>>>>> f897bc42a96d44b2ad65043dc15ccc5ce5afa92f
         } else if (self._restricted) {
           // short circuit if there is no way it will pass.
           if (self._validators[method].allow.length === 0) {
@@ -402,10 +386,7 @@ Meteor.Collection.prototype._defineMutationMethods = function() {
                 '_validated' + method.charAt(0).toUpperCase() + method.slice(1);
           var argsWithUserId = [this.userId].concat(_.toArray(arguments));
           self[validatedMethodName].apply(self, argsWithUserId);
-<<<<<<< HEAD
-=======
           Meteor.Collection.emitter && Meteor.Collection.emitter.emit('mutation', self._name, method, _.toArray(arguments));
->>>>>>> f897bc42a96d44b2ad65043dc15ccc5ce5afa92f
         } else {
           throw new Meteor.Error(403, "Access denied");
         }
