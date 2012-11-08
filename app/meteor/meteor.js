@@ -3,6 +3,7 @@ var files = require(path.join(__dirname, '..', 'lib', 'files.js'));
 var _ = require(path.join(__dirname, '..', 'lib', 'third', 'underscore.js'));
 var deploy = require(path.join(__dirname, 'deploy'));
 var fs = require("fs");
+var parseUrl = require('url');
 
 var usage = function() {
   process.stdout.write(
@@ -599,6 +600,9 @@ Commands.push({
     var opt = require('optimist')
       .alias('port', 'p').default('port', parseInt(process.env.ROUTER_PORT, 10))
       .boolean('production')
+      .boolean('profile')
+      .describe('production', 'enable production mode on all subapps')
+      .describe('profile', 'enable nodetime profiler on all subapps')
       .describe('port', 'Set the base port of your router proxy.  Each subsequent subapp will consume the next 4 following ports.')
       .describe('prefix', 'Set an additional routing prefix for your subapps, defaults to none (when set, path will look like "app!<prefix>-<subapp>"');
 
@@ -690,6 +694,8 @@ Commands.push({
         var args = ['--port', app.port];
         if(new_argv.production)
           args = args.concat('--production');
+        if(new_argv.profile)
+          env.ENABLE_NODETIME = 'true';
 
         var p = spawn('meteor',args,{cwd: app.dir, env: env});
         children.push(p);
@@ -711,11 +717,8 @@ Commands.push({
       process.exit();
     });
 
-    function nameToApp(name){
-      if(meteors.hasOwnProperty(name)){
-        return meteors[name];
-      } else if(name === 'app!root')
-        return meteors['root'];
+    function nameToApp(name) {
+      return name && (meteors[name] || meteors[name.substr(4)]);
     }
 
     var stylesheets = {};
@@ -726,10 +729,11 @@ Commands.push({
       return /[\w+]\.css.*/.test(file);
     }
 
+    var cachedRoot = nameToApp('root');
     function getAppForReq(req){
       var app = nameToApp(utils.getAppFromPath(req.url));
-      if(!app && typeof req.headers.referer !== 'undefined'){
-        var parsedref = require('url').parse(req.headers.referer);
+      if(! app && req.headers.referer !== undefined) {
+        var parsedref = parseUrl.parse(req.headers.referer);
         var refpath = parsedref.pathname;
 
         if(isStylesheet(req.url))
@@ -738,77 +742,36 @@ Commands.push({
         if(isStylesheet(parsedref.path))
           refpath = stylesheets[parsedref.path];
 
-        var appName = utils.getAppFromPath(refpath);
-
-        app = nameToApp(appName);
+        app = nameToApp(utils.getAppFromPath(refpath));
       }
       
-      if(!app)
-        app = nameToApp('root');
-
+      app = app || cachedRoot;
       return app;
     }
-
-    /*_.each(meteors, function(val, key){
-      meteors[key].proxy = new httpProxy.HttpProxy({
-        target: {
-          host: 'localhost',
-          port: val.port
-        }
-      });
-      //meteors[key].proxy.changeOrigin = true;
-    })*/
 
     var p = httpProxy.createServer(function(req,res, proxy) {
       var app = getAppForReq(req);
       req.url = utils.stripAppFromUrl(req.url);
       proxy.proxyRequest(req, res, {host: '127.0.0.1', port: app.port});
-    });//, {enable: {xforward: true}, source: {host: '127.0.0.1', port: parseInt(new_argv.port, 10)}});
+    });
     
-    p.on('upgrade', function(req, socket, head){
-      var url = require('url').parse(req.url);
-      var parts = url.pathname.split('/');
+    p.on('upgrade', function(req, socket, head) {
+      var parts = req.url.split('/');
+      var app = null;
+
       if(parts.length > 1)
-        var app = nameToApp(parts[1]);
+        app = nameToApp(parts[1]);
 
-      var oldUrl = _.clone(req.url);
-      if(!app)
-        app = nameToApp('root');
-      else{
-        parts.shift();
-        parts.shift();
-        req.url = '/' + parts.join('/');
-      }
+      if(! app)
+        app = cachedRoot;
+      else
+        req.url = '/' + parts.slice(2).join('/');
 
-      /*
-      //  XXX Hack - this exists only to modify the returning headers
-      //  to match what was sent, in order to pass IOS security check.
-      //  Hopefully they will update to a more recent websocket standard
-      //  soon
-      var _modify = socket.modify;
-      socket.modify = function(data){
-        socket.modify = _modify;
-
-        var sdata = data.toString();
-        sdata = sdata.substr(0, sdata.search('\r\n\r\n'));
-        if(~sdata.search(req.url)){
-          var bdata = data.slice(Buffer.byteLength(sdata), data.length);
-          sdata = sdata.replace(req.url, oldUrl);
-          data = new Buffer(Buffer.byteLength(sdata) + bdata.length);
-          data.write(sdata, 0, Buffer.byteLength(sdata), 'utf8');
-          bdata.copy(data, Buffer.byteLength(sdata), 0, bdata.length);
-        }
-
-        return data;
-      };*/
-
-//      app.proxy.proxyWebSocketRequest(req, socket, head);
       p.proxy.proxyWebSocketRequest(req, socket, head, 
         { host: '127.0.0.1', port: app.port });
     });
 
     p.listen(base_port,function(){});
-
   }
 });
 

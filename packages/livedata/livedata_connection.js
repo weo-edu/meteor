@@ -137,7 +137,6 @@ Meteor._LivedataConnection = function (url, options) {
     if (self.last_session_id) {
       msg.session = self.last_session_id;
       msg.last_rcvd_id = self.last_rcvd_id;
-      console.log('reconnecting', self.last_rcvd_id);
     }
     self.stream.send(msg);
 

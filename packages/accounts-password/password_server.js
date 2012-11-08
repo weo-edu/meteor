@@ -398,6 +398,8 @@
     if (email)
       user.emails = [{address: email, verified: false}];
 
+    delete options.password;
+    _.extend(user, options);
     return Accounts.insertUserDoc(options, user);
   };
 

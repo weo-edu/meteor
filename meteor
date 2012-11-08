@@ -59,7 +59,8 @@ function install_dev_bundle {
     fi
 
     mv "$TMPDIR" "$SCRIPT_DIR/dev_bundle"
-
+    make -C "$SCRIPT_DIR/dev_bundle/lib/node_modules/mongodb/node_modules/bson/"
+    
     echo "Installed dependency kit v${BUNDLE_VERSION} in dev_bundle."
     echo
 
@@ -102,4 +103,4 @@ if [ "$(ulimit -n)" != "unlimited" ] ; then
 fi
 
 export NODE_PATH="$DEV_BUNDLE/lib/node_modules"
-exec "$DEV_BUNDLE/bin/node" "--prof" "$METEOR" "$@"
+exec "$DEV_BUNDLE/bin/node" "$METEOR" "$@"

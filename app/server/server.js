@@ -1,3 +1,6 @@
+if(process.env.ENABLE_NODETIME)
+  require('nodetime').profile();
+
 ////////// Requires //////////
 
 require("fibers");
@@ -140,6 +143,7 @@ var run = function () {
       require('vm').runInThisContext(code, filename, true);
     });
 
+    argv.keepalive && Meteor.defer(init_keepalive);
 
     // Actually serve HTML. This happens after user code, so that
     // packages can insert connect middlewares and update
@@ -175,9 +179,6 @@ var run = function () {
     });
 
   }).run();
-
-  if (argv.keepalive)
-    init_keepalive();
 };
 
 run();
