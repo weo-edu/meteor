@@ -112,7 +112,7 @@ LocalCollection.Cursor.prototype.forEach = function (callback) {
     self.db_objects = self._getRawObjects(true);
 
   if (self.reactive)
-    self._markAsReactive({ordered: true,
+    self._markAsReactive({ordered: !! self.sort_f,
                           added: true,
                           removed: true,
                           changed: true,
@@ -152,10 +152,16 @@ LocalCollection.Cursor.prototype.count = function () {
   if (self.reactive)
     self._markAsReactive({ordered: false, added: true, removed: true});
 
-  if (self.db_objects === null)
+  if(self.query && self.query.results) {
+    if(_.isArray(self.query.results))
+      return self.query.results.length;
+    else
+      return _.keys(self.query.results).length;
+  }
+  else {
     self.db_objects = self._getRawObjects(true);
-
-  return self.db_objects.length;
+    return self.db_objects.length;
+  }
 };
 
 // the handle that comes back from observe.
@@ -197,28 +203,30 @@ _.extend(LocalCollection.Cursor.prototype, {
 
     //if (self.skip || self.limit)
     //  throw new Error("cannot observe queries with skip or limit");
+    if(! self.query) {
+      var qid = self.collection.next_qid++;
 
-    var qid = self.collection.next_qid++;
+      // XXX merge this object w/ "this" Cursor.  they're the same.
+      self.query = self.collection.queries[qid] = {
+        selector_f: self.selector_f, // not fast pathed
+        sort_f: ordered && self.sort_f,
+        results_snapshot: null,
+        ordered: ordered,
+        cursor: this,
+        limit: self.limit,
+        skip: self.skip,
+        skipped: 0
+      };
+    }
 
-    // XXX merge this object w/ "this" Cursor.  they're the same.
-    var query = self.collection.queries[qid] = {
-      selector_f: self.selector_f, // not fast pathed
-      sort_f: ordered && self.sort_f,
-      results_snapshot: null,
-      ordered: ordered,
-      cursor: this,
-      limit: self.limit,
-      skip: self.skip,
-      skipped: 0
-    };
-    query.results = self._getRawObjects(ordered);
+    self.query.results = self._getRawObjects(ordered);
     if (self.collection.paused)
-      query.results_snapshot = (ordered ? [] : {});
+      self.query.results_snapshot = (ordered ? [] : {});
 
     // wrap callbacks we were passed. callbacks only fire when not paused and
     // are never undefined (except that query.moved is undefined for unordered
     // callbacks).
-    var if_not_paused = function (f) {
+    function if_not_paused(f) {
       if (!f)
         return function () {};
       return function (/*args*/) {
@@ -227,7 +235,7 @@ _.extend(LocalCollection.Cursor.prototype, {
       };
     };
 
-    var get_fields = function(f, change_check) {
+    function get_fields(f, change_check) {
       if (!self.fields)
         return f;
       else {
@@ -247,16 +255,16 @@ _.extend(LocalCollection.Cursor.prototype, {
       }
     }
 
-    query.added = if_not_paused(get_fields(options.added));
-    query.changed = if_not_paused(get_fields(options.changed, true));
-    query.removed = if_not_paused(get_fields(options.removed));
+    self.query.added = if_not_paused(get_fields(options.added));
+    self.query.changed = if_not_paused(get_fields(options.changed, true));
+    self.query.removed = if_not_paused(get_fields(options.removed));
 
     if (ordered)
-        query.moved = if_not_paused(get_fields(options.moved));
+        self.query.moved = if_not_paused(get_fields(options.moved));
 
     if (!options._suppress_initial && !self.collection.paused) {
-      _.each(query.results, function (doc, i) {
-        query.added(LocalCollection._deepcopy(doc),
+      _.each(self.query.results, function (doc, i) {
+        self.query.added(LocalCollection._deepcopy(doc),
                     ordered ? i : undefined);
       });
     }

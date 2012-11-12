@@ -71,6 +71,7 @@
     })();
   }
 
+  deftmplCounter = 0;
   var templateObjFromLandmark = function (landmark, name) {
     var template = templateInstanceData[landmark.id] || (
       templateInstanceData[landmark.id] = {
@@ -91,18 +92,38 @@
         store: ReactiveDict(),
 
         _id: function() {
-          if ($(this.firstNode).attr('id')) return $(this.firstNode).attr('id');
+          if(this.firstNode.nodeName !== 1)
+            return;
+          
+          var id = this.firstNode.getAttribute('id');
+          if(id)
+            return id;
           else {
-            return "/" + $(this.firstNode).parents().andSelf().map(function() {
+            var path = [];
+            var n = this.firstNode;
+            while(n) {
+              var idx = 0;
+              var p = n.previousElementSibling();
+              while(p) {
+                if(p.nodeName === n.nodeName)
+                  idx++;
+                p = p.previousElementSibling();
+              }
+              path.push(n.nodeName, idx);
+              n = n.parentNode;
+            }
+            return path.join('/');
+            /*
+            return u.print("/" + first.parents().andSelf().map(function() {
+              deftmplCounter++;
               var $this = $(this);
               var tagName = this.nodeName;
               if ($this.siblings(tagName).length > 0) {
                   tagName += "[" + $this.prevAll(tagName).length + "]";
               }
               return tagName;
-            }).get().join("/");
+            }).get().join("/"));*/
           }
-          
         },
 
         set: function(key, value, notReactive) {

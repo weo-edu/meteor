@@ -12,7 +12,7 @@ Meteor.userDisconnected = function(cb) {
 /* LivedataSession                                                            */
 /******************************************************************************/
 
-Meteor._LivedataSession = function (server) {
+Meteor._LivedataSession = function __LivedataSession(server) {
   var self = this;
   self.id = Meteor.uuid();
 
@@ -389,7 +389,7 @@ _.extend(Meteor._LivedataSession.prototype, {
       try {
         var res = handler.apply(sub, params || []);
       } catch (e) {
-        Meteor._debug("Internal exception while starting subscription", sub_id,
+        Meteor._debug("Internal exception while startjavasing subscription", sub_id,
                       e.stack);
         return;
       }
@@ -483,7 +483,7 @@ _.extend(Meteor._LivedataSession.prototype, {
 /******************************************************************************/
 
 // ctor for a sub handle: the input to each publish function
-Meteor._LivedataSubscription = function (session, sub_id, priority) {
+Meteor._LivedataSubscription = function __LivedataSubscription(session, sub_id, priority) {
   // LivedataSession
   this.session = session;
 
@@ -704,7 +704,7 @@ _.extend(Meteor._LivedataSubscription.prototype, {
 /* LivedataServer                                                             */
 /******************************************************************************/
 
-Meteor._LivedataServer = function () {
+Meteor._LivedataServer = function __LivedataServer() {
   var self = this;
 
   self.publish_handlers = {};
@@ -815,6 +815,7 @@ Meteor._LivedataServer = function () {
       delete self.sessions[id];
     });
     console.log('remaining sessions', _.keys(self.sessions).length);
+
   }, 1 * 60 * 1000);
 };
 

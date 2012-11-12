@@ -270,7 +270,7 @@ LocalCollection._compileSelector = function (selector) {
 
   // shorthand -- scalars match _id
   if (LocalCollection._selectorIsId(selector))
-    selector = {_id: selector};
+    return function(doc) { return doc && doc._id === selector; };
   else if(_.isArray(selector))
     selector = {_id: {$in: selector}};
 
