@@ -67,11 +67,11 @@ LocalCollection.Cursor = function (collection, selector, options) {
   if ((typeof selector === "string") || (typeof selector === "number")) {
     // stash for fast path
     this.selector_id = selector;
-    this.selector_f = LocalCollection._compileSelector(selector);
+    this.selector_f = LocalCollection.compileSelector(selector);
     this.fields = options.fields;
   } else {
-    this.selector_f = LocalCollection._compileSelector(selector);
-    this.sort_f = options.sort ? LocalCollection._compileSort(options.sort) : null;
+    this.selector_f = LocalCollection.compileSelector(selector);
+    this.sort_f = options.sort ? LocalCollection.compileSort(options.sort) : null;
     this.skip = options.skip;
     this.limit = options.limit;
     this.fields = options.fields;
@@ -387,7 +387,7 @@ LocalCollection.prototype.remove = function (selector) {
     if (_.has(self.docs, selector))
       remove.push(selector);
   } else {
-    var selector_f = LocalCollection._compileSelector(selector);
+    var selector_f = LocalCollection.compileSelector(selector);
     for (var id in self.docs) {
       var doc = self.docs[id];
       if (selector_f(doc)) {
@@ -420,7 +420,7 @@ LocalCollection.prototype.update = function (selector, mod, options) {
 
   var self = this;
   var any = false;
-  var selector_f = LocalCollection._compileSelector(selector);
+  var selector_f = LocalCollection.compileSelector(selector);
   for (var id in self.docs) {
     var doc = self.docs[id];
     if (selector_f(doc)) {
