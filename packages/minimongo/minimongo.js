@@ -598,7 +598,7 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
     throw new Error("Can't change a doc's _id while updating");
 
   if (!query.ordered) {
-    query.changed(LocalCollection._deepcopy(doc), old_doc);
+    query.changed(LocalCollection._deepcopy(doc), undefined, old_doc);
     query.results[doc._id] = doc;
     return;
   }

@@ -92,7 +92,7 @@
         store: ReactiveDict(),
 
         _id: function() {
-          if(this.firstNode.nodeName !== 1)
+          if(! this.firstNode || this.firstNode.nodeName !== 1)
             return;
           
           var id = this.firstNode.getAttribute('id');
