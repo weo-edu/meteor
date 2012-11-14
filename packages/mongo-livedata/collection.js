@@ -127,10 +127,6 @@ _.extend(Meteor.Collection.prototype, {
     var self = this;
     return self._collection.find.apply(self._collection, _.toArray(arguments));
   },
-  live: function (/* selector, options */) {
-    var self = this;
-    return self._collection.live.apply(self._collection, _.toArray(arguments));
-  },
   findOne: function (/* selector, options */) {
     var self = this;
     return self._collection.findOne.apply(self._collection, _.toArray(arguments));

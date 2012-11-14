@@ -91,10 +91,12 @@ LocalCollection.Cursor = function (collection, selector, options) {
 LocalCollection.Cursor.prototype.replaceSelector = function(selector) {
   this.selector = selector;
   this.selector_f = LocalCollection.compileSelector(selector);
-  var objs = this._getRawObjects(this.query.ordered);
-  LocalCollection._diffQuery(this.query.ordered, this.query.results, objs, this.query, true);
-  this.query.results = objs;
-  this.db_objects = objs;
+  if(this.query) {
+    var objs = this._getRawObjects(this.query.ordered);
+    LocalCollection._diffQuery(this.query.ordered, this.query.results, objs, this.query, true);
+    this.query.results = objs;
+    this.db_objects = objs;
+  }
 }
 
 LocalCollection.Cursor.prototype.rewind = function () {
