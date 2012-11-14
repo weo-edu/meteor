@@ -56,6 +56,7 @@ LocalCollection.prototype.find = function (selector, options) {
   return new LocalCollection.Cursor(this, selector, options);
 };
 
+
 // don't call this ctor directly.  use LocalCollection.find().
 LocalCollection.Cursor = function (collection, selector, options) {
   if (!options) options = {};
@@ -86,6 +87,15 @@ LocalCollection.Cursor = function (collection, selector, options) {
   if (typeof Meteor === "object" && Meteor.deps)
     this.reactive = (options.reactive === undefined) ? true : options.reactive;
 };
+
+LocalCollection.Cursor.prototype.replaceSelector = function(selector) {
+  this.selector = selector;
+  this.selector_f = LocalCollection.compileSelector(selector);
+  var objs = this._getRawObjects(this.query.ordered);
+  LocalCollection._diffQuery(this.query.ordered, this.query.results, objs, this.query, true);
+  this.query.results = objs;
+  this.db_objects = objs;
+}
 
 LocalCollection.Cursor.prototype.rewind = function () {
   var self = this;
