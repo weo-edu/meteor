@@ -259,6 +259,7 @@ LocalCollection._matches = function (selector, doc) {
   return (LocalCollection._compileSelector(selector))(doc);
 };
 
+
 // Given a selector, return a function that takes one argument, a
 // document, and returns true if the document matches the selector,
 // else false.
@@ -270,7 +271,7 @@ LocalCollection._compileSelector = function (selector) {
 
   // shorthand -- scalars match _id
   if (LocalCollection._selectorIsId(selector))
-    selector = {_id: selector};
+    return function(doc) { return doc && doc._id === selector; };
   else if(_.isArray(selector))
     selector = {_id: {$in: selector}};
 
@@ -288,6 +289,10 @@ LocalCollection._compileSelector = function (selector) {
        ";};})");
   return _func(LocalCollection._f, literals);
 };
+
+LocalCollection.compileSelector = _.memoize(LocalCollection._compileSelector, function(selector) {
+  return JSON.stringify(selector);
+});
 
 // Is this selector just shorthand for lookup by _id?
 LocalCollection._selectorIsId = function (selector) {

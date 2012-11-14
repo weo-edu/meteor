@@ -55,6 +55,10 @@ LocalCollection._compileSort = function (spec) {
   return _func(LocalCollection._f._cmp);
 };
 
+LocalCollection.compileSort = _.memoize(LocalCollection._compileSort, function(spec) {
+  return JSON.stringify(spec);
+});
+
 LocalCollection._bracketize = function(s){
   return _.reduce(s.split('.'), function(memo, val){
     return memo += '[' + JSON.stringify(val) + ']';
