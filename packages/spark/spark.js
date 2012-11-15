@@ -975,17 +975,20 @@ Spark.list = function (cursor, itemFunc, elseFunc) {
       later(function () {
         if (oldIndex === newIndex)
           return;
+        try {
+          var frag = itemRanges[oldIndex].extract();
+          var range = itemRanges.splice(oldIndex, 1)[0];
+          if (newIndex === itemRanges.length)
+            itemRanges[itemRanges.length - 1].insertAfter(frag);
+          else
+            itemRanges[newIndex].insertBefore(frag);
 
-        var frag = itemRanges[oldIndex].extract();
-        var range = itemRanges.splice(oldIndex, 1)[0];
-        if (newIndex === itemRanges.length)
-          itemRanges[itemRanges.length - 1].insertAfter(frag);
-        else
-          itemRanges[newIndex].insertBefore(frag);
+          itemRanges.splice(newIndex, 0, range);
 
-        itemRanges.splice(newIndex, 0, range);
-
-        notifyParentsRendered();
+          notifyParentsRendered();
+        } catch(e) {
+          console.log('spark exception in moved callback', _.clone(item), _.clone(this));
+        }
       });
     },
 

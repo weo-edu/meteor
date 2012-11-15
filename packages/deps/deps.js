@@ -9,6 +9,7 @@
     this.id = next_id++;
     this._callbacks = [];
     this._invalidated = false;
+    this.printUserStack = printUserStack;
   };
   Context.current = null;
   Context.logInvalidateStack = false;
@@ -26,8 +27,8 @@
     // context as invalidated.
     invalidate: function () {
       if(Context.logInvalidateStack) {
-        Error.stackTraceLimit = 100;
-        if (!this.errs) this.errs = [];
+        Error.stackTraceLimit = 10;
+        this.errs = this.errs || [];
         this.errs.push(new Error);
         Error.stackTraceLimit = 10;
       }
@@ -84,7 +85,7 @@
   });
 
   function printUserStack(stack) {
-  //console.log(stack);
+    console.log(stack);
     var re = /[^\(]*\((.*)\)/
     var lines = stack.split('\n');
     var userLines = _.filter(lines, function(line) {

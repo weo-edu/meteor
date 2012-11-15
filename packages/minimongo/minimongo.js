@@ -276,8 +276,7 @@ _.extend(LocalCollection.Cursor.prototype, {
 
     if (!options._suppress_initial && !self.collection.paused) {
       _.each(self.query.results, function (doc, i) {
-        self.query.added(LocalCollection._deepcopy(doc),
-                    ordered ? i : undefined);
+        self.query.added(LocalCollection._deepcopy(doc), i);
       });
     }
 
