@@ -7,7 +7,7 @@
 
     var selector;
     if (user.id)
-      selector = {_id: user.id};
+      selector = {username: user.id};
     else if (user.username)
       selector = {username: user.username};
     else if (user.email)
@@ -44,7 +44,7 @@
       // save off results in the current session so we can verify them
       // later.
       this._sessionData.srpChallenge =
-        { userId: user._id, M: srp.M, HAMK: srp.HAMK };
+        { userId: user.username, M: srp.M, HAMK: srp.HAMK };
 
       return challenge;
     },
@@ -81,7 +81,7 @@
 
       // XXX this should invalidate all login tokens other than the current one
       // (or it should assign a new login token, replacing existing ones)
-      Meteor.users.update({_id: this.userId},
+      Meteor.users.update({username: this.userId},
                           {$set: {'services.password.srp': verifier}});
 
       var ret = {passwordChanged: true};
@@ -99,7 +99,7 @@
       if (!user)
         throw new Meteor.Error(403, "User not found");
 
-      Accounts.sendResetPasswordEmail(user._id, email);
+      Accounts.sendResetPasswordEmail(user.username, email);
     },
 
     resetPassword: function (token, newVerifier) {
@@ -123,15 +123,15 @@
       //   password should invalidate existing sessions).
       // - Forgetting about the reset token that was just used
       // - Verifying their email, since they got the password reset via email.
-      Meteor.users.update({_id: user._id, 'emails.address': email}, {
+      Meteor.users.update({username: user.username, 'emails.address': email}, {
         $set: {'services.password.srp': newVerifier,
                'services.resume.loginTokens': [stampedLoginToken],
                'emails.$.verified': true},
         $unset: {'services.password.reset': 1}
       });
 
-      this.setUserId(user._id);
-      return {token: stampedLoginToken.token, id: user._id};
+      this.setUserId(user.username);
+      return {token: stampedLoginToken.token, id: user.username};
     },
 
     verifyEmail: function (token) {
@@ -165,14 +165,14 @@
       // http://www.mongodb.org/display/DOCS/Updating/#Updating-The%24positionaloperator)
       // http://www.mongodb.org/display/DOCS/Updating#Updating-%24pull
       Meteor.users.update(
-        {_id: user._id,
+        {username: user.username,
          'emails.address': tokenRecord.address},
         {$set: {'emails.$.verified': true},
          $pull: {'services.email.verificationTokens': {token: token}},
          $push: {'services.resume.loginTokens': stampedLoginToken}});
 
-      this.setUserId(user._id);
-      return {token: stampedLoginToken.token, id: user._id};
+      this.setUserId(user.username);
+      return {token: stampedLoginToken.token, id: user.username};
     }
   });
 
@@ -181,7 +181,7 @@
   // to set a new password, without the old password.
   Accounts.sendResetPasswordEmail = function (userId, email) {
     // Make sure the user exists, and email is one of their addresses.
-    var user = Meteor.users.findOne(userId);
+    var user = Meteor.users.findOne({username: userId});
     if (!user)
       throw new Error("Can't find user");
     // pick the first email if we weren't passed an email.
@@ -193,7 +193,7 @@
 
     var token = Meteor.uuid();
     var when = +(new Date);
-    Meteor.users.update(userId, {$set: {
+    Meteor.users.update({username: userId}, {$set: {
       "services.password.reset": {
         token: token,
         email: email,
@@ -218,7 +218,7 @@
     // this account.
 
     // Make sure the user exists, and address is one of their addresses.
-    var user = Meteor.users.findOne(userId);
+    var user = Meteor.users.findOne({username: userId});
     if (!user)
       throw new Error("Can't find user");
     // pick the first unverified address if we weren't passed an address.
@@ -237,7 +237,7 @@
       address: address,
       when: +(new Date)};
     Meteor.users.update(
-      {_id: userId},
+      {username: userId},
       {$push: {'services.email.verificationTokens': tokenRecord}});
 
     var verifyEmailUrl = Accounts.urls.verifyEmail(tokenRecord.token);
@@ -257,7 +257,7 @@
     // XXX refactor! This is basically identical to sendResetPasswordEmail.
 
     // Make sure the user exists, and email is in their addresses.
-    var user = Meteor.users.findOne(userId);
+    var user = Meteor.users.findOne({username: userId});
     if (!user)
       throw new Error("Can't find user");
     // pick the first email if we weren't passed an email.
@@ -270,7 +270,7 @@
 
     var token = Meteor.uuid();
     var when = +(new Date);
-    Meteor.users.update(userId, {$set: {
+    Meteor.users.update({username: userId}, {$set: {
       "services.password.reset": {
         token: token,
         email: email,
@@ -305,13 +305,13 @@
     delete currentInvocation._sessionData.srpChallenge;
 
     var userId = serialized.userId;
-    var user = Meteor.users.findOne(userId);
+    var user = Meteor.users.findOne({username: userId});
     // Was the user deleted since the start of this challenge?
     if (!user)
       throw new Meteor.Error(403, "User not found");
     var stampedLoginToken = Accounts._generateStampedLoginToken();
     Meteor.users.update(
-      userId, {$push: {'services.resume.loginTokens': stampedLoginToken}});
+      {username: userId}, {$push: {'services.resume.loginTokens': stampedLoginToken}});
 
     return {token: stampedLoginToken.token, id: userId, HAMK: serialized.HAMK};
   });
@@ -348,19 +348,19 @@
 
     var stampedLoginToken = Accounts._generateStampedLoginToken();
     Meteor.users.update(
-      user._id, {$push: {'services.resume.loginTokens': stampedLoginToken}});
+      {username: user.username}, {$push: {'services.resume.loginTokens': stampedLoginToken}});
 
-    return {token: stampedLoginToken.token, id: user._id};
+    return {token: stampedLoginToken.token, id: user.username};
   });
 
 
   Meteor.setPassword = function (userId, newPassword) {
-    var user = Meteor.users.findOne(userId);
+    var user = Meteor.users.findOne({username: userId});
     if (!user)
       throw new Meteor.Error(403, "User not found");
     var newVerifier = Meteor._srp.generateVerifier(newPassword);
 
-    Meteor.users.update({_id: user._id}, {
+    Meteor.users.update({username: user.username}, {
       $set: {'services.password.srp': newVerifier}});
   };
 

@@ -11,7 +11,7 @@
     login: function(options) {
       var result = tryAllLoginHandlers(options);
       if (result !== null)
-        this.setUserId(result.id);
+        this.setUserId(result.name);
       return result;
     },
 
@@ -69,7 +69,8 @@
 
       return {
         token: options.resume,
-        id: user._id
+        id: user.username,
+        name: user.username
       };
     } else {
       return undefined;
@@ -100,7 +101,7 @@
     var userId = Meteor.userId();
     if (!userId)
       return null;
-    return Meteor.users.findOne(userId);
+    return Meteor.users.findOne({username: userId});
   };
 
   ///
@@ -223,10 +224,10 @@
       // XXX Maybe we should re-use the selector above and notice if the update
       //     touches nothing?
       Meteor.users.update(
-        user._id,
+        {username: user.username},
         {$set: setAttrs,
          $push: {'services.resume.loginTokens': stampedToken}});
-      return {token: stampedToken.token, id: user._id};
+      return {token: stampedToken.token, id: user.username};
     } else {
       // Create a new user with the service data. Pass other options through to
       // insertUserDoc.
@@ -253,7 +254,7 @@
   Meteor.publish("meteor.currentUser", function() {
     if (this.userId)
       return Meteor.users.find(
-        {_id: this.userId}
+        {username: this.userId}
         //,{fields: {profile: 1, username: 1, emails: 1}}
       );
     else {

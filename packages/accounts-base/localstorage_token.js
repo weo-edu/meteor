@@ -47,7 +47,7 @@ Meteor.loginConnection = function(con, errorCallback) {
       errorCallback && errorCallback();
       throw error;
     }
-    var userId = result.id;
+    var userId = result.name;
     var token = result.token;
     con.setUserId(userId);
     con.onReconnect = function() {
@@ -73,7 +73,7 @@ Meteor.loginWithToken = function (token, errorCallback) {
       throw error;
     }
 
-    Accounts._makeClientLoggedIn(result.id, result.token);
+    Accounts._makeClientLoggedIn(result.name, result.token);
   });
 };
 

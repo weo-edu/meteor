@@ -93,7 +93,7 @@
     } else { // oldPassword
       var srp = new Meteor._srp.Client(oldPassword);
       var request = srp.startExchange();
-      request.user = {id: Meteor.user()._id};
+      request.user = {id: Meteor.user().username};
       Meteor.apply('beginPasswordExchange', [request], function (error, result) {
         if (error || !result) {
           callback && callback(

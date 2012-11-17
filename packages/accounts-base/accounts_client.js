@@ -18,13 +18,13 @@
     if (!userId)
       return null;
     if (Meteor.userLoaded()) {
-      var user = Meteor.users.findOne(userId);
+      var user = Meteor.users.findOne({username: userId});
       if (user) return user;
     }
     // Either the subscription isn't done yet, or for some reason this user has
     // no published fields (and thus is considered to not exist in
     // minimongo). Return a minimal object.
-    return {_id: userId};
+    return {username: userId};
   };
 
   Accounts._makeClientLoggedOut = function() {

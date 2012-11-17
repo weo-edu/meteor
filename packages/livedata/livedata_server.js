@@ -814,8 +814,16 @@ Meteor._LivedataServer = function __LivedataServer() {
     _.each(destroyedIds, function (id) {
       delete self.sessions[id];
     });
-    console.log('remaining sessions', _.keys(self.sessions).length);
 
+    var nSubs = _.reduce(self.sessions, function(memo, s) {
+      memo.universal += (s.universal_subs && s.universal_subs.length) || 0;
+      memo.named += (s.named_subs && _.keys(s.named_subs).length) || 0;
+      return memo;
+    }, {universal: 0, named: 0});
+
+    console.log('remaining sessions', _.keys(self.sessions).length);
+    console.log(nSubs.universal, 'universal subscriptions');
+    console.log(nSubs.named, 'named subscriptions');
   }, 1 * 60 * 1000);
 };
 
