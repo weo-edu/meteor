@@ -276,8 +276,7 @@ _.extend(LocalCollection.Cursor.prototype, {
 
     if (!options._suppress_initial && !self.collection.paused) {
       _.each(self.query.results, function (doc, i) {
-        self.query.added(LocalCollection._deepcopy(doc),
-                    ordered ? i : undefined);
+        self.query.added(LocalCollection._deepcopy(doc), i);
       });
     }
 
@@ -471,7 +470,6 @@ LocalCollection.prototype._modifyAndNotify = function (doc, mod) {
   var old_doc = LocalCollection._deepcopy(doc);
 
   LocalCollection._modify(doc, mod);
-
   for (qid in self.queries) {
     query = self.queries[qid];
     var before = matched_before[qid];
@@ -556,7 +554,7 @@ LocalCollection._insertInResults = function (query, doc, dontFireEvent) {
       return i;
     }
   } else {
-    query.added(LocalCollection._deepcopy(doc));
+    query.added(LocalCollection._deepcopy(doc), query.results.length);
     query.results[doc._id] = doc;
   }
 }
@@ -600,7 +598,7 @@ LocalCollection._removeFromResults = function (query, doc) {
     }
   } else {
     var id = doc._id;  // in case callback mutates doc
-    query.removed(doc);
+    query.removed(doc, _.keys(query.results).indexOf(id));
     delete query.results[id];
   }
 };
@@ -610,7 +608,8 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
     throw new Error("Can't change a doc's _id while updating");
 
   if (!query.ordered) {
-    query.changed(LocalCollection._deepcopy(doc), undefined, old_doc);
+    var idx = _.keys(query.results).indexOf(old_doc._id);
+    query.changed(LocalCollection._deepcopy(doc), idx, old_doc);
     query.results[doc._id] = doc;
     return;
   }
@@ -618,7 +617,7 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
   var orig_idx = LocalCollection._findInOrderedResults(query, doc);
   query.changed(LocalCollection._deepcopy(doc), orig_idx, old_doc);
 
-  if (!query.sort_f)
+  if (!query.sort_f || query.results.length <= 1)
     return;
 
   // just take it out and put it back in again, and see if the index
