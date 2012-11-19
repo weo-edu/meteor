@@ -291,7 +291,13 @@ LocalCollection._compileSelector = function (selector) {
 };
 
 LocalCollection.compileSelector = _.memoize(LocalCollection._compileSelector, function(selector) {
-  return JSON.stringify(selector);
+  //  XXX: Adding key length is a workaround for the fact that
+  //  JSON.stringify converts {} and {_id: undefined} to '{}'
+  //  Need to come up with a better hash function.
+  var ret = JSON.stringify(selector);
+  if(_.isObject(selector))
+    ret += _.keys(selector).length;
+  return ret;
 });
 
 // Is this selector just shorthand for lookup by _id?
