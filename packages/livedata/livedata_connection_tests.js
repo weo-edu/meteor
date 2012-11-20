@@ -14,8 +14,8 @@ var test_got_message = function (test, stream, expected) {
   var got = stream.sent.shift();
 
   if (typeof got === 'string' && typeof expected === 'object')
-    got = JSON.parse(got);
-
+    got = _.identity(got);
+  delete got['last_rcvd_id'];
   test.equal(got, expected);
 };
 
@@ -73,7 +73,8 @@ Tinytest.addAsync("livedata stub - subscribe", function (test, onComplete) {
   test.isFalse(callback_fired);
 
   test.length(stream.sent, 1);
-  var message = JSON.parse(stream.sent.shift());
+  //var message = _.identity(stream.sent.shift());
+  var message = stream.sent.shift();
   var id = message.id;
   delete message.id;
   test.equal(message, {msg: 'sub', name: 'my_data', params: []});
@@ -97,7 +98,8 @@ Tinytest.addAsync("livedata stub - subscribe", function (test, onComplete) {
   conn.subscribe('my_data');
 
   test.length(stream.sent, 1);
-  message = JSON.parse(stream.sent.shift());
+  //message = _.identity(stream.sent.shift());
+  message = stream.sent.shift();
   var id2 = message.id;
   test.notEqual(id, id2);
   delete message.id;
@@ -105,7 +107,8 @@ Tinytest.addAsync("livedata stub - subscribe", function (test, onComplete) {
 
   setTimeout(function() {
     test.length(stream.sent, 1);
-    var message = JSON.parse(stream.sent.shift());
+    //var message = _.identity(stream.sent.shift());
+    var message = stream.sent.shift();
     test.equal(message, {msg: 'unsub', id: id});
     onComplete();
   }, 10);
@@ -129,7 +132,8 @@ Tinytest.add("livedata stub - this", function (test) {
   conn.call('test_this');
 
   // satisfy method, quiesce connection
-  var message = JSON.parse(stream.sent.shift());
+  //var message = _.identity(stream.sent.shift());
+  var message = stream.sent.shift();
   test.equal(message, {msg: 'method', method: 'test_this',
                        params: [], id:message.id});
   test.length(stream.sent, 0);
@@ -177,7 +181,8 @@ Tinytest.add("livedata stub - methods", function (test) {
   test.equal(counts, {added: 1, removed: 0, changed: 0, moved: 0});
 
   // get response from server
-  var message = JSON.parse(stream.sent.shift());
+  //var message = _.identity(stream.sent.shift());
+  var message = stream.sent.shift();
   test.equal(message, {msg: 'method', method: 'do_something',
                        params: ['friday!'], id:message.id});
 
@@ -204,7 +209,8 @@ Tinytest.add("livedata stub - methods", function (test) {
   test.isFalse(callback_fired);
 
   // test we still send a method request to server
-  var message_2 = JSON.parse(stream.sent.shift());
+  //var message_2 = _.identity(stream.sent.shift());
+  var message_2 = stream.sent.shift();
   test.equal(message_2, {msg: 'method', method: 'do_something_else',
                          params: ['monday'], id:message_2.id});
 
@@ -266,7 +272,8 @@ Tinytest.add("livedata stub - sub methods", function (test) {
   conn.call('do_something');
 
   // see we only send message for outer methods
-  var message = JSON.parse(stream.sent.shift());
+  //var message = _.identity(stream.sent.shift());
+  var message = stream.sent.shift();
   test.equal(message, {msg: 'method', method: 'do_something',
                        params: [], id:message.id});
   test.length(stream.sent, 0);
@@ -328,7 +335,7 @@ Tinytest.add("livedata stub - reconnect", function (test) {
   });
   test.isFalse(sub_callback_fired);
 
-  var sub_message = JSON.parse(stream.sent.shift());
+  var sub_message = _.identity(stream.sent.shift());
   test.equal(sub_message, {msg: 'sub', name: 'my_data', params: [],
                            id: sub_message.id});
 
@@ -360,8 +367,8 @@ Tinytest.add("livedata stub - reconnect", function (test) {
 
   test.isFalse(method_callback_fired);
 
-  var method_message = JSON.parse(stream.sent.shift());
-  var wait_method_message = JSON.parse(stream.sent.shift());
+  var method_message = _.identity(stream.sent.shift());
+  var wait_method_message = _.identity(stream.sent.shift());
   test.equal(method_message, {msg: 'method', method: 'do_something',
                               params: [], id:method_message.id});
 
@@ -435,13 +442,13 @@ Tinytest.add("livedata connection - two wait methods with reponse in order", fun
 
   var responses = [];
   conn.apply('do_something', ['one!'], function() { responses.push('one'); });
-  var one_message = JSON.parse(stream.sent.shift());
+  var one_message = _.identity(stream.sent.shift());
   test.equal(one_message.params, ['one!']);
 
   conn.apply('do_something', ['two!'], {wait: true}, function() {
     responses.push('two');
   });
-  var two_message = JSON.parse(stream.sent.shift());
+  var two_message = _.identity(stream.sent.shift());
   test.equal(two_message.params, ['two!']);
   test.equal(responses, []);
 
@@ -467,9 +474,9 @@ Tinytest.add("livedata connection - two wait methods with reponse in order", fun
   // Verify that we just sent "three!" and "four!" now that we got
   // responses for "one!" and "two!"
   test.equal(stream.sent.length, 2);
-  var three_message = JSON.parse(stream.sent.shift());
+  var three_message = _.identity(stream.sent.shift());
   test.equal(three_message.params, ['three!']);
-  var four_message = JSON.parse(stream.sent.shift());
+  var four_message = _.identity(stream.sent.shift());
   test.equal(four_message.params, ['four!']);
 
   stream.receive({msg: 'result', id: three_message.id});
@@ -481,7 +488,7 @@ Tinytest.add("livedata connection - two wait methods with reponse in order", fun
 
   // Verify that we just sent "five!"
   test.equal(stream.sent.length, 1);
-  var five_message = JSON.parse(stream.sent.shift());
+  var five_message = _.identity(stream.sent.shift());
   test.equal(five_message.params, ['five!']);
 });
 
@@ -495,13 +502,13 @@ Tinytest.add("livedata connection - one wait method with response out of order",
 
   var responses = [];
   conn.apply('do_something', ['one!'], function() { responses.push('one'); });
-  var one_message = JSON.parse(stream.sent.shift());
+  var one_message = _.identity(stream.sent.shift());
   test.equal(one_message.params, ['one!']);
 
   conn.apply('do_something', ['two!'], {wait: true}, function() {
     responses.push('two');
   });
-  var two_message = JSON.parse(stream.sent.shift());
+  var two_message = _.identity(stream.sent.shift());
   test.equal(two_message.params, ['two!']);
   test.equal(responses, []);
 
@@ -520,7 +527,7 @@ Tinytest.add("livedata connection - one wait method with response out of order",
   // Verify that we just sent "three!" now that we got responses for
   // "one!" and "two!"
   test.equal(stream.sent.length, 1);
-  var three_message = JSON.parse(stream.sent.shift());
+  var three_message = _.identity(stream.sent.shift());
   test.equal(three_message.params, ['three!']);
   // Since we sent it, it should no longer be in "blocked_methods".
   test.equal(conn.blocked_methods, []);
@@ -554,7 +561,7 @@ Tinytest.add("livedata connection - onReconnect prepends messages correctly with
   // what we expect to be blocked. The subsequent logic to correctly
   // read the wait flag is tested separately.
   test.equal(_.map(stream.sent, function(msg) {
-    return JSON.parse(msg).params[0];
+    return _.identity(msg).params[0];
   }), ['reconnect one', 'reconnect two']);
   test.equal(_.map(conn.blocked_methods, function(method) {
     return [method.msg.params[0], method.wait];
@@ -594,7 +601,7 @@ Tinytest.add("livedata connection - onReconnect prepends messages correctly with
   // what we expect to be blocked. The subsequent logic to correctly
   // read the wait flag is tested separately.
   test.equal(_.map(stream.sent, function(msg) {
-    return JSON.parse(msg).params[0];
+    return _.identity(msg).params[0];
   }), ['reconnect one', 'reconnect two', 'reconnect three', 'one', 'two']);
   test.equal(_.map(conn.blocked_methods, function(method) {
     return [method.msg.params[0], method.wait];

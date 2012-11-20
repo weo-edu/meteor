@@ -5,7 +5,7 @@ Package.describe({
 
 Package.on_use(function (api) {
   api.use(['streamio', 'uuid']);
-  api.use(['json', 'underscore', 'deps', 'logging'], ['client', 'server']);
+  api.use(['json', 'underscore', 'deps', 'logging', 'reload'], ['client', 'server']);
 
   // livedata_connection.js uses a Minimongo collection internally to
   // manage the current set of subscriptions.
