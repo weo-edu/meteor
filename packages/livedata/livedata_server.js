@@ -219,7 +219,6 @@ _.extend(Meteor._LivedataSession.prototype, {
   protocol_handlers: {
     sub: function (msg) {
       var self = this;
-
       // reject malformed messages
       if (typeof (msg.id) !== "string" ||
           typeof (msg.name) !== "string" ||
@@ -235,11 +234,12 @@ _.extend(Meteor._LivedataSession.prototype, {
         return;
       }
 
-      if (msg.id in self.named_subs)
+      if (msg.id in self.named_subs) {
         // subs are idempotent, or rather, they are ignored if a sub
         // with that id already exists. this is important during
         // reconnect.
         return;
+      }
 
       var handler = self.server.publish_handlers[msg.name];
       self._startSubscription(handler, self.next_sub_priority--,
@@ -248,7 +248,6 @@ _.extend(Meteor._LivedataSession.prototype, {
 
     unsub: function (msg) {
       var self = this;
-
       self._stopSubscription(msg.id);
       self.send({msg: 'nosub', id: msg.id});
     },
@@ -530,7 +529,7 @@ _.extend(Meteor._LivedataSubscription.prototype, {
       return;
 
     self._teardown();
-    self.flush();
+    self.flush(true);
     self.stopped = true;
   },
 
@@ -567,7 +566,7 @@ _.extend(Meteor._LivedataSubscription.prototype, {
       self.pending_complete = true;
   },
 
-  flush: function () {
+  flush: function (noSend) {
     var self = this;
 
     if (self.session.dontFlush)
@@ -580,7 +579,6 @@ _.extend(Meteor._LivedataSubscription.prototype, {
       for (var id in self.pending_data[name]) {
         // construct outbound DDP data message
         var msg = {msg: 'data', collection: name, id: id};
-
         // snapshot holds this subscription's values for each key
         var snapshot = Meteor._ensure(self.snapshot, name, id);
 
@@ -601,6 +599,8 @@ _.extend(Meteor._LivedataSubscription.prototype, {
             if (value === undefined) {
               delete snapshot[key];
               Meteor._delete(self.session.provides_key, name, id, key, self.sub_id);
+              if(noSend)
+                continue;
             } else {
               snapshot[key] = value;
               var provides = Meteor._ensure(self.session.provides_key,
@@ -652,14 +652,14 @@ _.extend(Meteor._LivedataSubscription.prototype, {
     self.pending_data = {};
     self.pending_complete = false;
     //XXX 
-    /*for (var name in self.snapshot) {
+    for (var name in self.snapshot) {
       self.pending_data[name] = {};
       for (var id in self.snapshot[name]) {
         self.pending_data[name][id] = {};
         for (var key in self.snapshot[name][id])
           self.pending_data[name][id][key] = undefined;
       }
-    }*/
+    }
   },
 
   _publishCursor: function (cursor, complete) {
@@ -754,7 +754,6 @@ Meteor._LivedataServer = function __LivedataServer() {
           if (msg.session && self.sessions[msg.session]) {
             // Resuming a session
             socket.meteor_session = self.sessions[msg.session];
-            console.log('resuming session', msg, msg.last_rcvd_id, socket.meteor_session.last_sent_id);
             if(msg.last_rcvd_id !== socket.meteor_session.last_sent_id) {
               Fiber(function() {
                 socket.meteor_session._rerunAllSubscriptions();

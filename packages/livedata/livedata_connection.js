@@ -532,7 +532,6 @@ _.extend(Meteor._LivedataConnection.prototype, {
 
   _livedata_data: function (msg) {
     var self = this;
-
     // Add the data message to the queue
     self.pending_data.push(msg);
 

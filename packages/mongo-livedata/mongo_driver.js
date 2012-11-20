@@ -149,7 +149,6 @@ _Mongo.prototype.insert = function (collection_name, document, write) {
 
 _Mongo.prototype.remove = function (collection_name, selector, write) {
   var self = this;
-
   if (collection_name === "___meteor_failure_test_collection" &&
       selector.fail) {
     var e = new Error("Failure test");
@@ -329,6 +328,7 @@ _Mongo._makeCursor = function (mongo, collection_name, selector, options) {
       future.ret([false, err]);
       return;
     }
+
     if(typeof selector === 'string')
       selector = {_id: _Mongo.ObjectId(selector)};
     else if(_.isArray(selector)) {

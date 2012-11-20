@@ -31,8 +31,8 @@ Tinytest.add("livedata - methods with colliding names", function (test) {
   var x = LocalCollection.uuid();
   var m = {};
   m[x] = function () {};
+  console.log('m', m);
   Meteor.methods(m);
-
   test.throws(function () {
     Meteor.methods(m);
   });
