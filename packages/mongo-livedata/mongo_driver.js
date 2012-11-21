@@ -111,7 +111,7 @@ _Mongo.prototype._maybeBeginWrite = function () {
 // well-defined -- a write "has been made" if it's returned, and an
 // observer "has been notified" if its callback has returned.
 
-_Mongo.prototype.insert = function (collection_name, document, write) {
+_Mongo.prototype.insert = function (collection_name, document, shouldWrite) {
   var self = this;
 
   if (collection_name === "___meteor_failure_test_collection" &&
@@ -130,7 +130,7 @@ _Mongo.prototype.insert = function (collection_name, document, write) {
       return;
     }
 
-    if (write !== false) {
+    if (shouldWrite !== false) {
       collection.insert(document, {safe: true}, function (err) {
         future.ret(err);
       });
@@ -147,7 +147,7 @@ _Mongo.prototype.insert = function (collection_name, document, write) {
     throw err;
 };
 
-_Mongo.prototype.remove = function (collection_name, selector, write) {
+_Mongo.prototype.remove = function (collection_name, selector, shouldWrite) {
   var self = this;
   if (collection_name === "___meteor_failure_test_collection" &&
       selector.fail) {
@@ -168,7 +168,7 @@ _Mongo.prototype.remove = function (collection_name, selector, write) {
       return;
     }
 
-    if (write !== false) {
+    if (shouldWrite !== false) {
       collection.remove(selector, {safe: true}, function (err) {
         future.ret(err);
       });
