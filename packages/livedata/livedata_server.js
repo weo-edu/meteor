@@ -671,7 +671,7 @@ _.extend(Meteor._LivedataSubscription.prototype, {
         self.set(collection, obj._id, obj);
         self.flush();
       },
-      changed: function (obj, old_obj) {
+      changed: function (obj, idx, old_obj) {
         var set = {};
         _.each(obj, function (v, k) {
           if (!_.isEqual(v, old_obj[k]))
