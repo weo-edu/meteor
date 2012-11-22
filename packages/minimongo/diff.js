@@ -266,7 +266,7 @@ LocalCollection._diffQueryUnordered = function (oldResults, newResults,
     if (_.has(oldResults, newDoc._id)) {
       var oldDoc = oldResults[newDoc._id];
       if (observer.changed && !_.isEqual(oldDoc, newDoc)) {
-        observer.changed(mdc(newDoc), oldDoc);
+        observer.changed(mdc(newDoc), undefined, oldDoc);
       }
 
       delete oldResults[newDoc._id];
