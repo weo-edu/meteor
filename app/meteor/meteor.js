@@ -767,7 +767,6 @@ Commands.push({
       else
         req.url = '/' + parts.slice(2).join('/');
 
-      console.log('upgrade received', app.name, req.url, parts, app.port);
       p.proxy.proxyWebSocketRequest(req, socket, head, 
         { host: '127.0.0.1', port: app.port });
     });
