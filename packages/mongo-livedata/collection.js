@@ -37,6 +37,7 @@ Meteor.Collection = function (name, options) {
   self._collection = options._driver.open(name);
   self._was_snapshot = false;
   self._name = name;
+  self._collection._name = name;
 
   if (name && self._manager.registerStore) {
     // OK, we're going to be a slave, replicating some remote

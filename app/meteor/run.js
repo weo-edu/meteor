@@ -499,10 +499,6 @@ exports.run = function (app_dir, bundle_opts, port) {
   var restart_server = function () {
     Status.running = false;
     Status.listening = false;
-    if (server_handle)
-      kill_server(server_handle);
-    if (test_server_handle)
-      kill_server(test_server_handle);
 
     server_log = [];
     var errors = [];
@@ -511,6 +507,15 @@ exports.run = function (app_dir, bundle_opts, port) {
     console.log('start bundle', +new Date());
     errors = bundler.bundle(app_dir, bundle_path, bundle_opts);
     console.log('end bundle', +new Date());
+
+    if (server_handle) {
+      //  If this is a restart, don't delete the
+      //  old bundle contents before rebundling
+      bundle_opts.dontRm = true;
+      kill_server(server_handle);
+    }
+    if (test_server_handle)
+      kill_server(test_server_handle);
 
     var deps_raw;
     try {

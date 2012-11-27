@@ -75,6 +75,26 @@ var findCommand = function (name) {
   process.exit(1);
 };
 
+Commands.push({
+  name: 'bundle',
+  help: 'Bundle the project but do not run the server',
+  func: function(argv) {
+    var opt = require('optimist')
+      .boolean('production')
+      .describe('production', 'Bundle for production mode');
+
+    var new_argv = opt.argv;
+    var bundle_opts = {
+      no_minify: ! new_argv.production,
+      symlink_dev_bundle: true
+    };
+    var bundler = require(path.join(__dirname, '..', 'lib', 'bundler.js'));
+    var app_dir = path.resolve(require_project('run', true));
+    var bundle_path = path.join(app_dir, '.meteor', 'local', 'build');
+    bundler.bundle(app_dir, bundle_path, bundle_opts);
+  }
+});
+
 // XXX when the pass unexpected argument or unrecognized flags, print
 // an error and fail out
 
@@ -86,6 +106,8 @@ Commands.push({
     // This help logic should probably move to run.js eventually
     var opt = require('optimist')
       .alias('port', 'p').default('port', 3000)
+      .boolean('nobundle')
+      .describe('nobundle', "Don't bundle before launching the servers.  Mostly for internal use only.")
       .describe('port', 'Port to listen on. NOTE: Also uses port N+1 and N+2.')
       .boolean('production')
       .describe('production', 'Run in production mode. Minify and bundle CSS and JS files.')
@@ -112,7 +134,11 @@ Commands.push({
     }
 
     var app_dir = path.resolve(require_project("run", true)); // app or package
-    var bundle_opts = { no_minify: !new_argv.production, symlink_dev_bundle: true };
+    var bundle_opts = { 
+      no_bundle: new_argv.nobundle,
+      no_minify: !new_argv.production, 
+      symlink_dev_bundle: true 
+    };
     require(path.join(__dirname, 'run.js')).run(app_dir, bundle_opts, new_argv.port);
   }
 });
@@ -620,10 +646,11 @@ Commands.push({
 
     var new_argv = opt.argv;
     var base_port = new_argv.port;
+    var router_port = new_argv.rport || base_port;
     var meteors = (function collectSubapps(){
       var nMeteors = 0;
       var meteors = {};
-      var portsPerApp = 4;
+      var portsPerApp = 5;
 
       _.each(fs.readdirSync(process.cwd()),function(p) {
         if (p[0] !== '.' && fs.existsSync(path.join(p,'.meteor'))) {
@@ -766,12 +793,12 @@ Commands.push({
         app = cachedRoot;
       else
         req.url = '/' + parts.slice(2).join('/');
-
+      console.log('upgrade received');
       p.proxy.proxyWebSocketRequest(req, socket, head, 
         { host: '127.0.0.1', port: app.port });
     });
 
-    p.listen(base_port,function(){});
+    p.listen(router_port, function(){});
   }
 });
 

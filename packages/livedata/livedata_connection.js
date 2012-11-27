@@ -99,7 +99,7 @@ Meteor._LivedataConnection = function (url, options) {
   }
 
   // Setup stream (if not overriden above)
-  self.stream = self.stream || new Meteor._Stream(self.url);
+  self.stream = self.stream || new Meteor._Stream(self.url, options.port);
 
   self.stream.on('message', function (raw_msg) {
     try {
@@ -802,9 +802,9 @@ _.extend(Meteor, {
   //     "/",
   //     "http://subdomain.meteor.com/sockjs" (deprecated),
   //     "/sockjs" (deprecated)
-  connect: function (url, _reloadOnUpdate) {
+  connect: function (url, _reloadOnUpdate, port) {
     var ret = new Meteor._LivedataConnection(
-      url, {reloadOnUpdate: _reloadOnUpdate});
+      url, {reloadOnUpdate: _reloadOnUpdate, port: port});
     Meteor._LivedataConnection._allConnections.push(ret); // hack. see below.
     return ret;
   },

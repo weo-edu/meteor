@@ -492,7 +492,7 @@ _.extend(Bundle.prototype, {
   },
 
   // dev_bundle_mode should be "skip", "symlink", or "copy"
-  write_to_directory: function (output_path, project_dir, dev_bundle_mode, subapp) {
+  write_to_directory: function (output_path, project_dir, dev_bundle_mode, subapp, dontRm) {
     var self = this;
     var app_json = {};
     var dependencies_json = {core: [], app: [], packages: {}};
@@ -509,7 +509,7 @@ _.extend(Bundle.prototype, {
 
     // XXX cleaner error handling. don't make the humans read an
     // exception (and, make suitable for use in automated systems)
-    files.rm_recursive(build_path);
+    dontRm || files.rm_recursive(build_path);
     files.mkdir_p(build_path, 0755);
 
     // --- Core runner code ---
@@ -697,7 +697,7 @@ exports.bundle = function (project_dir, output_path, options) {
     var dev_bundle_mode =
           options.skip_dev_bundle ? "skip" : (
             options.symlink_dev_bundle ? "symlink" : "copy");
-    bundle.write_to_directory(output_path, project_dir, dev_bundle_mode, options.subapp);
+    bundle.write_to_directory(output_path, project_dir, dev_bundle_mode, options.subapp, options.dont_rm);
 
 
     if (bundle.errors.length)

@@ -21,6 +21,11 @@
   }
 
   Meteor.startup = function (cb) {
+    //  Make sure each startup function is only
+    //  called one time, regardless of how many
+    //  times meteor thinks it has initialized
+    cb = _.once(cb);
+
     var doScroll = !document.addEventListener &&
       document.documentElement.doScroll;
 
