@@ -646,6 +646,7 @@ Commands.push({
 
     var new_argv = opt.argv;
     var base_port = new_argv.port;
+    var router_port = new_argv.rport || base_port;
     var meteors = (function collectSubapps(){
       var nMeteors = 0;
       var meteors = {};
@@ -797,7 +798,7 @@ Commands.push({
         { host: '127.0.0.1', port: app.port });
     });
 
-    p.listen(base_port,function(){});
+    p.listen(router_port, function(){});
   }
 });
 
