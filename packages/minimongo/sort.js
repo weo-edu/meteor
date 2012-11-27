@@ -50,7 +50,7 @@ LocalCollection._compileSort = function (spec) {
       "c(a" + LocalCollection._bracketize(keys[i]) + ", b" +
       LocalCollection._bracketize(keys[i]) + ");";
   }
-  code += "return x;};})";
+  code += "return x || (a._id > b._id ? 1 : a._id === b._id ? 0 : -1);};})";
   eval(code);
   return _func(LocalCollection._f._cmp);
 };

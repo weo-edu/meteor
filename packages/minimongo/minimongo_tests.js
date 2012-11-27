@@ -1009,7 +1009,7 @@ Tinytest.add("minimongo - diff", function (test) {
         test.equal(doc, results[doc._id]);
         delete results[doc._id];
       },
-      changed: function(doc, oldDoc) {
+      changed: function(doc, idx, oldDoc) {
         test.equal(doc._id, oldDoc._id);
         test.isTrue(_.has(results, doc._id));
         test.equal(results[doc._id], oldDoc);

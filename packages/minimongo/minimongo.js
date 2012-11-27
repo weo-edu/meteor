@@ -123,6 +123,7 @@ LocalCollection.Cursor.prototype.forEach = function (callback) {
   if (self.db_objects === null)
     self.db_objects = self._getRawObjects(true);
 
+
   if (self.reactive)
     self._markAsReactive({ordered: !! self.sort_f,
                           added: true,
@@ -161,8 +162,9 @@ LocalCollection.Cursor.prototype.fetch = function () {
 LocalCollection.Cursor.prototype.count = function () {
   var self = this;
 
-  if (self.reactive)
+  if (self.reactive) {
     self._markAsReactive({ordered: false, added: true, removed: true});
+  }
 
   if(self.query && self.query.results) {
     if(_.isArray(self.query.results))
@@ -514,7 +516,7 @@ LocalCollection._insertInResults = function (query, doc, dontFireEvent) {
       if(query.cursor.limit && query.results.length >= query.cursor.limit) 
         return;
 
-      query.added(LocalCollection._deepcopy(doc), query.results.length);
+      dontFireEvent || query.added(LocalCollection._deepcopy(doc), query.results.length);
       query.results.push(doc);
     } else {
       if(query.cursor.skip) {
@@ -525,7 +527,7 @@ LocalCollection._insertInResults = function (query, doc, dontFireEvent) {
         else if(query.skipped === query.cursor.skip) {
           query.skipped++;
           query.results = query.cursor._getRawObjects(true);
-          query.added(LocalCollection._deepcopy(query.results[0]), 0);
+          dontFireEvent || query.added(LocalCollection._deepcopy(query.results[0]), 0);
           return;
         }
 
@@ -540,7 +542,7 @@ LocalCollection._insertInResults = function (query, doc, dontFireEvent) {
       }
 
       if(query.cursor.limit && query.results.length >= query.cursor.limit) {
-        if(query.sort_f(doc, query.results[query.results.length-1]) > 0)
+        if(query.sort_f(doc, _.last(query.results)) > 0)
           return;
       }
 
@@ -548,7 +550,7 @@ LocalCollection._insertInResults = function (query, doc, dontFireEvent) {
       dontFireEvent || query.added(LocalCollection._deepcopy(doc), i);
 
       if(query.cursor.limit && query.results.length > query.cursor.limit) {
-        self._removeFromResults(query, query.results[query.results.length-1]);
+        self._removeFromResults(query, _.last(query.results));
       }
 
       return i;
@@ -561,9 +563,8 @@ LocalCollection._insertInResults = function (query, doc, dontFireEvent) {
 
 LocalCollection._removeFromResults = function (query, doc) {
   if (query.ordered) {
-    try{
-      var i = LocalCollection._findInOrderedResults(query, doc);
-
+    var i = LocalCollection._findInOrderedResults(query, doc);
+    if(i !== undefined) {
       query.removed(doc, i);
       query.results.splice(i, 1);
 
@@ -579,20 +580,18 @@ LocalCollection._removeFromResults = function (query, doc) {
         }
       }
     }
-    catch(err){
-      if(query.cursor.skip && query.cursor.sort_f(doc, query.results[0]) < 0) {
-        i = 0;
-        doc = query.results[i];
-        query.removed(doc, i);
-        query.results.shift();
+    else if(query.cursor.skip && query.cursor.sort_f(doc, query.results[0]) < 0) {
+      i = 0;
+      doc = query.results[i];
+      query.removed(doc, i);
+      query.results.shift();
 
-        if(query.cursor.limit) {
-          var objs = query.cursor._getRawObjects(true);
-          if(objs.length >= query.results.length) {
-            doc = objs.pop();
-            query.results.push(doc);
-            query.added(LocalCollection._deepcopy(doc), query.results.length-1);
-          }
+      if(query.cursor.limit) {
+        var objs = query.cursor._getRawObjects(true);
+        if(objs.length >= query.results.length) {
+          doc = objs.pop();
+          query.results.push(doc);
+          query.added(LocalCollection._deepcopy(doc), query.results.length-1);
         }
       }
     }
@@ -620,27 +619,50 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
   if (!query.sort_f || query.results.length <= 1)
     return;
 
+  if(query.sort_f(doc, _.last(query.results)) > 0)
+    return;
+
+  if(query.cursor.skip && query.sort_f(doc, _.first(query.results)) < 0) {
+    if(orig_idx === undefined) {
+      var objs = query.cursor._getRawObjects(true);
+      LocalCollection._insertInresults(query, objs[0]);
+      return;
+    }
+  }
+
   // just take it out and put it back in again, and see if the index
   // changes
-  query.results.splice(orig_idx, 1);
+  if(orig_idx !== undefined)
+    query.results.splice(orig_idx, 1);
 
   var old = query.cursor.limit;
-  if(old && (query.cursor.sort_f(doc, query.results[0]) < 0
+  /*if(old && (query.cursor.sort_f(doc, query.results[0]) < 0
     || query.cursor.sort_f(doc, query.results[query.results.length-1]) > 0))
-     query.cursor.limit--;
+     query.cursor.limit--;*/
   var new_idx = LocalCollection._insertInResults(query, doc, true);
   query.cursor.limit = old;
 
+  //  If there is one space left in the results
   if(query.cursor.limit && query.cursor.limit === (query.results.length+1)) {
     var objs = query.cursor._getRawObjects(true);
     if(objs.length === (query.results.length+1))
       LocalCollection._insertInResults(query, objs.pop());
   }
 
-  if(new_idx === undefined)
+  if(orig_idx === undefined) {
+    //  Not in old but in new = added
+    //  Not in old *and* not in new = do nothing
+    if(new_idx !== undefined) {
+      query.added(LocalCollection._deepcopy(doc), new_idx);
+    }
+  } else if (new_idx === undefined) {
+    //  In old but not new = remove
     query.removed(doc, orig_idx);
-  else if (orig_idx !== new_idx)
+  } else if(new_idx !== orig_idx) {
+    //  In old and new, but not in the
+    //  same place
     query.moved(LocalCollection._deepcopy(doc), orig_idx, new_idx);
+  }
 };
 
 LocalCollection._findInOrderedResults = function (query, doc) {
