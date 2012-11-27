@@ -85,7 +85,6 @@ var run = function () {
     app.use(gzippo.staticGzip(static_cacheable_path, {clientMaxAge: 1000 * 60 * 60 * 24 * 365}));
   app.use('/', gzippo.staticGzip(path.join(bundle_dir, 'static')));
 
-
   var app_html = fs.readFileSync(path.join(bundle_dir, 'app.html'), 'utf8');
   var unsupported_html = fs.readFileSync(path.join(bundle_dir, 'unsupported.html'));
 
@@ -95,8 +94,10 @@ var run = function () {
   app.use(express.bodyParser());
   app.use(app.router);
 
+  var sock_port = port + 3;
   io = require('socket.io');
-  io = io.listen(app);
+  console.log('sock port', sock_port);
+  io = io.listen(sock_port);
   io.set('log level', 1);
 
   // read bundle config file
@@ -112,7 +113,7 @@ var run = function () {
     io: io,
     env: process.env
   };
-  __meteor_runtime_config__ = {};
+  __meteor_runtime_config__ = {sock_port: sock_port};
   _.each(process.env, function(val, key){
     if(key.indexOf('METEOR_') === 0)
       __meteor_runtime_config__[key] = val;
