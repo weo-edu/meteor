@@ -602,17 +602,134 @@ LocalCollection._removeFromResults = function (query, doc) {
   }
 };
 
+//
+//  Determine the position of a document relative
+//  to a result 'frame'.
+//
+LocalCollection.relativeState = function(query, doc) {
+  if(query.cursor.sort_f && (query.skip || query.limit)) {
+    var first = _.first(query.results);
+    var last = _.last(query.results);
+
+    if(query.skip && query.cursor.sort_f(doc, first) < 0)
+      return 'before';
+    else if(query.limit
+      && query.results.length === query.limit 
+      && query.cursor.sort_f(doc, last) > 0)
+      return 'after';
+  }
+
+  return 'within';
+}
+
+LocalCollection.frameState = function(query, doc, old_doc) {
+  var oldState = LocalCollection.relativeState(query, old_doc);
+  if(oldState === 'after' && old_doc._id === _.last(query.results)._id)
+    oldState = 'within';
+  var newState = LocalCollection.relativeState(query, doc);
+  return oldState + '_' + newState;
+}
+
 LocalCollection._updateInResults = function (query, doc, old_doc) {
   if (doc._id !== old_doc._id)
     throw new Error("Can't change a doc's _id while updating");
 
-  if (!query.ordered) {
+  if (! query.ordered) {
     var idx = _.keys(query.results).indexOf(old_doc._id);
     query.changed(LocalCollection._deepcopy(doc), idx, old_doc);
     query.results[doc._id] = doc;
     return;
+  } else if(! query.sort_f) {
+    var idx = LocalCollection._findInOrderedResults(query, doc);    
+    query.changed(LocalCollection._deepcopy(doc), idx, old_doc);
+    query.results[idx] = doc;
+  } else {
+    switch(LocalCollection.frameState(query, doc, old_doc)) {
+      //  It wasn't in our results before and it isn't now.
+      //  It also hasn't changed whether it was before or after;
+      //  so it won't shift the frame. 
+      case 'before_before':
+      case 'after_after':
+        return;
+      case 'within_within':
+      {
+        var old_idx = LocalCollection._findInOrderedResults(query, doc);
+        query.changed(LocalCollection._deepcopy(doc), old_idx, old_doc);
+        if(query.cursor.sort_f(doc, old_doc) !== 0) {
+          //  Remove and put back in to get new index
+          query.results.splice(old_idx, 1);
+          var new_idx = LocalCollection._insertInResults(query, doc, true);
+          if(new_idx !== old_idx) {
+            query.moved(LocalCollection._deepcopy(doc), old_idx, new_idx);
+          }
+        }
+      }
+      break;
+      //  Something from before our frame is now after it;
+      //  this shifts us up 1
+      case 'before_after':
+      {
+        query.removed(LocalCollection._deepcopy(_.first(query.results)), 0);
+        query.results = query.cursor._getRawObjects(true);
+        query.added(LocalCollection._deepcopy(_.last(query.results)), query.results.length-1);
+      }
+      break;
+      //  Something from after our frame is now before it;
+      //  this shifts us down 1
+      case 'after_before':
+      {
+        var new_results = query.cursor._getRawObjects(true);
+        query.removed(LocalCollection._deepcopy(_.last(query.results)), query.results.length-1);
+        query.added(LocalCollection._deepcopy(_.first(new_results)), 0);
+        query.results = new_results;
+      }
+      break;
+      //  Something from before our frame moves into
+      //  our frame.  Shift up 1 and insert in results
+      case 'before_within':
+      {
+        query.removed(LocalCollection._deepcopy(_.first(query.results)), 0);
+        query.results.shift();
+        LocalCollection._insertInResults(query, doc);
+      }
+      break;
+      case 'after_within':
+      {
+        query.removed(LocalCollection._deepcopy(_.last(query.results)), query.results.length-1);
+        query.results.pop();
+        LocalCollection._insertInResults(query, doc);
+      }
+      break;
+      //  Something from within goes before the frame
+      //  This triggers a remove (because it *was* in the frame),
+      //  and then an added, because the skip has been shifted
+      case 'within_before':
+      {
+        var old_idx = LocalCollection._findInOrderedResults(query, doc);
+        query.removed(LocalCollection._deepcopy(old_doc), old_idx);
+        query.results = query.cursor._getRawObjects(true);
+        query.added(LocalCollection._deepcopy(_.first(query.results)), 0);
+      }
+      break;
+      //  If we were doing this perfectly, there would be two cases.
+      //  An insert/remove and a changed/moved.  The changed moved would
+      //  occur when the object moves to just after the end of the current
+      //  frame and then shifts back in to the frame to compensate for the
+      //  gap created by its removal.  XXX However, the code is much simpler
+      //  if we just do an add/remove and I don't see much benefit in making
+      //  it be a changed/moved instead.
+      case 'within_after':
+      {
+        var old_idx = LocalCollection._findInOrderedResults(query, doc);
+        query.removed(LocalCollection._deepcopy(old_doc), old_idx);
+        query.results = query.cursor._getRawObjects(true);
+        query.added(LocalCollection._deepcopy(_.last(query.results)), query.results.length-1);
+      }
+      break;
+    }
   }
 
+/*
   var orig_idx = LocalCollection._findInOrderedResults(query, doc);
   query.changed(LocalCollection._deepcopy(doc), orig_idx, old_doc);
 
@@ -636,9 +753,9 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
     query.results.splice(orig_idx, 1);
 
   var old = query.cursor.limit;
-  /*if(old && (query.cursor.sort_f(doc, query.results[0]) < 0
-    || query.cursor.sort_f(doc, query.results[query.results.length-1]) > 0))
-     query.cursor.limit--;*/
+  //if(old && (query.cursor.sort_f(doc, query.results[0]) < 0
+  //  || query.cursor.sort_f(doc, query.results[query.results.length-1]) > 0))
+  //   query.cursor.limit--;
   var new_idx = LocalCollection._insertInResults(query, doc, true);
   query.cursor.limit = old;
 
@@ -663,6 +780,7 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
     //  same place
     query.moved(LocalCollection._deepcopy(doc), orig_idx, new_idx);
   }
+*/
 };
 
 LocalCollection._findInOrderedResults = function (query, doc) {

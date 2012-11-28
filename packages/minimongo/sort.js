@@ -18,6 +18,7 @@ LocalCollection._compileSort = function (spec) {
   var asc = [];
 
   if (spec instanceof Array) {
+    spec.push(['_id', 'asc']);
     for (var i = 0; i < spec.length; i++) {
       if (typeof spec[i] === "string") {
         keys.push(spec[i]);
@@ -28,6 +29,8 @@ LocalCollection._compileSort = function (spec) {
       }
     }
   } else if (typeof spec === "object") {
+    if(! spec['_id']) spec['_id'] = 1;
+
     for (key in spec) {
       keys.push(key);
       asc.push(!(spec[key] < 0));
@@ -50,7 +53,7 @@ LocalCollection._compileSort = function (spec) {
       "c(a" + LocalCollection._bracketize(keys[i]) + ", b" +
       LocalCollection._bracketize(keys[i]) + ");";
   }
-  code += "return x || (a._id > b._id ? 1 : a._id === b._id ? 0 : -1);};})";
+  code += "return x; };})";
   eval(code);
   return _func(LocalCollection._f._cmp);
 };
