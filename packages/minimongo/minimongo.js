@@ -88,9 +88,24 @@ LocalCollection.Cursor = function (collection, selector, options) {
     this.reactive = (options.reactive === undefined) ? true : options.reactive;
 };
 
-LocalCollection.Cursor.prototype.replaceSelector = function(selector) {
+LocalCollection.Cursor.prototype.augmentSelector = function(mod, sort_f) {
+  var self = this;
+  var selector = self.selector;
+  _.each(mod, function(val, key) {
+    delete selector[key];
+    if(val !== undefined)
+      selector[key] = val;
+  });
+  
+  return self.replaceSelector(selector, sort_f);
+}
+
+LocalCollection.Cursor.prototype.replaceSelector = function(selector, sort_f) {
   this.selector = selector;
   this.selector_f = LocalCollection.compileSelector(selector);
+  if(sort_f !== undefined)
+    this.sort_f = sort_f;
+
   if(this.query) {
     var objs = this._getRawObjects(this.query.ordered);
     LocalCollection._diffQuery(this.query.ordered, this.query.results, objs, this.query, true);
