@@ -149,7 +149,10 @@ _.extend(Meteor._LivedataSession.prototype, {
     var self = this;
     if (self.socket) {
       msg.msg_id = ++self.last_sent_id;
-      self.socket.send(JSON.stringify(msg));
+      function stringify(o) {
+        return JSON.stringify(o);
+      }
+      self.socket.send(stringify(msg));
     }
     else if(! dontQueue)
       self.out_queue.push(msg);
