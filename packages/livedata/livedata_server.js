@@ -751,7 +751,7 @@ Meteor._LivedataServer = function __LivedataServer() {
           // XXX session resumption does not work yet!
           // https://app.asana.com/0/159908330244/577350817064
           // disabled here:
-          if (msg.session && self.sessions[msg.session]) {
+          /*if (msg.session && self.sessions[msg.session]) {
             // Resuming a session
             socket.meteor_session = self.sessions[msg.session];
             if(msg.last_rcvd_id !== socket.meteor_session.last_sent_id) {
@@ -760,7 +760,7 @@ Meteor._LivedataServer = function __LivedataServer() {
               }).run();
             }
           }
-          else {
+          else*/ {
             // Creating a new session
             socket.meteor_session = new Meteor._LivedataSession(self);
             self.sessions[socket.meteor_session.id] = socket.meteor_session;
@@ -789,7 +789,10 @@ Meteor._LivedataServer = function __LivedataServer() {
       socket.disconnected = true;
       if (socket.meteor_session) {
         console.log('socket closed, detaching session');
-        socket.meteor_session.detach(socket);
+        var id = socket.meteor_session.id;
+        socket.meteor_session.destroy();
+        delete self.sessions[id];
+        //socket.meteor_session.detach(socket);
       }
     });
   });
