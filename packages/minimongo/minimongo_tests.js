@@ -1289,9 +1289,9 @@ Tinytest.add('minimongo - skip/limit reactivity', function(test) {
 
   c.update({a: 4}, {$set: {a: 20}});
 
-  test.length(operations, 3);
-  test.equal(operations.pop()[0], 'removed');
+  test.length(operations, 2);
   test.equal(operations.pop()[0], 'added');
+  test.equal(operations.pop()[0], 'removed');
   h.stop();
   c.restore();
   c.snapshot();
@@ -1303,13 +1303,9 @@ Tinytest.add('minimongo - skip/limit reactivity', function(test) {
   var h = cursor.observe(cbs);
   operations.length = 0;
   c.update({a: 4}, {$set: {a: 0}});
-  test.length(operations, 5);
-  test.equal(_.reduce(operations, function(memo, op) {
-    return memo + (op[0] === 'added' ? 1 : 0);
-  }, 0), 2);
-  test.equal(_.reduce(operations, function(memo, op) {
-    return memo + (op[0] === 'removed' ? 1 : 0); 
-  }, 0), 1);
+  test.length(operations, 2);
+  test.equal(operations.pop()[0], 'added');
+  test.equal(operations.pop()[0], 'removed');
 
   h.stop();
   c.restore();

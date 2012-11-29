@@ -531,8 +531,8 @@ _Mongo.LiveResultsSet = function (cursor, ordered, options) {
   // every once and a while, poll even if we don't think we're dirty,
   // for eventual consistency with database writes from outside the
   // Meteor universe
-  self.refreshTimer = Meteor.setInterval(_.bind(self._markDirty, this),
-                                         10 * 1000 /* 10 seconds */);
+  //self.refreshTimer = Meteor.setInterval(_.bind(self._markDirty, this),
+  //                                       10 * 1000 /* 10 seconds */);
 };
 
 _Mongo.LiveResultsSet.prototype._unthrottled_markDirty = function () {
