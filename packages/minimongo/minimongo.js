@@ -304,9 +304,11 @@ _.extend(LocalCollection.Cursor.prototype, {
       collection: self.collection,
       stop: function () {
         var q = self.collection.queries[qid];
-        q.observes--;
-        if(!q.observes)
-          delete self.collection.queries[qid];
+        if(q) {
+          q.observes--;
+          if(q.observes === 0)
+            delete self.collection.queries[qid];
+        }
       }
     });
     return handle;
