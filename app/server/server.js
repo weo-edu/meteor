@@ -1,8 +1,13 @@
-if(process.env.NODETIME_API_KEY)
-  require('nodetime').profile({
-    appName: process.env.METEOR_SUBAPP_NAME,
-    accountKey: process.env.NODETIME_API_KEY
-  });
+if(process.env.NODETIME_API_KEY) {
+  var dontProfile = ['app!common', 'app!dock'];
+  
+  if(dontProfile.indexOf(process.env.METEOR_SUBAPP_NAME) === -1) {
+    require('nodetime').profile({
+      appName: process.env.METEOR_SUBAPP_NAME,
+      accountKey: process.env.NODETIME_API_KEY
+    });
+  }
+}
 
 ////////// Requires //////////
 
