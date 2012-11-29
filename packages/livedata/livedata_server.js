@@ -566,7 +566,7 @@ _.extend(Meteor._LivedataSubscription.prototype, {
       self.pending_complete = true;
   },
 
-  flush: function (noSend) {
+  flush: function (noSend, noSnapshot) {
     var self = this;
 
     if (self.session.dontFlush)
@@ -580,7 +580,7 @@ _.extend(Meteor._LivedataSubscription.prototype, {
         // construct outbound DDP data message
         var msg = {msg: 'data', collection: name, id: id};
         // snapshot holds this subscription's values for each key
-        var snapshot = Meteor._ensure(self.snapshot, name, id);
+        var snapshot = noSnapshot ? {} : Meteor._ensure(self.snapshot, name, id);
 
         for (var key in self.pending_data[name][id]) {
           // value: set by this run of this publish handler.
@@ -588,8 +588,14 @@ _.extend(Meteor._LivedataSubscription.prototype, {
 
           // old_value: set by previous run of this publish handler.
           var old_value = snapshot[key];
-
-          if (value !== old_value) {
+          //  XXX No snapshot is a temporary fix to deal with the memory
+          //  'leak' created by self.snapshot.  Come up with better way.
+          if(noSnapshot) {
+            if (!('set' in msg))
+              msg.set = {};
+            msg.set[key] = value;
+          }
+          else if (value !== old_value) {
             // First, find the effective value that the client currently
             // has, thanks to the highest priority subscription.
             var old_effective_value = self.session._effectiveValueForKey(name, id, key);
