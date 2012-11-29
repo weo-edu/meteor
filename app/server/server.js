@@ -1,5 +1,8 @@
-if(process.env.ENABLE_NODETIME)
-  require('nodetime').profile();
+if(process.env.NODETIME_API_KEY)
+  require('nodetime').profile({
+    appName: process.env.METEOR_SUBAPP_NAME,
+    accountKey: process.env.NODETIME_API_KEY
+  });
 
 ////////// Requires //////////
 
