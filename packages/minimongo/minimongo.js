@@ -96,7 +96,7 @@ LocalCollection.Cursor.prototype.augmentSelector = function(mod, sort_f) {
     if(val !== undefined)
       selector[key] = val;
   });
-  
+
   return self.replaceSelector(selector, sort_f);
 }
 
@@ -107,6 +107,7 @@ LocalCollection.Cursor.prototype.replaceSelector = function(selector, sort_f) {
     this.sort_f = sort_f;
 
   if(this.query) {
+    this.query.selector_f = this.selector_f;
     var objs = this._getRawObjects(this.query.ordered);
     LocalCollection._diffQuery(this.query.ordered, this.query.results, objs, this.query, true);
     this.query.results = objs;
@@ -244,10 +245,11 @@ _.extend(LocalCollection.Cursor.prototype, {
         cursor: this,
         limit: self.limit,
         skip: self.skip,
-        skipped: 0
+        skipped: 0,
+        observes: 0
       };
     }
-
+    self.query.observes++;
     self.query.results = self._getRawObjects(ordered);
     if (self.collection.paused)
       self.query.results_snapshot = (ordered ? [] : {});
@@ -301,7 +303,10 @@ _.extend(LocalCollection.Cursor.prototype, {
     _.extend(handle, {
       collection: self.collection,
       stop: function () {
-        delete self.collection.queries[qid];
+        var q = self.collection.queries[qid];
+        q.observes--;
+        if(!q.observes)
+          delete self.collection.queries[qid];
       }
     });
     return handle;
