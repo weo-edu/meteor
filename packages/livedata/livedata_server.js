@@ -545,7 +545,17 @@ _.extend(Meteor._LivedataSubscription.prototype, {
         obj[key] = value;
     });
   },
-
+  setSend: function(collection_name, id, attributes) {
+    var self = this;
+    var o = _.clone(attributes);
+    delete o._id;
+    self.session.send({
+      msg: 'data',
+      collection: collection_name,
+      id: id,
+      set: o
+    });
+  },
   unset: function (collection_name, id, keys) {
     var self = this;
     var obj = Meteor._ensure(self.pending_data, collection_name, id);
