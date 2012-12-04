@@ -119,6 +119,8 @@ Meteor._LivedataConnection = function (url, options) {
       self._livedata_connected(msg);
     else if (msg.msg === 'data')
       self._livedata_data(msg);
+    else if (msg.msg === 'datas')
+      self._livedata_datas(msg);
     else if (msg.msg === 'nosub')
       self._livedata_nosub(msg);
     else if (msg.msg === 'result')
@@ -529,7 +531,14 @@ _.extend(Meteor._LivedataConnection.prototype, {
     // Do not clear the database here. That happens once all the subs
     // are re-ready and we process pending_data.
   },
-
+  _livedata_datas: function(msg) {
+    var self = this;
+    msg.set = JSON.parse(msg.set);
+    msg.id = msg.set._id;
+    delete msg.set._id;
+    msg.msg = 'data';
+    self._livedata_data(msg);
+  },
   _livedata_data: function (msg) {
     var self = this;
     // Add the data message to the queue

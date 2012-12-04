@@ -64,7 +64,9 @@ LocalCollection.Cursor = function (collection, selector, options) {
   this.collection = collection;
   this.selector = selector;
   this.options = options;
-
+  this.nodeepcopy = options.nodeepcopy;
+  this.mdc = options.nodeepcopy ? _.identity : LocalCollection._deepcopy;
+ 
   if ((typeof selector === "string") || (typeof selector === "number")) {
     // stash for fast path
     this.selector_id = selector;
@@ -109,7 +111,7 @@ LocalCollection.Cursor.prototype.replaceSelector = function(selector, sort_f) {
   if(this.query) {
     this.query.selector_f = this.selector_f;
     var objs = this._getRawObjects(this.query.ordered);
-    LocalCollection._diffQuery(this.query.ordered, this.query.results, objs, this.query, true);
+    LocalCollection._diffQuery(this.query.ordered, this.query.results, objs, this.query, ! this.query.cursor.nodeepcopy);
     this.query.results = objs;
     this.db_objects = objs;
   }
@@ -151,7 +153,7 @@ LocalCollection.Cursor.prototype.forEach = function (callback) {
     if (self.fields)
       doc = LocalCollection._fields(self.db_objects[self.cursor_pos++],self.fields);
     else
-      doc = LocalCollection._deepcopy(self.db_objects[self.cursor_pos++]);
+      doc = self.mdc(self.db_objects[self.cursor_pos++]);
     callback(doc);
   }
     
@@ -295,7 +297,7 @@ _.extend(LocalCollection.Cursor.prototype, {
 
     if (!options._suppress_initial && !self.collection.paused) {
       _.each(self.query.results, function (doc, i) {
-        self.query.added(LocalCollection._deepcopy(doc), i);
+        self.query.added(self.mdc(doc), i);
       });
     }
 
@@ -538,7 +540,7 @@ LocalCollection._insertInResults = function (query, doc, dontFireEvent) {
       if(query.cursor.limit && query.results.length >= query.cursor.limit) 
         return;
 
-      dontFireEvent || query.added(LocalCollection._deepcopy(doc), query.results.length);
+      dontFireEvent || query.added(query.cursor.mdc(doc), query.results.length);
       query.results.push(doc);
     } else {
       if(query.cursor.skip) {
@@ -549,7 +551,7 @@ LocalCollection._insertInResults = function (query, doc, dontFireEvent) {
         else if(query.skipped === query.cursor.skip) {
           query.skipped++;
           query.results = query.cursor._getRawObjects(true);
-          dontFireEvent || query.added(LocalCollection._deepcopy(query.results[0]), 0);
+          dontFireEvent || query.added(query.cursor.mdc(query.results[0]), 0);
           return;
         }
 
@@ -569,7 +571,7 @@ LocalCollection._insertInResults = function (query, doc, dontFireEvent) {
       }
 
       var i = LocalCollection._insertInSortedList(query.sort_f, query.results, doc);
-      dontFireEvent || query.added(LocalCollection._deepcopy(doc), i);
+      dontFireEvent || query.added(query.cursor.mdc(doc), i);
 
       if(query.cursor.limit && query.results.length > query.cursor.limit) {
         self._removeFromResults(query, _.last(query.results));
@@ -578,7 +580,7 @@ LocalCollection._insertInResults = function (query, doc, dontFireEvent) {
       return i;
     }
   } else {
-    query.added(LocalCollection._deepcopy(doc), query.results.length);
+    query.added(query.cursor.mdc(doc), query.results.length);
     query.results[doc._id] = doc;
   }
 }
@@ -598,7 +600,7 @@ LocalCollection._removeFromResults = function (query, doc) {
           i = query.cursor.limit - 1;
           doc = objs[i];
           query.results.push(doc);
-          query.added(LocalCollection._deepcopy(doc), i);
+          query.added(query.cursor.mdc(doc), i);
         }
       }
     }
@@ -613,7 +615,7 @@ LocalCollection._removeFromResults = function (query, doc) {
         if(objs.length >= query.results.length) {
           doc = objs.pop();
           query.results.push(doc);
-          query.added(LocalCollection._deepcopy(doc), query.results.length-1);
+          query.added(query.cursor.mdc(doc), query.results.length-1);
         }
       }
     }
@@ -658,12 +660,12 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
 
   if (! query.ordered) {
     var idx = _.keys(query.results).indexOf(old_doc._id);
-    query.changed(LocalCollection._deepcopy(doc), idx, old_doc);
+    query.changed(query.cursor.mdc(doc), idx, old_doc);
     query.results[doc._id] = doc;
     return;
   } else if(! query.sort_f) {
     var idx = LocalCollection._findInOrderedResults(query, doc);    
-    query.changed(LocalCollection._deepcopy(doc), idx, old_doc);
+    query.changed(query.cursor.mdc(doc), idx, old_doc);
     query.results[idx] = doc;
   } else {
     switch(LocalCollection.frameState(query, doc, old_doc)) {
@@ -676,13 +678,13 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
       case 'within_within':
       {
         var old_idx = LocalCollection._findInOrderedResults(query, doc);
-        query.changed(LocalCollection._deepcopy(doc), old_idx, old_doc);
+        query.changed(query.cursor.mdc(doc), old_idx, old_doc);
         if(query.cursor.sort_f(doc, old_doc) !== 0) {
           //  Remove and put back in to get new index
           query.results.splice(old_idx, 1);
           var new_idx = LocalCollection._insertInResults(query, doc, true);
           if(new_idx !== old_idx) {
-            query.moved(LocalCollection._deepcopy(doc), old_idx, new_idx);
+            query.moved(query.cursor.mdc(doc), old_idx, new_idx);
           }
         }
       }
@@ -691,9 +693,9 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
       //  this shifts us up 1
       case 'before_after':
       {
-        query.removed(LocalCollection._deepcopy(_.first(query.results)), 0);
+        query.removed(query.cursor.mdc(_.first(query.results)), 0);
         query.results = query.cursor._getRawObjects(true);
-        query.added(LocalCollection._deepcopy(_.last(query.results)), query.results.length-1);
+        query.added(query.cursor.mdc(_.last(query.results)), query.results.length-1);
       }
       break;
       //  Something from after our frame is now before it;
@@ -701,8 +703,8 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
       case 'after_before':
       {
         var new_results = query.cursor._getRawObjects(true);
-        query.removed(LocalCollection._deepcopy(_.last(query.results)), query.results.length-1);
-        query.added(LocalCollection._deepcopy(_.first(new_results)), 0);
+        query.removed(query.cursor.mdc(_.last(query.results)), query.results.length-1);
+        query.added(query.cursor.mdc(_.first(new_results)), 0);
         query.results = new_results;
       }
       break;
@@ -710,14 +712,14 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
       //  our frame.  Shift up 1 and insert in results
       case 'before_within':
       {
-        query.removed(LocalCollection._deepcopy(_.first(query.results)), 0);
+        query.removed(query.cursor.mdc(_.first(query.results)), 0);
         query.results.shift();
         LocalCollection._insertInResults(query, doc);
       }
       break;
       case 'after_within':
       {
-        query.removed(LocalCollection._deepcopy(_.last(query.results)), query.results.length-1);
+        query.removed(query.cursor.mdc(_.last(query.results)), query.results.length-1);
         query.results.pop();
         LocalCollection._insertInResults(query, doc);
       }
@@ -728,9 +730,9 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
       case 'within_before':
       {
         var old_idx = LocalCollection._findInOrderedResults(query, doc);
-        query.removed(LocalCollection._deepcopy(old_doc), old_idx);
+        query.removed(query.cursor.mdc(old_doc), old_idx);
         query.results = query.cursor._getRawObjects(true);
-        query.added(LocalCollection._deepcopy(_.first(query.results)), 0);
+        query.added(query.cursor.mdc(_.first(query.results)), 0);
       }
       break;
       //  If we were doing this perfectly, there would be two cases.
@@ -743,9 +745,9 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
       case 'within_after':
       {
         var old_idx = LocalCollection._findInOrderedResults(query, doc);
-        query.removed(LocalCollection._deepcopy(old_doc), old_idx);
+        query.removed(query.cursor.mdc(old_doc), old_idx);
         query.results = query.cursor._getRawObjects(true);
-        query.added(LocalCollection._deepcopy(_.last(query.results)), query.results.length-1);
+        query.added(query.cursor.mdc(_.last(query.results)), query.results.length-1);
       }
       break;
     }
@@ -753,7 +755,7 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
 
 /*
   var orig_idx = LocalCollection._findInOrderedResults(query, doc);
-  query.changed(LocalCollection._deepcopy(doc), orig_idx, old_doc);
+  query.changed(query.cursor.mdc(doc), orig_idx, old_doc);
 
   if (!query.sort_f || query.results.length <= 1)
     return;
@@ -792,7 +794,7 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
     //  Not in old but in new = added
     //  Not in old *and* not in new = do nothing
     if(new_idx !== undefined) {
-      query.added(LocalCollection._deepcopy(doc), new_idx);
+      query.added(query.cursor.mdc(doc), new_idx);
     }
   } else if (new_idx === undefined) {
     //  In old but not new = remove
@@ -800,7 +802,7 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
   } else if(new_idx !== orig_idx) {
     //  In old and new, but not in the
     //  same place
-    query.moved(LocalCollection._deepcopy(doc), orig_idx, new_idx);
+    query.moved(query.cursor.mdc(doc), orig_idx, new_idx);
   }
 */
 };
@@ -869,7 +871,7 @@ LocalCollection.prototype.restore = function () {
 
     if (!this.paused) {
       LocalCollection._diffQuery(
-        query.ordered, oldResults, query.results, query, true);
+        query.ordered, oldResults, query.results, query, ! query.cursor.nodeepcopy);
     }
   }
 };
@@ -889,7 +891,7 @@ LocalCollection.prototype.pauseObservers = function () {
   for (var qid in this.queries) {
     var query = this.queries[qid];
 
-    query.results_snapshot = LocalCollection._deepcopy(query.results);
+    query.results_snapshot = query.cursor.mdc(query.results);
   }
 };
 
@@ -911,7 +913,7 @@ LocalCollection.prototype.resumeObservers = function () {
     // Diff the current results against the snapshot and send to observers.
     // pass the query object for its observer callbacks.
     LocalCollection._diffQuery(
-      query.ordered, query.results_snapshot, query.results, query, true);
+      query.ordered, query.results_snapshot, query.results, query, ! query.cursor.nodeepcopy);
     query.results_snapshot = null;
   }
 };

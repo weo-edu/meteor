@@ -545,8 +545,8 @@ _.extend(Meteor._LivedataSubscription.prototype, {
         obj[key] = value;
     });
   },
-  setSend: function(collection_name, id, attributes) {
-    var self = this;
+  setSend: function(collection_name, attributes) {
+    /*var self = this;
     var o = _.clone(attributes);
     delete o._id;
     self.session.send({
@@ -554,6 +554,12 @@ _.extend(Meteor._LivedataSubscription.prototype, {
       collection: collection_name,
       id: id,
       set: o
+    });*/
+    var self = this;
+    self.session.send({
+      msg: 'datas',
+      collection: collection_name,
+      set: _.clone(attributes)
     });
   },
   unset: function (collection_name, id, keys) {
