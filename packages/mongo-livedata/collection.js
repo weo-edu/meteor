@@ -67,7 +67,6 @@ Meteor.Collection = function (name, options) {
       // XXX better specify this interface (not in terms of a wire message)?
       update: function (msg) {
         var doc = self._collection.findOne(msg.id);
-
         if (doc
             && (!msg.set)
             && _.difference(_.keys(doc), msg.unset, ['_id']).length === 0) {
