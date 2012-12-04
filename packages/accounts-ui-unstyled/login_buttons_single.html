@@ -12,15 +12,18 @@
   </div>
 </template>
 
+<template name="_loginButtonsLoggingInSingleLoginButton">
+  <div class="login-text-and-button">
+    {{> _loginButtonsLoggingIn}}
+  </div>
+</template>
+
 <template name="_loginButtonsLoggedInSingleLogoutButton">
   <div class="login-text-and-button">
     <div class="login-display-name">
-      {{#if currentUserLoaded}}
-        {{displayName}}
-      {{else}}
-        <div class="loading">&nbsp;</div>
-      {{/if}}
+      {{displayName}}
     </div>
     <div class="login-button single-login-button" id="login-buttons-logout">Sign Out</div>
   </div>
 </template>
+

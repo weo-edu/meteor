@@ -353,8 +353,7 @@
     return {token: stampedLoginToken.token, id: user.username};
   });
 
-
-  Meteor.setPassword = function (userId, newPassword) {
+  Accounts.setPassword = function (userId, newPassword) {
     var user = Meteor.users.findOne({username: userId});
     if (!user)
       throw new Meteor.Error(403, "User not found");
