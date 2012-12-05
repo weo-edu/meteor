@@ -554,15 +554,6 @@ _.extend(Meteor._LivedataSubscription.prototype, {
     });
   },
   setSend: function(collection_name, attributes) {
-    /*var self = this;
-    var o = _.clone(attributes);
-    delete o._id;
-    self.session.send({
-      msg: 'data',
-      collection: collection_name,
-      id: id,
-      set: o
-    });*/
     var self = this;
     self.session.send({
       msg: 'datas',
