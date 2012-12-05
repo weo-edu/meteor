@@ -29,7 +29,7 @@ _.extend(Meteor, {
 
     return setInterval(Meteor.bindEnvironment(f, function (e) {
       // XXX report nicely (or, should we catch it at all?)
-      Meteor._debug("Exception from setInterval callback:", e);
+      Meteor._debug("Exception from setInterval callback:", e, e.stack);
     }), duration);
   },
 
