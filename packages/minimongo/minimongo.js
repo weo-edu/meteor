@@ -596,7 +596,7 @@ LocalCollection._removeFromResults = function (query, doc) {
   if (query.ordered) {
     var i = LocalCollection._findInOrderedResults(query, doc);
     if(i !== undefined) {
-      query.removed(doc, i);
+      query.removed(query.cursor.mdc(doc), i);
       query.results.splice(i, 1);
 
       //  If the item just removed caused us to be 1 short of our limit
@@ -726,7 +726,7 @@ LocalCollection._updateInResults = function (query, doc, old_doc) {
       break;
       case 'after_within':
       {
-        query.removed(query.cursor.mdc(_.last(query.results)),> query.results.length-1);
+        query.removed(query.cursor.mdc(_.last(query.results)), query.results.length-1);
         query.results.pop();
         LocalCollection._insertInResults(query, doc);
       }

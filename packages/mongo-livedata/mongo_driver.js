@@ -62,6 +62,8 @@ _Mongo._rewriteSelector = function (selector) {
   if (!selector || (('_id' in selector) && !selector._id))
     // can't match anything
     return {_id: Meteor.uuid()};
+  else if(_.isArray(selector))
+    return {_id: {$in: selector}};
   else
     return selector;
 };
@@ -367,7 +369,7 @@ _.each(['forEach', 'map', 'rewind', 'fetch', 'count'], function (method) {
 
 // Called by livedata_server to automatically publish cursors returned from a
 // publish handler over DDP.
-Cursor.prototype._publishCursor = function (sub) {
+Cursor.prototype._publishCursor = function (sub, complete) {
   var self = this;
   var collection = self._cursorDescription.collectionName;
 
@@ -376,7 +378,7 @@ Cursor.prototype._publishCursor = function (sub) {
       sub.set(collection, obj._id, obj);
       sub.flush();
     },
-    changed: function (obj, oldObj) {
+    changed: function (obj, idx, oldObj) {
       var set = {};
       _.each(obj, function (v, k) {
         if (!_.isEqual(v, oldObj[k]))
@@ -395,8 +397,10 @@ Cursor.prototype._publishCursor = function (sub) {
 
   // _observeUnordered only returns after the initial added callbacks have run.
   // mark subscription as completed.
-  sub.complete();
-  sub.flush();
+  if(complete !== false) {
+    sub.complete();
+    sub.flush();
+  }
 
   // register stop callback (expects lambda w/ no args).
   sub.onStop(function () {observeHandle.stop();});

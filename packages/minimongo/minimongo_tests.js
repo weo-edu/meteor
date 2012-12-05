@@ -1173,8 +1173,6 @@ Tinytest.add('minimongo - skip/limit reactivity', function(test) {
     c.insert({_id: i, a: i});
   });
 
-  c.snapshot();
-
   var cursor = c.find({}, {skip: 2, limit: 5, sort: [['a', 'asc']]});
   var h = cursor.observe(cbs);
 
@@ -1195,8 +1193,7 @@ Tinytest.add('minimongo - skip/limit reactivity', function(test) {
   test.equal(operations.pop(), ['added', {a: 3}, 2]);
 
   h.stop();
-  c.restore();
-  c.snapshot();
+  c.remove({_id: 51, a: 3});
 
   /*
     Remove from before find with skip
@@ -1212,8 +1209,7 @@ Tinytest.add('minimongo - skip/limit reactivity', function(test) {
   test.equal(before[1], after[0]);
 
   h.stop();
-  c.restore();
-  c.snapshot();
+  c.insert({_id: 1, a: 1});
 
   /*
     Remove from the middle of a find with skip/limit
@@ -1228,8 +1224,7 @@ Tinytest.add('minimongo - skip/limit reactivity', function(test) {
   test.equal(operations.pop()[0], 'removed');
 
   h.stop();
-  c.restore();
-  c.snapshot();
+  c.insert({_id: 3, a: 3});
 
 
   /*
@@ -1245,8 +1240,7 @@ Tinytest.add('minimongo - skip/limit reactivity', function(test) {
   test.equal(operations.pop()[0], 'added');
   test.equal(operations.pop()[0], 'removed');
   h.stop();
-  c.restore();
-  c.snapshot();
+  c.update({_id: 4, a: 20}, {$set: {a: 4}});
 
   /*
     Update element in the middle of a find to move it before the beginning
@@ -1260,8 +1254,7 @@ Tinytest.add('minimongo - skip/limit reactivity', function(test) {
   test.equal(operations.pop()[0], 'removed');
 
   h.stop();
-  c.restore();
-  c.snapshot();
+  c.update({_id: 4, a: 0}, {$set: {a: 4}});
 
   /*
     Update element to move it around within the find
@@ -1273,8 +1266,7 @@ Tinytest.add('minimongo - skip/limit reactivity', function(test) {
   test.length(operations, 2);
 
   h.stop();
-  c.restore();
-  c.snapshot();
+  c.update({_id: 4, a: 2}, {$set: {a: 4}});
 
   /*
     Insert element in middle of skip/limit
@@ -1289,8 +1281,7 @@ Tinytest.add('minimongo - skip/limit reactivity', function(test) {
   test.equal(operations.pop(), ['added', {a: 3}, 2]);
 
   h.stop();
-  c.restore();
-  c.snapshot();
+  c.remove({_id: 60, a: 3});
 
   /*
     Insert element before start of skip/limit
@@ -1305,8 +1296,7 @@ Tinytest.add('minimongo - skip/limit reactivity', function(test) {
   test.equal(operations.pop(), ['added', {a: 1}, 0]);
 
   h.stop();
-  c.restore();
-  c.snapshot();
+  c.remove({_id: 60, a: 3});
 
   /*
     Displace first element of skip/limited find with an insert

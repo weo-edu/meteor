@@ -181,7 +181,6 @@ Meteor._LivedataConnection = function (url, options) {
     }
 
     self.last_rcvd_id = msg.msg_id;
-    
     if (msg.msg === 'connected')
       self._livedata_connected(msg);
     else if (msg.msg === 'data')
@@ -205,7 +204,7 @@ Meteor._LivedataConnection = function (url, options) {
     var msg = {msg: 'connect'};
     if (self._lastSessionId)
       msg.session = self._lastSessionId;
-    self._stream.send(JSON.stringify(msg));
+    self._stream.send(msg);
 
     // Now, to minimize setup latency, go ahead and blast out all of
     // our pending methods ands subscriptions before we've even taken
@@ -282,7 +281,7 @@ var MethodInvoker = function (options) {
 
   self._callback = options.callback;
   self._connection = options.connection;
-  self._message = JSON.stringify(options.message);
+  self._message = options.message;
   self._onResultReceived = options.onResultReceived || function () {};
   self._wait = options.wait;
   self._methodResult = null;
