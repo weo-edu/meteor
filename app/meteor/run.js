@@ -50,14 +50,14 @@ var Status = {
 
 // List of queued requests. Each item in the list is a function to run
 // when the inner app is ready to receive connections.
-var request_queue = [];
+//var request_queue = [];
 
 ////////// Outer Proxy Server //////////
 //
 // calls callback once proxy is actively listening on outer and
 // proxying to inner.
 
-var start_proxy = function (outer_port, inner_port, callback) {
+var start_proxy = function (request_queue, outer_port, inner_port, callback) {
   callback = callback || function () {};
 
   var p = httpProxy.createServer(function (req, res, proxy) {
@@ -180,7 +180,6 @@ var start_server = function (bundle_path, outer_port, inner_port, mongo_url,
   env.PORT = inner_port;
   env.MONGO_URL = mongo_url;
   env.ROOT_URL = env.ROOT_URL || ('http://localhost:' + outer_port);
-  console.log('spawning with cwd', cwd);
   var proc = spawn(process.execPath,
                    [path.join(bundle_path, 'main.js'), '--keepalive'],
                    {env: env, cwd: bundle_path});
@@ -347,16 +346,17 @@ _.extend(DependencyWatcher.prototype, {
     // monitor it if necessary
     if (!(filepath in self.watches) &&
         (is_interesting || stats.isDirectory())) {
+      var listener = _.bind(self._scan, self, false, filepath);
       if (!stats.isDirectory()) {
         // Intentionally not using fs.watch since it doesn't play well with
         // vim (https://github.com/joyent/node/issues/3172)
         fs.watchFile(filepath, {interval: 500}, // poll a lot!
-                     _.bind(self._scan, self, false, filepath));
-        self.watches[filepath] = function() { fs.unwatchFile(filepath); };
+                     listener);
+        self.watches[filepath] = function() { fs.unwatchFile(filepath, listener); };
       } else {
         // fs.watchFile doesn't work for directories (as tested on ubuntu)
         var watch = fs.watch(filepath, {interval: 500}, // poll a lot!
-                     _.bind(self._scan, self, false, filepath));
+                     listener);
         self.watches[filepath] = function() { watch.close(); };
       }
       self.mtimes[filepath] = stats.mtime;
@@ -453,6 +453,7 @@ var start_update_checks = function () {
 // can't continue. If you change this, remember to call
 // watcher.destroy() as appropriate.
 exports.run = function (app_dir, bundle_opts, port, env) {
+  var request_queue = [];
   var outer_port = port || 3000;
   var inner_port = outer_port + 1;
   var mongo_port = outer_port + 2;
@@ -491,12 +492,15 @@ exports.run = function (app_dir, bundle_opts, port, env) {
       if (watcher)
         watcher.destroy();
 
-      watcher = new DependencyWatcher(deps_info, app_dir, function () {
+      var oldcwd = process.cwd();
+      process.chdir(app_dir);
+      watcher = new DependencyWatcher(deps_info, app_dir, function () {        
         if (Status.crashing)
           log_to_clients({'system': "=> Modified -- restarting."}, env.METEOR_SUBAPP_NAME);
         Status.reset();
         restart_server();
       });
+      process.chdir(oldcwd);
     }
   };
 
@@ -508,12 +512,12 @@ exports.run = function (app_dir, bundle_opts, port, env) {
     var errors = [];
     var ignore = [];
 
-    console.log('start bundle', +new Date());
+    console.log(env.METEOR_SUBAPP_NAME, 'start bundle', +new Date());
     var oldcwd = process.cwd();
     process.chdir(app_dir);
     errors = bundler.bundle(app_dir, bundle_path, bundle_opts);
     process.chdir(oldcwd);
-    console.log('end bundle', +new Date());
+    console.log(env.METEOR_SUBAPP_NAME, 'end bundle', +new Date());
 
     if (server_handle) {
       //  If this is a restart, don't delete the
@@ -575,7 +579,7 @@ exports.run = function (app_dir, bundle_opts, port, env) {
         // on listen
         Status.listening = true;
         _.each(request_queue, function (f) { f(); });
-        request_queue = [];
+        request_queue.length = 0;
       }, app_dir, env);
 
 
@@ -644,7 +648,7 @@ exports.run = function (app_dir, bundle_opts, port, env) {
       });
   };
 
-  start_proxy(outer_port, inner_port, function () {
+  start_proxy(request_queue, outer_port, inner_port, function () {
     process.stdout.write("[[[[[ " + files.pretty_path(app_dir) + " ]]]]]\n\n");
 
     mongo_startup_print_timer = setTimeout(function () {

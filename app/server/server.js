@@ -49,7 +49,7 @@ var init_keepalive = function () {
 
   setInterval(function () {
     keepalive_count ++;
-    if (keepalive_count >= 3) {
+    if (keepalive_count >= 6) {
       console.log("Failed to receive keepalive! Exiting.");
       process.exit(1);
     }
