@@ -29,12 +29,12 @@ var Status = {
     this.counter = 0;
   },
 
-  hard_crashed: function () {
-    log_to_clients({'exit': "Your application is crashing. Waiting for file change."});
+  hard_crashed: function (app) {
+    log_to_clients({'exit': "Your application is crashing. Waiting for file change."}, app);
     this.crashing = true;
   },
 
-  soft_crashed: function () {
+  soft_crashed: function (app) {
     if (this.counter === 0)
       setTimeout(function () {
         this.counter = 0;
@@ -43,7 +43,7 @@ var Status = {
     this.counter++;
 
     if (this.counter > 2) {
-      Status.hard_crashed();
+      Status.hard_crashed(app);
     }
   }
 };
@@ -145,7 +145,7 @@ var start_proxy = function (outer_port, inner_port, callback) {
 
 ////////// MongoDB //////////
 
-var log_to_clients = function (msg) {
+var log_to_clients = function (msg, app) {
   server_log.push(msg);
   if (server_log.length > 100) {
     server_log.shift();
@@ -157,6 +157,7 @@ var log_to_clients = function (msg) {
   // this whole thing should be redone. it is the result of doing it
   // very differently and changing over quickly.
   _.each(msg, function (val, key) {
+    if(app) val = app + ': ' + val;
     if (key === "stdout")
       process.stdout.write(val);
     else if (key === "stderr")
@@ -169,18 +170,20 @@ var log_to_clients = function (msg) {
 ////////// Launch server process //////////
 
 var start_server = function (bundle_path, outer_port, inner_port, mongo_url,
-                             on_exit_callback, on_listen_callback) {
+                             on_exit_callback, on_listen_callback, cwd, env) {
   // environment
-  var env = {};
-  for (var k in process.env)
-    env[k] = process.env[k];
+  if(! env) {
+    env = {};
+    for (var k in process.env)
+      env[k] = process.env[k];
+  }
   env.PORT = inner_port;
   env.MONGO_URL = mongo_url;
   env.ROOT_URL = env.ROOT_URL || ('http://localhost:' + outer_port);
-
+  console.log('spawning with cwd', cwd);
   var proc = spawn(process.execPath,
                    [path.join(bundle_path, 'main.js'), '--keepalive'],
-                   {env: env});
+                   {env: env, cwd: bundle_path});
 
   // XXX deal with test server logging differently?!
 
@@ -194,19 +197,19 @@ var start_server = function (bundle_path, outer_port, inner_port, mongo_url,
     if (data.length != originalLength)
       on_listen_callback && on_listen_callback();
     if (data)
-      log_to_clients({stdout: data});
+      log_to_clients({stdout: data}, env.METEOR_SUBAPP_NAME);
   });
 
   proc.stderr.setEncoding('utf8');
   proc.stderr.on('data', function (data) {
-    data && log_to_clients({stderr: data});
+    data && log_to_clients({stderr: data}, env.METEOR_SUBAPP_NAME);
   });
 
   proc.on('exit', function (code, signal) {
     if (signal) {
-      log_to_clients({'exit': 'Exited from signal: ' + signal});
+      log_to_clients({'exit': 'Exited from signal: ' + signal}, env.METEOR_SUBAPP_NAME);
     } else {
-      log_to_clients({'exit': 'Exited with code: ' + code});
+      log_to_clients({'exit': 'Exited with code: ' + code}, env.METEOR_SUBAPP_NAME);
     }
 
     on_exit_callback();
@@ -449,7 +452,7 @@ var start_update_checks = function () {
 // This function never returns and will call process.exit() if it
 // can't continue. If you change this, remember to call
 // watcher.destroy() as appropriate.
-exports.run = function (app_dir, bundle_opts, port) {
+exports.run = function (app_dir, bundle_opts, port, env) {
   var outer_port = port || 3000;
   var inner_port = outer_port + 1;
   var mongo_port = outer_port + 2;
@@ -457,7 +460,8 @@ exports.run = function (app_dir, bundle_opts, port) {
   var bundle_path = path.join(app_dir, '.meteor', 'local', 'build');
   var test_bundle_path = path.join(app_dir, '.meteor', 'local', 'build_test');
   // Allow override and use of external mongo. Matches code in launch_mongo.
-  var mongo_url = process.env.MONGO_URL ||
+  env = env || process.env;
+  var mongo_url = env.MONGO_URL ||
         ("mongodb://127.0.0.1:" + mongo_port + "/meteor");
   var test_mongo_url = "mongodb://127.0.0.1:" + mongo_port + "/meteor_test";
 
@@ -489,7 +493,7 @@ exports.run = function (app_dir, bundle_opts, port) {
 
       watcher = new DependencyWatcher(deps_info, app_dir, function () {
         if (Status.crashing)
-          log_to_clients({'system': "=> Modified -- restarting."});
+          log_to_clients({'system': "=> Modified -- restarting."}, env.METEOR_SUBAPP_NAME);
         Status.reset();
         restart_server();
       });
@@ -505,7 +509,10 @@ exports.run = function (app_dir, bundle_opts, port) {
     var ignore = [];
 
     console.log('start bundle', +new Date());
+    var oldcwd = process.cwd();
+    process.chdir(app_dir);
     errors = bundler.bundle(app_dir, bundle_path, bundle_opts);
+    process.chdir(oldcwd);
     console.log('end bundle', +new Date());
 
     if (server_handle) {
@@ -533,9 +540,9 @@ exports.run = function (app_dir, bundle_opts, port) {
       deps_info = JSON.parse(deps_raw.toString());
 
     if (errors && errors.length != 0) {
-      log_to_clients({stdout: "Errors prevented startup:\n"});
+      log_to_clients({stdout: "Errors prevented startup:\n"}, env.METEOR_SUBAPP_NAME);
       _.each(errors, function (e) {
-        log_to_clients({stdout: e + "\n"});
+        log_to_clients({stdout: e + "\n"}, env.METEOR_SUBAPP_NAME);
       });
 
       if (!deps_info) {
@@ -549,7 +556,7 @@ exports.run = function (app_dir, bundle_opts, port) {
         process.exit(1);
       }
       start_watching();
-      Status.hard_crashed();
+      Status.hard_crashed(env.METEOR_SUBAPP_NAME);
       return;
     }
 
@@ -561,7 +568,7 @@ exports.run = function (app_dir, bundle_opts, port) {
         // on server exit
         Status.running = false;
         Status.listening = false;
-        Status.soft_crashed();
+        Status.soft_crashed(env.METEOR_SUBAPP_NAME);
         if (!Status.crashing)
           restart_server();
       }, function () {
@@ -569,7 +576,7 @@ exports.run = function (app_dir, bundle_opts, port) {
         Status.listening = true;
         _.each(request_queue, function (f) { f(); });
         request_queue = [];
-      });
+      }, app_dir, env);
 
 
     // launch test bundle and server if needed.
@@ -577,9 +584,9 @@ exports.run = function (app_dir, bundle_opts, port) {
       var errors =
         bundler.bundle(app_dir, test_bundle_path, test_bundle_opts);
       if (errors) {
-        log_to_clients({system: "Errors prevented test server from starting:"});
+        log_to_clients({system: "Errors prevented test server from starting:"}, env.METEOR_SUBAPP_NAME);
         _.each(errors, function (e) {
-          log_to_clients({system: e});
+          log_to_clients({system: e}, env.METEOR_SUBAPP_NAME);
         });
         files.rm_recursive(test_bundle_path);
       } else {
@@ -587,7 +594,7 @@ exports.run = function (app_dir, bundle_opts, port) {
           test_bundle_path, test_port, test_mongo_url, function () {
             // No restarting or crash loop prevention on the test server
             // for now. We'll see how annoying it is.
-            log_to_clients({'system': "Test server crashed."});
+            log_to_clients({'system': "Test server crashed."}, env.METEOR_SUBAPP_NAME);
           });
       }
     };

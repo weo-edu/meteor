@@ -726,21 +726,15 @@ Commands.push({
         env.METEOR_SUBAPP_NAME = appName;
         env.MONGO_URL = mongo_url;
 
-        var args = ['--port', app.port];
-        if(new_argv.production)
-          args = args.concat('--production');
-        if(new_argv.profile)
-          env.ENABLE_NODETIME = 'true';
-
-        var p = spawn('meteor',args,{cwd: app.dir, env: env});
-        children.push(p);
-
-        p.stdout.on('data',function(data) {
-          console.log(appName+': '+data);
-        });
-        p.stderr.on('data',function(data) {
-          console.error(appName+': '+data);
-        });
+        var app_dir = path.join(process.cwd(), app.dir); // app or package
+        var bundle_opts = { 
+          no_bundle: new_argv.nobundle,
+          no_minify: !new_argv.production, 
+          symlink_dev_bundle: true 
+        };
+        setTimeout(function() {
+          require(path.join(__dirname, 'run.js')).run(app_dir, bundle_opts, app.port, env);
+        }, 0);
       });
     })();
 

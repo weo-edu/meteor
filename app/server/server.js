@@ -95,25 +95,12 @@ var run = function () {
     throw new Error("MONGO_URL must be set in environment");
 
   // webserver
-  var imgExts = {
-    '.png': 1,
-    '.jpg': 1,
-    '.gif': 1,
-    '.jpeg': 1
-  };
-  var app = express.createServer(function(req, res, next) {
-    var suffix = req.url.slice(-5);
-    if(suffix[0] !== '.')
-      suffix = suffix.slice(1);
-    if(imgExts[suffix]) {
-      res.setHeader('Expires', new Date((+new Date) + 1000*60*60*24*7));
-    }  
-    next();
-  });
+  var app = express.createServer();
   var static_cacheable_path = path.join(bundle_dir, 'static_cacheable');
   if (fs.existsSync(static_cacheable_path))
     app.use(gzippo.staticGzip(static_cacheable_path, {clientMaxAge: 1000 * 60 * 60 * 24 * 365}));
   app.use('/', gzippo.staticGzip(path.join(bundle_dir, 'static')));
+
   var app_html = fs.readFileSync(path.join(bundle_dir, 'app.html'), 'utf8');
   var unsupported_html = fs.readFileSync(path.join(bundle_dir, 'unsupported.html'));
 
@@ -140,7 +127,8 @@ var run = function () {
     startup_hooks: [], 
     app: app, 
     io: io,
-    env: process.env
+    env: process.env,
+    bundle_dir: bundle_dir
   };
   __meteor_runtime_config__ = {sock_port: sock_port};
   _.each(process.env, function(val, key){
@@ -203,6 +191,7 @@ var run = function () {
     _.each(__meteor_bootstrap__.startup_hooks, function (x) { x(); });
 
     // only start listening after all the startup code has run.
+    console.log('listening on port', port);
     app.listen(port, function() {
       if (argv.keepalive)
         console.log("LISTENING"); // must match run.js
