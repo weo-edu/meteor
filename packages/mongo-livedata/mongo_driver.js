@@ -20,6 +20,14 @@ _Mongo = function (url) {
 
   self._liveResultsSets = {};
 
+  // Set autoReconnect on Mongo URLs by default.
+  if (!(/[\?&]autoReconnect/.test(url))) {
+    if (/\?/.test(url))
+      url += '&autoReconnect=true';
+    else
+      url += '?autoReconnect=true';
+  }
+
   MongoDB.connect(url, {db: {safe: true}}, function(err, db) {
     if (err)
       throw err;
@@ -160,9 +168,6 @@ _Mongo.prototype.remove = function (collection_name, selector, shouldWrite) {
 
   var write = self._maybeBeginWrite();
 
-  // XXX does not allow options. matches the client.
-  selector = _Mongo._rewriteSelector(selector);
-
   var future = new Future;
   self._withCollection(collection_name, function (err, collection) {
     if (err) {
@@ -199,7 +204,6 @@ _Mongo.prototype.update = function (collection_name, selector, mod, options) {
 
   var write = self._maybeBeginWrite();
 
-  selector = _Mongo._rewriteSelector(selector);
   if (!options) options = {};
 
   var future = new Future;
@@ -342,7 +346,7 @@ _Mongo.prototype._ensureIndex = function (collectionName, index, options) {
 var CursorDescription = function (collectionName, selector, options) {
   var self = this;
   self.collectionName = collectionName;
-  self.selector = _Mongo._rewriteSelector(selector);
+  self.selector = Meteor.Collection._rewriteSelector(selector);
   self.options = options || {};
 };
 

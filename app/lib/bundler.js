@@ -174,7 +174,7 @@ _.extend(PackageInstance.prototype, {
   // should be the extension of the file without a leading dot.)
   get_source_handler: function (extension) {
     var self = this;
-    var candidates = []
+    var candidates = [];
 
     if (extension in self.pkg.extensions)
       candidates.push(self.pkg.extensions[extension]);
@@ -308,7 +308,7 @@ var Bundle = function () {
       _.each(where, function (w) {
         if (options.type === "js") {
           if (!options.path)
-            throw new Error("Must specify path")
+            throw new Error("Must specify path");
 
           if (w === "client" || w === "server") {
             self.files[w][options.path] = data;
@@ -323,7 +323,7 @@ var Bundle = function () {
             // that appear in the server directories in an app tree
             return;
           if (!options.path)
-            throw new Error("Must specify path")
+            throw new Error("Must specify path");
           self.files.client[options.path] = data;
           self.css.push(options.path);
         } else if (options.type === "head" || options.type === "body") {
@@ -389,8 +389,8 @@ _.extend(Bundle.prototype, {
     // XXX detect circular dependencies and print an error. (not sure
     // what the current code will do)
 
-    if (pkg.on_use)
-      pkg.on_use(inst.api, where);
+    if (pkg.on_use_handler)
+      pkg.on_use_handler(inst.api, where);
   },
 
   include_tests: function (pkg) {
@@ -400,8 +400,8 @@ _.extend(Bundle.prototype, {
     self.tests_included[pkg.id] = true;
 
     var inst = self._get_instance(pkg);
-    if (inst.pkg.on_test)
-      inst.pkg.on_test(inst.api);
+    if (inst.pkg.on_test_handler)
+      inst.pkg.on_test_handler(inst.api);
   },
 
   // Minify the bundle

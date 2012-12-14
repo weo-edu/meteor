@@ -36,14 +36,14 @@ var Package = function () {
   // package metadata, from describe()
   self.metadata = {};
 
-  self.on_use = null;
-  self.on_test = null;
+  self.on_use_handler = null;
+  self.on_test_handler = null;
 
   // registered source file handlers
   self.extensions = {};
 
   // functions that can be called when the package is scanned
-  self.api = {
+  self.declarationFuncs = {
     // keys
     // - summary: for 'meteor list'
     // - internal: if true, hide in list
@@ -60,15 +60,15 @@ var Package = function () {
     },
 
     on_use: function (f) {
-      if (self.on_use)
+      if (self.on_use_handler)
         throw new Error("A package may have only one on_use handler");
-      self.on_use = f;
+      self.on_use_handler = f;
     },
 
     on_test: function (f) {
-      if (self.on_test)
+      if (self.on_test_handler)
         throw new Error("A package may have only one on_test handler");
-      self.on_test = f;
+      self.on_test_handler = f;
     },
 
     register_extension: function (extension, callback) {
@@ -87,10 +87,10 @@ _.extend(Package.prototype, {
 
     self.source_root = files.get_package_dir(name);
     self.serve_root = path.join(path.sep, 'packages', name);
-    
+
     if (!self.source_root)
       throw new Error("The package named " + self.name + " does not exist.");
-    
+
     var fullpath = path.join(self.source_root, 'package.js');
     var code = fs.readFileSync(fullpath).toString();
     // \n is necessary in case final line is a //-comment
@@ -105,7 +105,7 @@ _.extend(Package.prototype, {
     // 'templating' use this to load other code to run at
     // bundle-time. and to pull in, eg, 'fs' and 'path' to access
     // the file system
-    func(self.api, require);
+    func(self.declarationFuncs, require);
   },
 
   init_from_app_dir: function (app_dir, ignore_files) {
@@ -125,15 +125,14 @@ _.extend(Package.prototype, {
         });
     };
 
-    self.api.on_use(function (api) {
+    self.declarationFuncs.on_use(function (api) {
       // -- Packages --
 
       // standard client packages (for now), for the classic meteor
       // stack -- has to come before user packages, because we don't
       // (presently) require packages to declare dependencies on
       // 'standard meteor stuff' like minimongo.
-      api.use(['deps', 'session', 'livedata', 'mongo-livedata', 'spark',
-               'templating', 'startup', 'past']);
+      api.use(['livedata', 'mongo-livedata', 'startup', 'past']);
       api.use(require(path.join(__dirname, 'project.js')).get_packages(app_dir));
 
       // -- Source files --
@@ -141,7 +140,7 @@ _.extend(Package.prototype, {
       api.add_files(sources_except(api, "client"), "server");
     });
 
-    self.api.on_test(function (api) {
+    self.declarationFuncs.on_test(function (api) {
       api.use(self);
       api.add_files(sources_except(api, "server", true), "client");
       api.add_files(sources_except(api, "client", true), "server");
@@ -203,7 +202,7 @@ _.extend(Package.prototype, {
     self.source_root = null;
     self.serve_root = null;
 
-    self.api.on_test(function (api) {
+    self.declarationFuncs.on_test(function (api) {
       _.each(fs.readdirSync(collection_dir), function (name) {
         // only take things that are actually packages
         if (files.is_package_dir(path.join(collection_dir, name)))
@@ -276,7 +275,7 @@ var packages = module.exports = {
         // skip .meteor directory
         if (fs.existsSync(path.join(dir, name, 'package.js')))
           ret[name] = packages.get(name);
-      });      
+      });
     })
     
     return ret;

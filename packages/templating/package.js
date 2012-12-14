@@ -1,6 +1,5 @@
 Package.describe({
-  summary: "Allows templates to be defined in .html files",
-  internal: true
+  summary: "Allows templates to be defined in .html files"
 });
 
 var fs = require('fs');
