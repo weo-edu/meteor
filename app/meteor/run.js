@@ -10,12 +10,10 @@ var files = require(path.join(__dirname, '..', 'lib', 'files.js'));
 var updater = require(path.join(__dirname, '..', 'lib', 'updater.js'));
 var bundler = require(path.join(__dirname, '..', 'lib', 'bundler.js'));
 var mongo_runner = require(path.join(__dirname, '..', 'lib', 'mongo_runner.js'));
-var mongoExitCodes = require(path.join(__dirname, '..', 'lib', 'mongo_exit_codes.js'));
 
 var _ = require(path.join(__dirname, '..', 'lib', 'third', 'underscore.js'));
 
 ////////// Globals //////////
-//XXX: Refactor to not have globals anymore?
 
 // list of log objects from the child process.
 var server_log = [];
@@ -25,21 +23,7 @@ var Status = {
   crashing: false, // does server crash whenever we start it?
   listening: false, // do we expect the server to be listening now.
   counter: 0, // how many crashes in rapid succession
-  code: 0, // exit code last returned
-  shouldRestart: true, // true if we should be restarting the server
-  shuttingDown: false, // true if we're on the way to shutting down the server
 
-  exitNow: function () {
-    var self = this;
-    log_to_clients({'exit': "Your application is exiting."});
-    self.shuttingDown = true;
-
-    self.mongoHandle && self.mongoHandle.stop(function (err) {
-      if (err)
-        process.stdout.write(err.reason + "\n");
-      process.exit(self.code);
-    });
-  },
   reset: function () {
     this.crashing = false;
     this.counter = 0;
@@ -63,9 +47,6 @@ var Status = {
     }
   }
 };
-
-
-
 
 // List of queued requests. Each item in the list is a function to run
 // when the inner app is ready to receive connections.
@@ -187,18 +168,6 @@ var log_to_clients = function (msg, app) {
 };
 
 ////////// Launch server process //////////
-// Takes options:
-// bundlePath
-// outerPort
-// innerPort
-// mongoURL
-// onExit
-// [onListen]
-// [debugStatus]
-//
-// [runOnce]: boolean; default false; if true doesn't ever try to restart, and
-//          forwards server exit code.
-// [settings]
 
 var start_server = function (bundle_path, outer_port, inner_port, mongo_url,
                              on_exit_callback, on_listen_callback, cwd, env) {
@@ -225,7 +194,7 @@ var start_server = function (bundle_path, outer_port, inner_port, mongo_url,
     // string must match server.js
     data = data.replace(/^LISTENING\s*(?:\n|$)/m, '');
     if (data.length != originalLength)
-      options.onListen && options.onListen();
+      on_listen_callback && on_listen_callback();
     if (data)
       log_to_clients({stdout: data}, env.METEOR_SUBAPP_NAME);
   });
@@ -242,7 +211,7 @@ var start_server = function (bundle_path, outer_port, inner_port, mongo_url,
       log_to_clients({'exit': 'Exited with code: ' + code}, env.METEOR_SUBAPP_NAME);
     }
 
-    options.onExit(code);
+    on_exit_callback();
   });
 
   // this happens sometimes when we write a keepalive after the app is
@@ -343,7 +312,7 @@ _.extend(DependencyWatcher.prototype, {
       return false;
 
     try {
-      var stats = fs.lstatSync(filepath);
+      var stats = fs.lstatSync(filepath)
     } catch (e) {
       // doesn't exist -- leave stats undefined
     }
@@ -480,12 +449,6 @@ var start_update_checks = function () {
 
 // XXX leave a pidfile and check if we are already running
 
-exports.DebugStatus = {
-  OFF : "OFF",
-  DEBUG : "DEBUG",
-  BREAK : "BREAK"
-};
-
 // This function never returns and will call process.exit() if it
 // can't continue. If you change this, remember to call
 // watcher.destroy() as appropriate.
@@ -504,7 +467,6 @@ exports.run = function (app_dir, bundle_opts, port, env) {
   var test_mongo_url = "mongodb://127.0.0.1:" + mongo_port + "/meteor_test";
 
   var test_bundle_opts;
-
   if (files.is_app_dir(app_dir)) {
     // If we're an app, make separate test_bundle_opts to trigger a
     // separate runner.
@@ -526,8 +488,6 @@ exports.run = function (app_dir, bundle_opts, port, env) {
   var watcher;
 
   var start_watching = function () {
-    if (!Status.shouldRestart)
-      return;
     if (deps_info) {
       if (watcher)
         watcher.destroy();
@@ -606,20 +566,16 @@ exports.run = function (app_dir, bundle_opts, port, env) {
 
     start_watching();
     Status.running = true;
-    server_handle = start_server({
-      bundlePath: bundle_path,
-      outerPort: outer_port,
-      innerPort: inner_port,
-      mongoURL: mongo_url,
-      onExit: function (code) {
+    server_handle = start_server(
+      bundle_path, outer_port, inner_port, mongo_url,
+      function () {
         // on server exit
         Status.running = false;
         Status.listening = false;
         Status.soft_crashed(env.METEOR_SUBAPP_NAME);
         if (!Status.crashing)
           restart_server();
-      },
-      onListen: function () {
+      }, function () {
         // on listen
         Status.listening = true;
         _.each(request_queue, function (f) { f(); });
@@ -638,12 +594,8 @@ exports.run = function (app_dir, bundle_opts, port, env) {
         });
         files.rm_recursive(test_bundle_path);
       } else {
-        test_server_handle = start_server({
-          bundlePath: test_bundle_path,
-          outerPort: test_port,
-          innerPort: test_port,
-          mongoURL: test_mongo_url,
-          onExit: function (code) {
+        test_server_handle = start_server(
+          test_bundle_path, test_port, test_mongo_url, function () {
             // No restarting or crash loop prevention on the test server
             // for now. We'll see how annoying it is.
             log_to_clients({'system': "Test server crashed."}, env.METEOR_SUBAPP_NAME);
@@ -658,7 +610,7 @@ exports.run = function (app_dir, bundle_opts, port, env) {
   var mongo_startup_print_timer;
   var process_startup_printer;
   var launch = function () {
-    Status.mongoHandle = mongo_runner.launch_mongo(
+    mongo_runner.launch_mongo(
       app_dir,
       mongo_port,
       function () { // On Mongo startup complete
@@ -675,22 +627,13 @@ exports.run = function (app_dir, bundle_opts, port, env) {
         restart_server();
       },
       function (code, signal) { // On Mongo dead
-        if (Status.shuttingDown) {
-          return;
-        }
         console.log("Unexpected mongo exit code " + code + ". Restarting.");
 
         // if mongo dies 3 times with less than 5 seconds between each,
         // declare it failed and die.
         mongo_err_count += 1;
         if (mongo_err_count >= 3) {
-          var explanation = mongoExitCodes.Codes[code];
-          console.log("Can't start mongod\n");
-          if (explanation)
-            console.log(explanation.longText);
-          if (explanation === mongoExitCodes.EXIT_NET_ERROR)
-            console.log("\nCheck for other processes listening on port " + mongo_port +
-                        "\nor other meteors running in the same project.");
+          console.log("Can't start mongod. Check for other processes listening on port " + mongo_port + " or other meteors running in the same project.");
           process.exit(1);
         }
         if (mongo_err_timer)
