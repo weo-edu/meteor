@@ -1,6 +1,5 @@
 Package.describe({
-  summary: "Toolkit for live-updating HTML interfaces",
-  internal: true
+  summary: "Toolkit for live-updating HTML interfaces"
 });
 
 Package.on_use(function (api) {

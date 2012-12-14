@@ -1,6 +1,5 @@
 Package.describe({
-  summary: "Mark, track, and update an arbitrary region in the DOM",
-  internal: true
+  summary: "Mark, track, and update an arbitrary region in the DOM"
 });
 
 Package.on_use(function (api) {

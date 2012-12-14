@@ -1,0 +1,31 @@
+<body>
+	<div id="outer" ng-controller="LeaderboardCtrl">
+		<div class="leaderboard">
+			<div class="players" ng-repeat="player in players">
+
+				<div class="player {{isSelected(player)}}" ng-click="select(player)">
+				  <span class="name">{{player.name}}</span>
+				  <span class="score">{{player.score}}</span>
+				</div>
+			</div>
+
+			<div class="details" ng-show="selected">
+				<div class="name">{{selected.name}}</div>
+				<input type="button" class="inc" value="Give 5 points" ng-click="giveFive()"/>
+			</div>
+
+			<div class="none" ng-hide="selected">
+				Click a player to select.
+			</div>
+
+		</div>
+	</div>
+</body>
+
+<template>
+	<div></div>
+</template>
+
+<template name="test">
+	<div></div>
+</template>
