@@ -49,7 +49,7 @@ var init_keepalive = function () {
 
   setInterval(function () {
     keepalive_count ++;
-    if (keepalive_count >= 6) {
+    if (keepalive_count >= 16) {
       console.log("Failed to receive keepalive! Exiting.");
       process.exit(1);
     }
@@ -69,9 +69,6 @@ var supported_browser = function (user_agent) {
 // add any runtime configuration options needed to app_html
 var runtime_config = function (app_html) {
   var insert = '';
-  if (process.env.DEFAULT_DDP_ENDPOINT)
-    insert += "__meteor_runtime_config__.DEFAULT_DDP_ENDPOINT = '" + process.env.DEFAULT_DDP_ENDPOINT + "';";
-
   if (typeof __meteor_runtime_config__ === 'undefined')
     return app_html;
 

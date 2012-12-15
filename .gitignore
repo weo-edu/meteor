@@ -6,4 +6,7 @@
 \#*#
 .idea
 .AppleDouble
+*.iml
+*.sublime-project
+*.sublime-workspace
 

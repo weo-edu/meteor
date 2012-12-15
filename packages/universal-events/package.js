@@ -1,6 +1,5 @@
 Package.describe({
-  summary: "Listen to events globally, and normalize them",
-  internal: true
+  summary: "Listen to events globally, and normalize them"
 });
 
 Package.on_use(function (api) {
