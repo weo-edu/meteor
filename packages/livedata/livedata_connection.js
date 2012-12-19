@@ -150,6 +150,7 @@ Meteor._LivedataConnection = function (url, options) {
   // Reactive userId.
   self._userId = null;
   self._userIdListeners = Meteor.deps && new Meteor.deps._ContextSet;
+  self._userIdCallbacks = [];
 
   // Block auto-reload while we're waiting for method responses.
   if (!options.reloadWithOutstanding) {
@@ -703,6 +704,12 @@ _.extend(Meteor._LivedataConnection.prototype, {
     return self._userId;
   },
 
+  userIdAsync: function(cb) {
+    var self = this;
+    cb && self._userIdCallbacks.push(cb);
+    return self._userId;
+  },
+
   setUserId: function (userId) {
     var self = this;
     // Avoid invalidating listeners if setUserId is called with current value.
@@ -711,6 +718,11 @@ _.extend(Meteor._LivedataConnection.prototype, {
     self._userId = userId;
     if (self._userIdListeners)
       self._userIdListeners.invalidateAll();
+    if (self._userIdCallbacks) {
+      _.each(self._userIdCallbacks, function(cb) {
+        cb(self._userId);
+      });
+    }
   },
 
   // Returns true if we are in a state after reconnect of waiting for subs to be

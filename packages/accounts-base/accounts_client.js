@@ -7,6 +7,7 @@
 
   var loggingIn = false;
   var loggingInListeners = new Meteor.deps._ContextSet;
+  var loggingInCallbacks = [];
   // This is mostly just called within this file, but Meteor.loginWithPassword
   // also uses it to make loggingIn() be true during the beginPasswordExchange
   // method call too.
@@ -14,12 +15,19 @@
     if (loggingIn !== x) {
       loggingIn = x;
       loggingInListeners.invalidateAll();
+      _.each(loggingInCallbacks, function(cb) {
+        cb(x);
+      });
     }
   };
   Meteor.loggingIn = function () {
     loggingInListeners.addCurrentContext();
     return loggingIn;
   };
+  Meteor.loggingInAsync = function(cb) {
+    cb && loggingInCallbacks.push(cb);
+    return loggingIn;
+  }
 
   // This calls userId, which is reactive.
   Meteor.user = function () {

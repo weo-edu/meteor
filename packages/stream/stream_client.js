@@ -49,6 +49,7 @@ Meteor._Stream = function (url) {
   };
 
   self.status_listeners = (Meteor.deps && new Meteor.deps._ContextSet);
+  // non-reactive 
   self.status_changed = function () {
     if (self.status_listeners)
       self.status_listeners.invalidateAll();
