@@ -706,8 +706,10 @@ _.extend(Meteor._LivedataConnection.prototype, {
 
   userIdAsync: function(cb) {
     var self = this;
-    if(self._userId) Meteor.defer(function() { cb(self._userId); });
-    else cb && self._userIdCallbacks.push(cb);
+    if(cb) {
+      if(self._userId) Meteor.defer(function() { cb(self._userId); });
+      else self._userIdCallbacks.push(cb);
+    }
     return self._userId;
   },
 
