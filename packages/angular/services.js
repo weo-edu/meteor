@@ -27,7 +27,11 @@ meteorModule.run(['$rootScope', '$q', '$templateCache', '$meteor' , '$collection
 			this.$apply(expr);
 	}
 
-	var digestNow = _.bind($rootScope.$digest, $rootScope);
+	function digestNow() {
+		var phase = $rootScope.$$phase;
+		if(phase !== '$apply' && phase !== '$digest')
+			$rootScope.$digest();
+	}
 	var digestAfter = _.bind(setTimeout, window, digestNow, 50);
 	var throttledDigest = _.throttle(digestAfter, 50);
 	$rootScope.$throttledSafeApply = function(expr) {
