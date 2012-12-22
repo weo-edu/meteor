@@ -27,17 +27,12 @@ meteorModule.run(['$rootScope', '$q', '$templateCache', '$meteor' , '$collection
 			this.$apply(expr);
 	}
 
-	var applyQueue = [];
-	var runQueue = _.throttle(function () {
-		$rootScope.$safeApply(function() {
-			while(applyQueue.length)
-				$rootScope.$eval(applyQueue.shift());
-		});
-	}, 50);
-
+	var digestNow = _.bind($rootScope.$digest, $rootScope);
+	var digestAfter = _.bind(setTimeout, window, digestNow, 50);
+	var throttledDigest = _.throttle(digestAfter, 50);
 	$rootScope.$throttledSafeApply = function(expr) {
-		applyQueue.push(expr);
-		runQueue();
+		this.$eval(expr);
+		throttledDigest();
 	}
 
 	$rootScope.$promisedCall = function() {
@@ -49,7 +44,7 @@ meteorModule.run(['$rootScope', '$q', '$templateCache', '$meteor' , '$collection
 		args.push(function() {
 			var cbArgs = _.toArray(arguments);
 			var err = cbArgs.shift();
-			self.$apply(function() {
+			self.$throttledSafeApply(function() {
 				if (!err) defer.resolve.apply(defer, cbArgs);
 				else defer.reject(err);
 			});
