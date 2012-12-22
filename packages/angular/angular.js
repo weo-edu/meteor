@@ -7161,7 +7161,7 @@ function $RouteProvider(){
         };
 
   $rootScope.$when = function(path, route) {
-    if (! this.scopeRoutes) {
+    /*if (! this.scopeRoutes) {
       this.scopeRoutes = Object.create(routes);
       routes = this.scopeRoutes;
       this.$on('destroy', function() {
@@ -7171,7 +7171,7 @@ function $RouteProvider(){
     }
     route.$scope = this;
     self.when(path, route);
-    return this;
+    return this;*/
   }
 
   $rootScope.$updateRoute = updateRoute;
