@@ -27,18 +27,28 @@ meteorModule.run(['$rootScope', '$q', '$templateCache', '$meteor' , '$collection
 			this.$apply(expr);
 	}
 
+	function digestNow() {
+		var phase = $rootScope.$$phase;
+		if(phase !== '$apply' && phase !== '$digest')
+			$rootScope.$digest();
+	}
+	var digestAfter = _.bind(setTimeout, window, digestNow, 50);
+	var throttledDigest = _.throttle(digestAfter, 50);
+	$rootScope.$throttledSafeApply = function(expr) {
+		this.$eval(expr);
+		throttledDigest();
+	}
+
 	$rootScope.$promisedCall = function() {
 		var self = this;
 		var args = _.toArray(arguments);
 		var fn = args.shift();
-
-		console.log('promisedCall', fn, args);
 		var defer = $q.defer();
 
 		args.push(function() {
 			var cbArgs = _.toArray(arguments);
 			var err = cbArgs.shift();
-			self.$apply(function() {
+			self.$throttledSafeApply(function() {
 				if (!err) defer.resolve.apply(defer, cbArgs);
 				else defer.reject(err);
 			});
@@ -92,23 +102,23 @@ meteorModule.factory('$collection', function() {
 			var cursor = mc.find.call(ac, selector, options);
 			var handle = cursor.observe({
 				added: function(document, beforeIndex) {
-	        scope.$safeApply(function() {
+	        scope.$throttledSafeApply(function() {
 	          results.splice(beforeIndex, 0, document);
 	        });
 	      },
 	      changed: function(newDocument, atIndex, oldDocument) {
-	      	scope.$safeApply(function() {
+	      	scope.$throttledSafeApply(function() {
 	      		results[atIndex] = newDocument;
 	      	});
 	      },
 	      moved: function(document, oldIndex, newIndex) {
-	      	scope.$safeApply(function() {
+	      	scope.$throttledSafeApply(function() {
 	      		results.splice(oldIndex, 1);
 	      		results.splice(newIndex, 0, document);
 	      	});
 	      },
 	      removed: function(oldDocument, atIndex) {
-	      	scope.$safeApply(function() {
+	      	scope.$throttledSafeApply(function() {
 	      		results.splice(atIndex, 1);
 	      	});
 	        
@@ -148,7 +158,7 @@ meteorModule.factory('$collection', function() {
 			var handle = cursor.observe({
 				added: function(document, beforeIndex) {
 					if (beforeIndex === 0) {
-						scope.$safeApply(function() {
+						scope.$throttledSafeApply(function() {
 		          clearExtend(document);
 		        });
 					}
@@ -156,7 +166,7 @@ meteorModule.factory('$collection', function() {
 	      },
 	      changed: function(newDocument, atIndex, oldDocument) {
 	      	if (atIndex === 0) {
-	      		scope.$safeApply(function() {
+	      		scope.$throttledSafeApply(function() {
 		      		clearExtend(newDocument);
 		      	});
 	      	}
@@ -164,14 +174,14 @@ meteorModule.factory('$collection', function() {
 	      },
 	      moved: function(doc, oldIndex, newIndex) {
 	      	if (oldIndex === 0) {
-	      		scope.$safeApply(function() {
+	      		scope.$throttledSafeApply(function() {
 	      			clearExtend(cursor.fetch()[0]);
 	      		})
 	      	}
 	      },
 	      removed: function(oldDocument, atIndex) {
 	      	if (atIndex === 0) {
-	      		scope.$safeApply(function() {
+	      		scope.$throttledSafeApply(function() {
 		      		clearExtend(cursor.fetch()[0]);
 		      	});
 	      	}
@@ -209,7 +219,7 @@ meteorModule.factory('$meteor', ['$rootScope', '$collection', function($rootScop
 		}
 
 		args.push(function() {
-			$rootScope.$safeApply(function() {
+			$rootScope.$throttledSafeApply(function() {
 				handle.loading = false;
 				fn();
 			});

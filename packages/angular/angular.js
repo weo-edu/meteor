@@ -1,5 +1,5 @@
 /**
- * @license AngularJS v1.1.2-59d9b898
+ * @license AngularJS v1.1.2-2ae27cf8
  * (c) 2010-2012 Google, Inc. http://angularjs.org
  * License: MIT
  */
@@ -1247,7 +1247,7 @@ function setupModuleLoader(window) {
  * - `codeName` – `{string}` – Code name of the release, such as "jiggling-armfat".
  */
 var version = {
-  full: '1.1.2-59d9b898',    // all of these placeholder strings will be replaced by rake's
+  full: '1.1.2-2ae27cf8',    // all of these placeholder strings will be replaced by rake's
   major: 1,    // compile task
   minor: 1,
   dot: 2,
@@ -10361,7 +10361,7 @@ var htmlAnchorDirective = valueFn({
         // if we have no href url, then don't navigate anywhere.
         if (!element.attr('href')) {
           event.preventDefault();
-          return false; // Needed for opera
+          //return false; // Needed for opera
         }
       });
     }
