@@ -6891,6 +6891,7 @@ function qFactory(nextTick, exceptionHandler) {
  */
 function $RouteProvider(){
   var routes = {};
+  var self = this;
 
   /**
    * @ngdoc method
@@ -7191,18 +7192,21 @@ function $RouteProvider(){
     $rootScope.$on('$locationChangeSuccess', updateRoute);
 
     $rootScope.$when = function(path, route) {
-      if (! this.scopeRoutes) {
-        this.scopeRoutes = Object.create(routes);
-        routes = this.scopeRoutes;
-        this.$on('destroy', function() {
+      var scope = this;
+      if (! scope.scopeRoutes) {
+        scope.scopeRoutes = Object.create(routes);
+        routes = scope.scopeRoutes;
+        this.$on('$destroy', function() {
           console.log('destroy');
-          routes = this.scopeRoutes.__proto__;
+          routes = scope.scopeRoutes.__proto__;
         });
       }
-      route.$scope = this;
+      route.$scope = scope;
       self.when(path, route);
-      return this;
+      return scope;
     }
+
+    $rootScope.$updateRoute = updateRoute;
 
     return $route;
 
@@ -7232,9 +7236,10 @@ function $RouteProvider(){
       return match ? dst : null;
     }
 
-    function updateRoute() {
+    function updateRoute(cb) {
       var next = parseRoute(),
           last = $route.current;
+
 
       if (next && last && next.$route === last.$route
           && equals(next.pathParams, last.pathParams) && !next.reloadOnSearch && !forceReload) {
@@ -7243,6 +7248,7 @@ function $RouteProvider(){
         $rootScope.$broadcast('$routeUpdate', last);
       } else if (next || last) {
         forceReload = false;
+        
         $rootScope.$broadcast('$routeChangeStart', next, last);
         $route.current = next;
         if (next) {
@@ -7293,6 +7299,8 @@ function $RouteProvider(){
                 next.locals = locals;
                 copy(next.params, $routeParams);
               }
+              if (_.isFunction(cb))
+                cb();
               (next.$scope || $rootScope).$broadcast('$routeChangeSuccess', next, last);
             }
           }, function(error) {
@@ -7300,6 +7308,8 @@ function $RouteProvider(){
               $rootScope.$broadcast('$routeChangeError', next, last, error);
             }
           });
+          if (next)
+            return true;
       }
     }
 
@@ -14086,6 +14096,8 @@ var ngViewDirective = ['$http', '$templateCache', '$route', '$anchorScroll', '$c
         var locals = $route.current && $route.current.locals,
             template = locals && locals.$template;
 
+        console.log('ngview');
+
         if (template) {
           element.html(template);
           destroyLastScope();
@@ -14101,6 +14113,7 @@ var ngViewDirective = ['$http', '$templateCache', '$route', '$anchorScroll', '$c
             element.contents().data('$ngControllerController', controller);
           }
 
+          console.log('ngview link')
           link(lastScope);
           lastScope.$emit('$viewContentLoaded');
           lastScope.$eval(onloadExp);
