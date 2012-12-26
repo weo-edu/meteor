@@ -15,234 +15,9 @@ var _ = require(path.join(__dirname, '..', 'lib', 'third', 'underscore.js'));
 
 ////////// Globals //////////
 
-// list of log objects from the child process.
-var server_log = [];
 
-var Status = {
-  running: false, // is server running now?
-  crashing: false, // does server crash whenever we start it?
-  listening: false, // do we expect the server to be listening now.
-  counter: 0, // how many crashes in rapid succession
 
-  reset: function () {
-    this.crashing = false;
-    this.counter = 0;
-  },
 
-  hard_crashed: function (app) {
-    log_to_clients({'exit': "Your application is crashing. Waiting for file change."}, app);
-    this.crashing = true;
-  },
-
-  soft_crashed: function (app) {
-    if (this.counter === 0)
-      setTimeout(function () {
-        this.counter = 0;
-      }, 2000);
-
-    this.counter++;
-
-    if (this.counter > 2) {
-      Status.hard_crashed(app);
-    }
-  }
-};
-
-// List of queued requests. Each item in the list is a function to run
-// when the inner app is ready to receive connections.
-//var request_queue = [];
-
-////////// Outer Proxy Server //////////
-//
-// calls callback once proxy is actively listening on outer and
-// proxying to inner.
-
-var start_proxy = function (request_queue, outer_port, inner_port, callback) {
-  callback = callback || function () {};
-
-  var p = httpProxy.createServer(function (req, res, proxy) {
-    if (Status.crashing) {
-      // sad face. send error logs.
-      // XXX formatting! text/plain is bad
-      res.writeHead(200, {'Content-Type': 'text/plain'});
-
-      res.write("Your app is crashing. Here's the latest log.\n\n");
-
-      _.each(server_log, function(log) {
-        _.each(log, function(val, key) {
-          if (val)
-            res.write(val);
-          // deal with mixed line endings! XXX
-          if (key !== 'stdout' && key !== 'stderr')
-            res.write("\n");
-        });
-      });
-
-      res.end();
-    } else if (Status.listening) {
-      // server is listening. things are hunky dory!
-      proxy.proxyRequest(req, res, {
-        host: '127.0.0.1', port: inner_port
-      });
-    } else {
-      // Not listening yet. Queue up request.
-      var buffer = httpProxy.buffer(req);
-      request_queue.push(function () {
-        proxy.proxyRequest(req, res, {
-          host: '127.0.0.1', port: inner_port,
-          buffer: buffer
-        });
-      });
-    }
-  });
-
-  // Proxy websocket requests using same buffering logic as for regular HTTP requests
-  p.on('upgrade', function(req, socket, head) {
-    if (Status.listening) {
-      // server is listening. things are hunky dory!
-      p.proxy.proxyWebSocketRequest(req, socket, head, {
-        host: '127.0.0.1', port: inner_port
-      });
-    } else {
-      // Not listening yet. Queue up request.
-      var buffer = httpProxy.buffer(req);
-      request_queue.push(function () {
-        p.proxy.proxyWebSocketRequest(req, socket, head, {
-          host: '127.0.0.1', port: inner_port,
-          buffer: buffer
-        });
-      });
-    }
-  });
-
-  p.on('error', function (err) {
-    if (err.code == 'EADDRINUSE') {
-      process.stderr.write("Can't listen on port " + outer_port
-                           + ". Perhaps another Meteor is running?\n");
-      process.stderr.write("\n");
-      process.stderr.write("Running two copies of Meteor in the same application directory\n");
-      process.stderr.write("will not work. If something else is using port " + outer_port + ", you can\n");
-      process.stderr.write("specify an alternative port with --port <port>.\n");
-    } else {
-      process.stderr.write(err + "\n");
-    }
-
-    process.exit(1);
-  });
-
-  // don't spin forever if the app doesn't respond. instead return an
-  // error immediately. This shouldn't happen much since we try to not
-  // send requests if the app is down.
-  p.proxy.on('proxyError', function (err, req, res) {
-    res.writeHead(503, {
-      'Content-Type': 'text/plain'
-    });
-    res.end('Unexpected error.');
-  });
-
-  p.listen(outer_port, callback);
-};
-
-////////// MongoDB //////////
-
-var log_to_clients = function (msg, app) {
-  server_log.push(msg);
-  if (server_log.length > 100) {
-    server_log.shift();
-  }
-
-  // log to console
-  //
-  // XXX this is a mess. some lines have newlines, and some don't.
-  // this whole thing should be redone. it is the result of doing it
-  // very differently and changing over quickly.
-  _.each(msg, function (val, key) {
-    if(app) val = app + ': ' + val;
-    if (key === "stdout")
-      process.stdout.write(val);
-    else if (key === "stderr")
-      process.stderr.write(val);
-    else
-      console.log(val);
-  });
-};
-
-////////// Launch server process //////////
-
-var start_server = function (bundle_path, outer_port, inner_port, mongo_url,
-                             on_exit_callback, on_listen_callback, cwd, env) {
-  // environment
-  if(! env) {
-    env = {};
-    for (var k in process.env)
-      env[k] = process.env[k];
-  }
-  env.PORT = inner_port;
-  env.MONGO_URL = mongo_url;
-  env.ROOT_URL = env.ROOT_URL || ('http://localhost:' + outer_port);
-  var proc = spawn(process.execPath,
-                   [path.join(bundle_path, 'main.js'), '--keepalive'],
-                   {env: env, cwd: bundle_path});
-
-  // XXX deal with test server logging differently?!
-
-  proc.stdout.setEncoding('utf8');
-  proc.stdout.on('data', function (data) {
-    if (!data) return;
-
-    var originalLength = data.length;
-    // string must match server.js
-    data = data.replace(/^LISTENING\s*(?:\n|$)/m, '');
-    if (data.length != originalLength)
-      on_listen_callback && on_listen_callback();
-    if (data)
-      log_to_clients({stdout: data}, env.METEOR_SUBAPP_NAME);
-  });
-
-  proc.stderr.setEncoding('utf8');
-  proc.stderr.on('data', function (data) {
-    data && log_to_clients({stderr: data}, env.METEOR_SUBAPP_NAME);
-  });
-
-  proc.on('exit', function (code, signal) {
-    if (signal) {
-      log_to_clients({'exit': 'Exited from signal: ' + signal}, env.METEOR_SUBAPP_NAME);
-    } else {
-      log_to_clients({'exit': 'Exited with code: ' + code}, env.METEOR_SUBAPP_NAME);
-    }
-
-    on_exit_callback();
-  });
-
-  // this happens sometimes when we write a keepalive after the app is
-  // dead. If we don't register a handler, we get a top level exception
-  // and the whole app dies.
-  // http://stackoverflow.com/questions/2893458/uncatchable-errors-in-node-js
-  proc.stdin.on('error', function () {});
-
-  // Keepalive so server can detect when we die
-  var timer = setInterval(function () {
-    try {
-      if (proc && proc.pid && proc.stdin && proc.stdin.write)
-        proc.stdin.write('k');
-    } catch (e) {
-      // do nothing. this fails when the process dies.
-    }
-  }, 2000);
-
-  return {
-    proc: proc,
-    timer: timer
-  };
-};
-
-var kill_server = function (handle) {
-  if (handle.proc.pid) {
-    handle.proc.removeAllListeners('exit');
-    handle.proc.kill();
-  }
-  clearInterval(handle.timer);
-};
 
 ////////// Watching dependencies  //////////
 
@@ -479,6 +254,235 @@ exports.run = function (app_dir, bundle_opts, port, env) {
     // the main app (so we get reload watching and such).
     bundle_opts = _.extend({include_tests: true}, bundle_opts);
   }
+
+  // list of log objects from the child process.
+var server_log = [];
+
+var Status = {
+  running: false, // is server running now?
+  crashing: false, // does server crash whenever we start it?
+  listening: false, // do we expect the server to be listening now.
+  counter: 0, // how many crashes in rapid succession
+
+  reset: function () {
+    this.crashing = false;
+    this.counter = 0;
+  },
+
+  hard_crashed: function (app) {
+    log_to_clients({'exit': "Your application is crashing. Waiting for file change."}, app);
+    this.crashing = true;
+  },
+
+  soft_crashed: function (app) {
+    if (this.counter === 0)
+      setTimeout(function () {
+        this.counter = 0;
+      }, 2000);
+
+    this.counter++;
+
+    if (this.counter > 2) {
+      Status.hard_crashed(app);
+    }
+  }
+};
+
+// List of queued requests. Each item in the list is a function to run
+// when the inner app is ready to receive connections.
+//var request_queue = [];
+
+////////// Outer Proxy Server //////////
+//
+// calls callback once proxy is actively listening on outer and
+// proxying to inner.
+
+var start_proxy = function (request_queue, outer_port, inner_port, callback) {
+  callback = callback || function () {};
+
+  var p = httpProxy.createServer(function (req, res, proxy) {
+    if (Status.crashing) {
+      // sad face. send error logs.
+      // XXX formatting! text/plain is bad
+      res.writeHead(200, {'Content-Type': 'text/plain'});
+
+      res.write("Your app is crashing. Here's the latest log.\n\n");
+
+      _.each(server_log, function(log) {
+        _.each(log, function(val, key) {
+          if (val)
+            res.write(val);
+          // deal with mixed line endings! XXX
+          if (key !== 'stdout' && key !== 'stderr')
+            res.write("\n");
+        });
+      });
+
+      res.end();
+    } else if (Status.listening) {
+      // server is listening. things are hunky dory!
+      proxy.proxyRequest(req, res, {
+        host: '127.0.0.1', port: inner_port
+      });
+    } else {
+      // Not listening yet. Queue up request.
+      var buffer = httpProxy.buffer(req);
+      request_queue.push(function () {
+        proxy.proxyRequest(req, res, {
+          host: '127.0.0.1', port: inner_port,
+          buffer: buffer
+        });
+      });
+    }
+  });
+
+  // Proxy websocket requests using same buffering logic as for regular HTTP requests
+  p.on('upgrade', function(req, socket, head) {
+    if (Status.listening) {
+      // server is listening. things are hunky dory!
+      p.proxy.proxyWebSocketRequest(req, socket, head, {
+        host: '127.0.0.1', port: inner_port
+      });
+    } else {
+      // Not listening yet. Queue up request.
+      var buffer = httpProxy.buffer(req);
+      request_queue.push(function () {
+        p.proxy.proxyWebSocketRequest(req, socket, head, {
+          host: '127.0.0.1', port: inner_port,
+          buffer: buffer
+        });
+      });
+    }
+  });
+
+  p.on('error', function (err) {
+    if (err.code == 'EADDRINUSE') {
+      process.stderr.write("Can't listen on port " + outer_port
+                           + ". Perhaps another Meteor is running?\n");
+      process.stderr.write("\n");
+      process.stderr.write("Running two copies of Meteor in the same application directory\n");
+      process.stderr.write("will not work. If something else is using port " + outer_port + ", you can\n");
+      process.stderr.write("specify an alternative port with --port <port>.\n");
+    } else {
+      process.stderr.write(err + "\n");
+    }
+
+    process.exit(1);
+  });
+
+  // don't spin forever if the app doesn't respond. instead return an
+  // error immediately. This shouldn't happen much since we try to not
+  // send requests if the app is down.
+  p.proxy.on('proxyError', function (err, req, res) {
+    res.writeHead(503, {
+      'Content-Type': 'text/plain'
+    });
+    res.end('Unexpected error.');
+  });
+
+  p.listen(outer_port, callback);
+};
+
+////////// MongoDB //////////
+
+var log_to_clients = function (msg, app) {
+  server_log.push(msg);
+  if (server_log.length > 100) {
+    server_log.shift();
+  }
+
+  // log to console
+  //
+  // XXX this is a mess. some lines have newlines, and some don't.
+  // this whole thing should be redone. it is the result of doing it
+  // very differently and changing over quickly.
+  _.each(msg, function (val, key) {
+    if(app) val = app + ': ' + val;
+    if (key === "stdout")
+      process.stdout.write(val);
+    else if (key === "stderr")
+      process.stderr.write(val);
+    else
+      console.log(val);
+  });
+};
+
+////////// Launch server process //////////
+
+var start_server = function (bundle_path, outer_port, inner_port, mongo_url,
+                             on_exit_callback, on_listen_callback, cwd, env) {
+  // environment
+  if(! env) {
+    env = {};
+    for (var k in process.env)
+      env[k] = process.env[k];
+  }
+  env.PORT = inner_port;
+  env.MONGO_URL = mongo_url;
+  env.ROOT_URL = env.ROOT_URL || ('http://localhost:' + outer_port);
+  var proc = spawn(process.execPath,
+                   [path.join(bundle_path, 'main.js'), '--keepalive'],
+                   {env: env, cwd: bundle_path});
+
+  // XXX deal with test server logging differently?!
+
+  proc.stdout.setEncoding('utf8');
+  proc.stdout.on('data', function (data) {
+    if (!data) return;
+
+    var originalLength = data.length;
+    // string must match server.js
+    data = data.replace(/^LISTENING\s*(?:\n|$)/m, '');
+    if (data.length != originalLength)
+      on_listen_callback && on_listen_callback();
+    if (data)
+      log_to_clients({stdout: data}, env.METEOR_SUBAPP_NAME);
+  });
+
+  proc.stderr.setEncoding('utf8');
+  proc.stderr.on('data', function (data) {
+    data && log_to_clients({stderr: data}, env.METEOR_SUBAPP_NAME);
+  });
+
+  proc.on('exit', function (code, signal) {
+    if (signal) {
+      log_to_clients({'exit': 'Exited from signal: ' + signal}, env.METEOR_SUBAPP_NAME);
+    } else {
+      log_to_clients({'exit': 'Exited with code: ' + code}, env.METEOR_SUBAPP_NAME);
+    }
+
+    on_exit_callback();
+  });
+
+  // this happens sometimes when we write a keepalive after the app is
+  // dead. If we don't register a handler, we get a top level exception
+  // and the whole app dies.
+  // http://stackoverflow.com/questions/2893458/uncatchable-errors-in-node-js
+  proc.stdin.on('error', function () {});
+
+  // Keepalive so server can detect when we die
+  var timer = setInterval(function () {
+    try {
+      if (proc && proc.pid && proc.stdin && proc.stdin.write)
+        proc.stdin.write('k');
+    } catch (e) {
+      // do nothing. this fails when the process dies.
+    }
+  }, 2000);
+
+  return {
+    proc: proc,
+    timer: timer
+  };
+};
+
+var kill_server = function (handle) {
+  if (handle.proc.pid) {
+    handle.proc.removeAllListeners('exit');
+    handle.proc.kill();
+  }
+  clearInterval(handle.timer);
+};
 
   var deps_info = null;
   var warned_about_no_deps_info = false;
