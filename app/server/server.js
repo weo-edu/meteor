@@ -168,9 +168,11 @@ var run = function () {
 
     app_html = runtime_config(app_html);
 
+    var re = /\/[\w\!]+\.[\w\!]+(?:\?[^\/]*)?$/;
     app.use(function (req, res) {
       // prevent favicon.ico and robots.txt from returning app_html
-      if (_.indexOf([path.sep + 'favicon.ico', path.sep + 'robots.txt'], req.url) !== -1) {
+      if(re.test(req.url)) {
+      //if (_.indexOf([path.sep + 'favicon.ico', path.sep + 'robots.txt'], req.url) !== -1) {
         res.writeHead(404);
         res.end();
         return;
