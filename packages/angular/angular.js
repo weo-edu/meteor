@@ -1,5 +1,5 @@
 /**
- * @license AngularJS v1.1.2-35cfca0f
+ * @license AngularJS v1.1.2-298f3a82
  * (c) 2010-2012 Google, Inc. http://angularjs.org
  * License: MIT
  */
@@ -1247,7 +1247,7 @@ function setupModuleLoader(window) {
  * - `codeName` – `{string}` – Code name of the release, such as "jiggling-armfat".
  */
 var version = {
-  full: '1.1.2-35cfca0f',    // all of these placeholder strings will be replaced by rake's
+  full: '1.1.2-298f3a82',    // all of these placeholder strings will be replaced by rake's
   major: 1,    // compile task
   minor: 1,
   dot: 2,
@@ -6895,6 +6895,10 @@ function $RouteProvider(){
         strict: true
       };
 
+    function isRootRouter(scope) {
+      return scoped(scope) === scopeRoutes[null];
+    }
+
     function scopeKey(scope) {
       return scope && scope.$id || null;
     }
@@ -6905,8 +6909,10 @@ function $RouteProvider(){
         routes: [],
         scope: scope
       };
-      if (!scopedRoutes[null])
+      if (!scopedRoutes[null]) {
         scopedRoutes[null] = scopedRoutes[key];
+        return true;
+      }
     }
 
     function pushRoute(scope, route) {
@@ -6930,6 +6936,14 @@ function $RouteProvider(){
         return scoped(scope.$parent);
       } else
         return {};
+    }
+
+    function getClosestRouterScope(scope, rootScope) {
+      var router = scoped(scope);
+      if (router === scopedRoutes[null])
+        return rootScope;
+      else
+        return router.scope;
     }
 
   /**
@@ -7316,7 +7330,7 @@ function $RouteProvider(){
            */
 
           scopedRouter: function(scope) {
-            addScope(scope);
+            var isRoot = addScope(scope);
 
             function updateRouteListener(evt) {
               if (evt.targetScope.$id !== scope.$id) {
@@ -7325,23 +7339,25 @@ function $RouteProvider(){
               }
             }
 
-            // route events will be emitted twice for any listeners that come
-            // before the ones added by scopeRouter, so don't allow them
-            forEach(['$routeUpdate', '$routeChangeStart', '$routeChangeSuccess', '$routeChangeError'], function(name) {
-              if (scope.$$listeners[name])
-                throw new Error('Scoped router must be first listener to route events');
-            });
+            if (!isRoot) {
+              // route events will be emitted twice for any listeners that come
+              // before the ones added by scopeRouter, so don't allow them
+              forEach(['$routeUpdate', '$routeChangeStart', '$routeChangeSuccess', '$routeChangeError'], function(name) {
+                if (scope.$$listeners[name])
+                  throw new Error('Scoped router must be first listener to route events');
+              });
 
-            scope.$on('$routeUpdate', updateRouteListener);
-            scope.$on('$routeChangeStart', function(evt) {
-              if (evt.targetScope.$id !== scope.$id)
-                evt.stopDescent();
-            });
-            scope.$on('$routeChangeSuccess', updateRouteListener);
-            scope.$on('$routeChangeError', updateRouteListener);
-            scope.$on('$destroy', function() {
-              removeScope(scope);
-            });
+              scope.$on('$routeUpdate', updateRouteListener);
+              scope.$on('$routeChangeStart', function(evt) {
+                if (evt.targetScope.$id !== scope.$id)
+                  evt.stopDescent();
+              });
+              scope.$on('$routeChangeSuccess', updateRouteListener);
+              scope.$on('$routeChangeError', updateRouteListener);
+              scope.$on('$destroy', function() {
+                removeScope(scope);
+              });
+            }
 
             var ret = {};
             ret.base = basePath(scope.$parent);
@@ -7412,8 +7428,11 @@ function $RouteProvider(){
     function updateRoute(scope) {
       var next = parseRoute(scope),
           route = $route.scoped(scope),
-          scope = route.scope,
+          scope = getClosestRouterScope(scope, $rootScope),
           last = route.current;
+
+      // if root route, the scope should be the $rootScope for everthing
+      // besides interpolation;
 
       function scopedParams(p) {
         var params;
@@ -7433,8 +7452,8 @@ function $RouteProvider(){
         !forceReload) {
         last.params = next.params;
 
-        (scope || $rootScope).$routeParams = scopedParams(next.params);
-        (scope || $rootScope).$broadcast('$routeUpdate', last);
+        scope.$routeParams = scopedParams(next.params);
+        scope.$broadcast('$routeUpdate', last);
       } else if (next || last) {
         forceReload = false;
         (scope || $rootScope).$broadcast('$routeChangeStart', next, last);
@@ -7442,7 +7461,7 @@ function $RouteProvider(){
         if (next) {
           if (next.redirectTo) {
             if (isString(next.redirectTo)) {
-              $location.path(interpolate(next.redirectTo, next.params, scope)).search(next.params)
+              $location.path(interpolate(next.redirectTo, next.params, route.scope)).search(next.params)
                        .replace();
             } else {
               $location.url(next.redirectTo(next.pathParams, $location.path(), $location.search()))
@@ -7485,13 +7504,13 @@ function $RouteProvider(){
             if (next == route.current) {
               if (next) {
                 next.locals = locals;
-                (scope || $rootScope).$routeParams = scopedParams(next.params);
+                scope.$routeParams = scopedParams(next.params);
               }
-              (scope || $rootScope).$broadcast('$routeChangeSuccess', next, last);
+              scope.$broadcast('$routeChangeSuccess', next, last);
             }
           }, function(error) {
             if (next == route.current) {
-              (scope || $rootScope).$broadcast('$routeChangeError', next, last, error);
+              scope.$broadcast('$routeChangeError', next, last, error);
             }
           });
       }
