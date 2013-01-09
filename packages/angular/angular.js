@@ -1,5 +1,5 @@
 /**
- * @license AngularJS v1.1.2-c720b60d
+ * @license AngularJS v1.1.2-35cfca0f
  * (c) 2010-2012 Google, Inc. http://angularjs.org
  * License: MIT
  */
@@ -1247,7 +1247,7 @@ function setupModuleLoader(window) {
  * - `codeName` – `{string}` – Code name of the release, such as "jiggling-armfat".
  */
 var version = {
-  full: '1.1.2-c720b60d',    // all of these placeholder strings will be replaced by rake's
+  full: '1.1.2-35cfca0f',    // all of these placeholder strings will be replaced by rake's
   major: 1,    // compile task
   minor: 1,
   dot: 2,
@@ -6926,9 +6926,10 @@ function $RouteProvider(){
       var key = scopeKey(scope);
       if (key in scopedRoutes)
         return scopedRoutes[key];
-      else {
+      else if (scope) {
         return scoped(scope.$parent);
-      }
+      } else
+        return {};
     }
 
   /**
@@ -7414,14 +7415,25 @@ function $RouteProvider(){
           scope = route.scope,
           last = route.current;
 
+      function scopedParams(p) {
+        var params;
+        if (route === scopedRoutes[null]) {
+          copy(p, $routeParams);
+          params = p;
+        } else {
+          params = Object.create(scope.$parent.$routeParams);
+          copy(p, params);
+        }
+        return params;
+      }
+
       if (next && last && next.$route === last.$route && 
         equals(next.pathParams, last.pathParams) && 
         (!(!equals(next.params, last.params) && next.reloadOnSearch)) && 
         !forceReload) {
         last.params = next.params;
-        if (!scope)
-          copy(last.params, $routeParams);
-        (scope || $rootScope).$routeParams = last.params;
+
+        (scope || $rootScope).$routeParams = scopedParams(next.params);
         (scope || $rootScope).$broadcast('$routeUpdate', last);
       } else if (next || last) {
         forceReload = false;
@@ -7473,9 +7485,7 @@ function $RouteProvider(){
             if (next == route.current) {
               if (next) {
                 next.locals = locals;
-                if (!scope)
-                  copy(next.params, $routeParams);
-                (scope || $rootScope).$routeParams = next.params;
+                (scope || $rootScope).$routeParams = scopedParams(next.params);
               }
               (scope || $rootScope).$broadcast('$routeChangeSuccess', next, last);
             }
@@ -7506,7 +7516,7 @@ function $RouteProvider(){
       });
 
       // No route matched; fallback to "otherwise" route
-      return match ||  routes[null] && inherit(routes[null], {params: {}, pathParams:{}});;
+      return match ||  routes && routes[null] && inherit(routes[null], {params: {}, pathParams:{}});;
     }
 
     /**
