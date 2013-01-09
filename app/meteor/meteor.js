@@ -671,8 +671,9 @@ Commands.push({
           meteors[name] = {
             name: name,
             port: base_port+portsPerApp*nMeteors+2,
-            dir: dir
-          }
+            dir: dir,
+            host: '127.0.0.1'
+          };
           nMeteors++;
         }
       });
@@ -755,12 +756,16 @@ Commands.push({
     function isStylesheet(path){
       var parts = path.split('/');
       var file  = parts[parts.length-1];
-      return /[\w+]\.css.*/.test(file);
+      return /\w+\.css.*/.test(file);
     }
 
     var cachedRoot = nameToApp('root');
-    function getAppForReq(req){
-      var app = nameToApp(utils.getAppFromPath(req.url));
+    function getAppForReq(req) {
+      var name = u.getAppFromPath(req.url);
+      var app = nameToApp(name);
+      if(name && ! app) 
+        return null;
+
       if(! app && req.headers.referer !== undefined) {
         var parsedref = parseUrl.parse(req.headers.referer);
         var refpath = parsedref.pathname;
@@ -771,33 +776,43 @@ Commands.push({
         if(isStylesheet(parsedref.path))
           refpath = stylesheets[parsedref.path];
 
-        app = nameToApp(utils.getAppFromPath(refpath));
+        app = nameToApp(u.getAppFromPath(refpath));
       }
       
       app = app || cachedRoot;
       return app;
     }
 
-    var p = httpProxy.createServer(function(req,res, proxy) {
+    function appNotFound(res) {
+      res.writeHead(404);
+      res.end();
+    }
+
+    function processReq(req) {
       var app = getAppForReq(req);
-      req.url = utils.stripAppFromUrl(req.url);
-      proxy.proxyRequest(req, res, {host: '127.0.0.1', port: app.port});
+      req.url = u.stripAppFromUrl(req.url);
+      return app;
+    }
+
+    var p = httpProxy.createServer(function(req,res, proxy) {
+      var app = processReq(req);
+      app ? app.proxyReq(req, res) : appNotFound(res);
     });
-    
+
+    function proxyReq(req, res) {
+      p.proxy.proxyRequest(req, res, {host: this.host, port: this.port});
+    }
+    function proxyWsReq(req, socket, head) {
+      p.proxy.proxyWebSocketRequest(req, socket, head, {host: this.host, port: this.port});
+    }
+    _.each(meteors, function(app, name) {
+      app.proxyReq = proxyReq;
+      app.proxyWsReq = proxyWsReq;
+    });
+
     p.on('upgrade', function(req, socket, head) {
-      var parts = req.url.split('/');
-      var app = null;
-
-      if(parts.length > 1)
-        app = nameToApp(parts[1]);
-
-      if(! app)
-        app = cachedRoot;
-      else
-        req.url = '/' + parts.slice(2).join('/');
-      console.log('upgrade received');
-      p.proxy.proxyWebSocketRequest(req, socket, head, 
-        { host: '127.0.0.1', port: app.port });
+      var app = processReq(req);
+      app ? app.proxyWsReq(req, socket, head) : appNotFound(res);
     });
 
     p.listen(router_port, function(){});

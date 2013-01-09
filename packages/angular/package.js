@@ -3,12 +3,14 @@ Package.describe({
 });
 
 Package.on_use(function (api) {
-  api.add_files(['angular.js', 'utils.js','services.js', 'startup.js'],'client');
+  api.add_files(['angular.js', 'utils.js'], 'client');
+  api.add_files('server.js', 'server');
+  api.add_files(['services.js', 'startup.js'], ['client', 'server']);
 });
 
 var fs = require('fs');
 var path = require('path');
-var _ = require('underscore');
+var _ = require('lodash');
 
 Package.register_extension(
   "html", function (bundle, source_path, serve_path, where) {
