@@ -1,5 +1,5 @@
 /**
- * @license AngularJS v1.1.2-298f3a82
+ * @license AngularJS v1.1.2-87ff0ce2
  * (c) 2010-2012 Google, Inc. http://angularjs.org
  * License: MIT
  */
@@ -1247,7 +1247,7 @@ function setupModuleLoader(window) {
  * - `codeName` – `{string}` – Code name of the release, such as "jiggling-armfat".
  */
 var version = {
-  full: '1.1.2-298f3a82',    // all of these placeholder strings will be replaced by rake's
+  full: '1.1.2-87ff0ce2',    // all of these placeholder strings will be replaced by rake's
   major: 1,    // compile task
   minor: 1,
   dot: 2,
@@ -3048,9 +3048,9 @@ function Browser(window, document, $log, $sniffer) {
       if (lastBrowserUrl == url) return;
       lastBrowserUrl = url;
       if ($sniffer.history) {
-        if (replace) history.replaceState({url: url}, '', url);
+        if (replace) history.replaceState(null, '', url);
         else {
-          history.pushState({url: url}, '', url);
+          history.pushState(null, '', url);
           // Crazy Opera Bug: http://my.opera.com/community/forums/topic.dml?id=1185462
           baseElement.attr('href', baseElement.attr('href'));
         }
@@ -7469,6 +7469,7 @@ function $RouteProvider(){
             }
             scope.$emit('$routeRedirect', next, last);
           }
+
         }
 
         $q.when(next).
