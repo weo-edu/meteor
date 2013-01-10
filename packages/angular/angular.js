@@ -3048,9 +3048,9 @@ function Browser(window, document, $log, $sniffer) {
       if (lastBrowserUrl == url) return;
       lastBrowserUrl = url;
       if ($sniffer.history) {
-        if (replace) history.replaceState(null, '', url);
+        if (replace) history.replaceState({url: url}, '', url);
         else {
-          history.pushState(null, '', url);
+          history.pushState({url: url}, '', url);
           // Crazy Opera Bug: http://my.opera.com/community/forums/topic.dml?id=1185462
           baseElement.attr('href', baseElement.attr('href'));
         }
@@ -7456,7 +7456,7 @@ function $RouteProvider(){
         scope.$broadcast('$routeUpdate', last);
       } else if (next || last) {
         forceReload = false;
-        (scope || $rootScope).$broadcast('$routeChangeStart', next, last);
+        scope.$broadcast('$routeChangeStart', next, last);
         route.current = next;
         if (next) {
           if (next.redirectTo) {
@@ -7467,6 +7467,7 @@ function $RouteProvider(){
               $location.url(next.redirectTo(next.pathParams, $location.path(), $location.search()))
                        .replace();
             }
+            scope.$emit('$routeRedirect', next, last);
           }
         }
 
