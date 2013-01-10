@@ -1,5 +1,5 @@
 /**
- * @license AngularJS v1.1.2-298f3a82
+ * @license AngularJS v1.1.2-87ff0ce2
  * (c) 2010-2012 Google, Inc. http://angularjs.org
  * License: MIT
  */
@@ -1247,7 +1247,7 @@ function setupModuleLoader(window) {
  * - `codeName` – `{string}` – Code name of the release, such as "jiggling-armfat".
  */
 var version = {
-  full: '1.1.2-298f3a82',    // all of these placeholder strings will be replaced by rake's
+  full: '1.1.2-87ff0ce2',    // all of these placeholder strings will be replaced by rake's
   major: 1,    // compile task
   minor: 1,
   dot: 2,
@@ -7456,7 +7456,7 @@ function $RouteProvider(){
         scope.$broadcast('$routeUpdate', last);
       } else if (next || last) {
         forceReload = false;
-        (scope || $rootScope).$broadcast('$routeChangeStart', next, last);
+        scope.$broadcast('$routeChangeStart', next, last);
         route.current = next;
         if (next) {
           if (next.redirectTo) {
@@ -7467,7 +7467,9 @@ function $RouteProvider(){
               $location.url(next.redirectTo(next.pathParams, $location.path(), $location.search()))
                        .replace();
             }
+            scope.$emit('$routeRedirect', next, last);
           }
+
         }
 
         $q.when(next).
