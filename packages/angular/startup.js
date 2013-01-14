@@ -3,11 +3,14 @@ if(Meteor.isClient) {
 		angular.bootstrap(document, ["app"]);
 	});
 } else {
-	angular.module('app', ['meteor'], [function() {
-	}]);
-	Meteor.startup(function() {
-		var injector = createInjector(['app']);
-		injector.invoke(['$injector', function(injector){ }]);
-	});
+	
+	angular.start = function(modules) {
+		Meteor.startup(function() {
+			var injector = createInjector(modules);
+			injector.invoke(['$injector', function(injector){ }]);
+		});
+	}
+
+	
 }
 
