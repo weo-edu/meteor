@@ -17,6 +17,7 @@
 		});
 	}]);
 
+
 	meteorModule.factory('$collection', function() {
 		var collections = {};
 
@@ -33,17 +34,27 @@
 			if (!scope || Meteor.isServer)
 				return mc;
 
+			function monitor(sel, results) {
+				if(u.hasFunctions(sel))
+					sel = _.bind(u.deepCopy, u, sel, true);
+
+				if(_.isFunction(sel)) {
+					//	JSON stringify/parse are used to skirt around the fact
+					//	that angular's deep equality checker skips keys with $'s
+					//	on them, which minimongo also uses.  XXX Slow?
+					var fn = _.compose(JSON.stringify, sel);
+					scope.$watch(fn, function(s) {
+						results.$cursor && results.$cursor.replaceSelector(JSON.parse(s));
+					}, true);
+					sel = sel();
+				}
+				return sel;
+			}
+
 			var ac = Object.create(mc);
 			ac.find = function(selector, options) {
 				var results = [];
-
-				if(_.isFunction(selector)) {
-					var fn = selector;
-					scope.$watch(fn, function(selector) {
-						results.$cursor && results.$cursor.replaceSelector(selector);
-					}, true);
-					selector = fn();
-				}
+				selector = monitor(selector, results);
 
 				var cursor = mc.find.call(ac, selector, options);
 				var handle = cursor.observe({
@@ -82,14 +93,7 @@
 
 			ac.findOne = function(selector, options) {
 				var result = {};
-
-				if(_.isFunction(selector)) {
-					var fn = selector;
-					scope.$watch(fn, function(selector) {
-						results.$cursor && results.$cursor.replaceSelector(selector);
-					}, true);
-					selector = fn();
-				}
+				selector = monitor(selector, result);
 
 				//XXX could use some optimization
 				function clearExtend(doc) {
