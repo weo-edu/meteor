@@ -17,24 +17,21 @@
 		});
 	}]);
 
-
-	meteorModule.factory('$collection', function() {
-		var collections = {};
-
-		function collection(name, scope) {
+	function collection(collections, name, scope, collectionClass) {
 			if (! (name in collections)) {
-				if(name === 'users')
+				if(name === 'users' && collectionClass === Meteor.Collection)
 					collections[name] = Meteor.users;
 				else
-					collections[name] = new Meteor.Collection(name);
+					collections[name] = new collectionClass(name);
 			}
 
-			var mc = collections[name];
+			var collection = collections[name];
 
 			if (!scope || Meteor.isServer)
-				return mc;
+				return collection;
 
 			function monitor(sel, results) {
+				//XXX this is weird, is deepCopy being used to execute nested functions?
 				if(u.hasFunctions(sel))
 					sel = _.bind(u.deepCopy, u, sel, true);
 
@@ -51,12 +48,12 @@
 				return sel;
 			}
 
-			var ac = Object.create(mc);
-			ac.find = function(selector, options) {
+			var scopedCollection = Object.create(collection);
+			scopedCollection.find = function(selector, options) {
 				var results = [];
 				selector = monitor(selector, results);
 
-				var cursor = mc.find.call(ac, selector, options);
+				var cursor = collection.find.call(scopedCollection, selector, options);
 				var handle = cursor.observe({
 					added: function(document, beforeIndex) {
 		        scope.$throttledSafeApply(function() {
@@ -91,7 +88,7 @@
 				return results;
 			}
 
-			ac.findOne = function(selector, options) {
+			scopedCollection.findOne = function(selector, options) {
 				var result = {};
 				selector = monitor(selector, result);
 
@@ -104,7 +101,7 @@
 					_.extend(result, doc);
 				}
 
-				var cursor = mc.find.apply(ac, _.toArray(arguments));
+				var cursor = collection.find.apply(scopedCollection, _.toArray(arguments));
 				var handle = cursor.observe({
 					added: function(document, beforeIndex) {
 						if (beforeIndex === 0) {
@@ -146,12 +143,25 @@
 				return result;
 			}
 
-			return ac;
+			return scopedCollection;
 		}
 
+
+	meteorModule.factory('$collection', function() {
+		var collections = {};
+
 		return function(name, scope) {
-			return collection(name, scope);
+			return collection(collections, name, scope, Meteor.Collection);
 		};
+	});
+
+	meteorModule.factory('$localCollection', function() {
+		var collections = {};
+
+		return function(name, scope) {
+			return collection(collections, name, scope, LocalCollection);
+		};
+
 	});
 
 	if(Meteor.isServer) {
