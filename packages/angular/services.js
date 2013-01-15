@@ -31,9 +31,12 @@
 				return collection;
 
 			function monitor(sel, results) {
-				//XXX this is weird, is deepCopy being used to execute nested functions?
-				if(u.hasFunctions(sel))
-					sel = _.bind(u.deepCopy, u, sel, true);
+				if(u.hasFunctions(sel)) {
+					var o = sel;
+					sel = function() {
+						return u.evalObj(_.clone(o, true));
+					};
+				}
 
 				if(_.isFunction(sel)) {
 					//	JSON stringify/parse are used to skirt around the fact

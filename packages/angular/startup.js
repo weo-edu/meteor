@@ -9,8 +9,5 @@ if(Meteor.isClient) {
 			var injector = createInjector(modules);
 			injector.invoke(['$injector', function(injector){ }]);
 		});
-	}
-
-	
+	}	
 }
-
