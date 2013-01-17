@@ -405,6 +405,7 @@ _.extend(Meteor._LivedataConnection.prototype, {
   },
 
   subscribe: function (name /* .. [arguments] .. callback */) {
+
     var self = this;
     var id;
 

@@ -91,8 +91,8 @@
 				return results;
 			}
 
-			scopedCollection.findOne = function(selector, options) {
-				var result = {};
+			scopedCollection.findOne = function(selector, options , result) {
+				result = result || {};
 				selector = monitor(selector, result);
 
 				//XXX could use some optimization
@@ -227,12 +227,14 @@
 		meteorModule.factory('$meteor', ['$rootScope', '$collection', function($rootScope, $collection) {
 			function subscribe() {
 				var args = _.toArray(arguments);
+
 				var handle = {loading: true};
 				if (_.isFunction(args[args.length - 1])) {
 					var fn = args.pop();
 				} else {
 					fn = _.identity;
 				}
+
 
 				args.push(function() {
 					$rootScope.$throttledSafeApply(function() {
@@ -241,6 +243,7 @@
 					});
 						
 				});
+
 				var _handle = Meteor.subscribe.apply(Meteor, args);
 				handle.stop = _handle.stop;
 				this.$on && this.$on('destroy', function() {

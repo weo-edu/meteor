@@ -176,6 +176,8 @@ Meteor.Collection._rewriteSelector = function (selector) {
   if (!selector || (('_id' in selector) && !selector._id))
     // can't match anything
     return {_id: Meteor.uuid()};
+  else if(_.isArray(selector))
+    return {_id: {$in: selector}};
 
   var ret = {};
   _.each(selector, function (value, key) {
