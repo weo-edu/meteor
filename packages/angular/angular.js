@@ -7399,13 +7399,14 @@ function $RouteProvider(){
 
       if (!route.regexp) return null;
 
-
-
       var m = route.regexp.exec(on);
       if (!m) return null;
 
-      if (route.ellipsis)
+      if (route.ellipsis) {
         route.base = m[0];
+        params['$base'] = route.base;
+      }
+        
 
       var N = 0;
       for (var i = 1, len = m.length; i < len; ++i) {
@@ -14292,7 +14293,7 @@ var ngViewDirective = ['$http', '$templateCache', '$route', '$anchorScroll', '$c
       var lastScope,
           onloadExp = attr.onload || '';
 
-      if (scope.hasOwnProperty('$router')) {
+      if ('$router' in scope) {
         var router = $route.scopedRouter(scope)
         scope.$router(router);
         router.updateRoute();

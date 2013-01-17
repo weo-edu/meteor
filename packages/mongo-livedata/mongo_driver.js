@@ -59,22 +59,6 @@ _Mongo.prototype.withDB = function(cb) {
     self.db_callbacks.push(cb);
 }
 
-// protect against dangerous selectors.  falsey and {_id: falsey}
-// are both likely programmer error, and not what you want,
-// particularly for destructive operations.
-_Mongo._rewriteSelector = function (selector) {
-  // shorthand -- scalars match _id
-  if ((typeof selector === 'string') || (typeof selector === 'number'))
-    selector = {_id: selector};
-
-  if (!selector || (('_id' in selector) && !selector._id))
-    // can't match anything
-    return {_id: Meteor.uuid()};
-  else if(_.isArray(selector))
-    return {_id: {$in: selector}};
-  else
-    return selector;
-};
 
 // callback: lambda (err, collection) called when
 // collection is ready to go, or on error.
@@ -246,7 +230,6 @@ _Mongo.prototype.findAndModify = function(collection_name, selector, sort, mod, 
     Meteor._debug('Exception while completing findAndModify:' + e.stack);
   });
 
-  selector = _Mongo._rewriteSelector(selector);
   options = options || {};
 
   var future = new Future;
