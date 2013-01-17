@@ -17,17 +17,15 @@
 		});
 	}]);
 
-	function collection(collections, name, scope, collectionClass) {
-			if (! (name in collections)) {
-				if(name === 'users' && collectionClass === Meteor.Collection)
-					collections[name] = Meteor.users;
-				else
-					collections[name] = new collectionClass(name);
-			}
+
+	meteorModule.factory('$collection', function() {
+		var collections = {users: Meteor.users};
+		function maker(name, scope, local) {
+			var Collection = local ? LocalCollection : Meteor.Collection;
+			collections[name] = collections[name] || new Collection(name);
 
 			var collection = collections[name];
-
-			if (!scope || Meteor.isServer)
+			if (! scope || Meteor.isServer)
 				return collection;
 
 			function monitor(sel, results) {
@@ -82,7 +80,7 @@
 		      }
 				});
 
-				scope.$on('destroy', function() {
+				scope.$on('$destroy', function() {
 					handle.stop();
 				});
 
@@ -112,7 +110,6 @@
 			          clearExtend(document);
 			        });
 						}
-		        
 		      },
 		      changed: function(newDocument, atIndex, oldDocument) {
 		      	if (atIndex === 0) {
@@ -120,7 +117,6 @@
 			      		clearExtend(newDocument);
 			      	});
 		      	}
-		      	
 		      },
 		      moved: function(doc, oldIndex, newIndex) {
 		      	if (oldIndex === 0) {
@@ -138,10 +134,7 @@
 		      }
 				});
 
-				scope.$on('destroy', function() {
-					handle.stop();
-				});
-
+				scope.$on('$destroy', _.bind(handle.stop, handle));
 				result.__proto__ = {$cursor: cursor};
 				return result;
 			}
@@ -149,23 +142,214 @@
 			return scopedCollection;
 		}
 
+		maker.union = function() {
+			var id = Meteor.uuid();
+			var cursors = _.toArray(arguments);
+			var collection = maker(id, null, true);
+			var handles = [];
+			_.each(cursors, function(cursor) {
+				handles.push(cursor.observe({
+					added: function(doc) {
+						collection.insert(doc);
+					},
+					changed: function(doc) {
+						collection.update(doc._id, {$set: doc});
+					},
+					removed: function(doc) {
+						collection.remove(doc._id);
+					}
+				}));
+			});
 
-	meteorModule.factory('$collection', function() {
-		var collections = {};
+			collection.stop = function() {
+				_.invoke(handles, 'stop');
+				delete collections[id];
+			}
+			return collection;
+		}
 
-		return function(name, scope) {
-			return collection(collections, name, scope, Meteor.Collection);
-		};
+		maker.join = function(options, scope) {
+			var id = Meteor.uuid();
+			var joinCollection = maker(id, null, true);
+			var collectionsByName = _.clone(collections);
+
+			var collectionAttrMap = {};
+			_.each(options.on, function(name) {
+				var collection = name.split('.')[0];
+				var attr = name.split('.').slice(1).join('.');
+				collectionAttrMap[collection] = attr;
+				collectionsByName[collection]._name = collection;
+			});
+
+			var otherCollections = {};
+			_.each(collectionAttrMap, function(attr, coll) {
+				var otherMap = _.clone(collectionAttrMap);
+				delete otherMap[coll];
+				otherCollections[coll] = otherMap;
+			});
+
+			function cartesianProduct(nameResults, objects, depth) {
+				depth = depth || 0;
+				if (depth > 10)
+					throw new Error('too deep');
+				var names = _.keys(nameResults);
+				if (names.length === 0)
+					return objects;
+				var name = names[0];
+				if (nameResults[name].length == 0)
+					return
+				else {
+					if (!objects) {
+						var newObjects = _.map(nameResults[name], function(result) {
+							var obj = {};
+							obj[name] = result;
+							return obj;
+						});
+					} else {
+						var newObjects = [];
+						var newObject = null;
+						_.each(nameResults[name], function(result) {
+							_.each(objects, function(object) {
+								newObject = _.clone(object);
+								newObject[name] = result;
+								newObjects.push(newObject);
+							});
+						});
+					}
+					delete nameResults[name];
+					return cartesianProduct(nameResults, newObjects, depth + 1);
+				}
+			}
+
+			function jDoc(doc, collection) {
+				if (! (this instanceof jDoc))
+					return new jDoc(doc, collection);
+				this.doc = doc;
+				this.collection = collection;
+			}
+
+			jDoc.prototype.joinValue = function() {
+				return this.doc[this.joinAttr()];
+			}
+
+			jDoc.prototype.joinAttr = function() {
+				return collectionAttrMap[this.collection._name]
+			}
+
+			jDoc.prototype.otherCollections = function() {
+				return otherCollections[this.collection._name];
+			}
+
+			jDoc.prototype.query = function() {
+				var query = {};
+				query[this.collection._name + '._id'] = this.doc._id;
+				return query;
+			}
+
+			jDoc.prototype.forInsert = function() {
+				var self = this;
+				var insertable = {};
+				insertable[self.collection._name] = self.doc;
+				_.each(self.otherCollections(), function(attr, name) {
+					var collObj = {};
+					collObj[attr] = self.joinValue();
+					insertable[name] = collObj;
+				});
+				return insertable;
+			}
+
+			jDoc.prototype.forUpdate = function() {
+				var forupdate = {};
+				forupdate[this.collection._name] = this.doc;
+				return forupdate;
+			}
+
+			
+			function add(doc, collection) {
+				var self = this;
+				var jdoc = jDoc(doc, collection);
+
+				if (joinCollection.find(jdoc.query()).count() > 0)
+					return;
+				
+				var resultsByCollectionName = {};
+				resultsByCollectionName[collection._name] = [doc];
+				_.each(jdoc.otherCollections(), function(attr, name) {
+					var coll = collectionsByName[name];
+					var query = {};
+					var firstJoin
+					query[attr] = jdoc.joinValue();
+					resultsByCollectionName[name] = coll.find(query).fetch();
+				});
+
+				_.each(cartesianProduct(resultsByCollectionName), function(obj) {
+					joinCollection.insert(obj);
+				});
+			}
+
+			function update(doc, collection) {
+				doc = jDoc(doc, collection);
+				joinCollection.update(doc.query(), {$set: doc.forUpdate()}, {multi: true});
+			}
+
+			function remove(doc, collection) {
+				doc = jDoc(doc, collection);
+				joinCollection.remove(doc.query());
+			}
+			
+			var cleanup = [];
+			function setupCursors(cursors) {
+				_.each(cursors, function(cursor) {
+					var cursorCollection = maker.union(cursor);
+					cleanup.push(function() {
+						cursorCollection.stop();
+					});
+					collectionsByName[cursor.collection._name] = cursorCollection;
+					cursorCollection._name = cursor.collection._name;
+				});
+
+				_.each(cursors, function(cursor) {
+					var coll = collectionsByName[cursor.collection._name];
+					coll.find().observe({
+						added: function(doc) {
+							add(doc, cursor.collection);
+						},
+						changed: function(doc) {
+							update(doc, cursor.collection);
+						},
+						removed: function(doc) {
+							remove(doc, cursor.collection);
+						}
+					});
+				});
+			}
+
+			if (_.isArray(options.cursor)) {        
+				setupCursors(options.cursor);
+			} else if (scope && _.isFunction(options.cursor)) {
+				var fn = _.compose(JSON.stringify, options.cursor);
+				scope.watch(fn, function(cursors) {
+					joinCollection.remove({});
+					if(! cursors || ! cursors.length)
+						return;
+					setupCursors(cursors);
+				});
+
+				joinCollection.stop = function() {
+					_.each(cleanup, u.coerce);
+				}
+			}
+
+			scope && scope.$on('$destroy', function() {
+				_.each(cleanup, u.coerce);
+				joinCollection.stop && joinCollection.stop();
+			});
+			return maker(id, scope, true);
+		}
+
+		return maker;
 	});
 
-	meteorModule.factory('$localCollection', function() {
-		var collections = {};
-
-		return function(name, scope) {
-			return collection(collections, name, scope, LocalCollection);
-		};
-
-	});
 
 	if(Meteor.isServer) {
 		meteorModule.factory('$publish', function() {
@@ -238,30 +422,27 @@
 					$rootScope.$throttledSafeApply(function() {
 						handle.loading = false;
 						fn();
-					});
-						
+					});	
 				});
 				var _handle = Meteor.subscribe.apply(Meteor, args);
 				handle.stop = _handle.stop;
-				this.$on && this.$on('destroy', function() {
+				this.$on && this.$on('$destroy', function() {
 					handle.stop();
 				});
 				return handle;
 			}
-
-			
 			
 			function user() {
 				var fields = _.toArray(arguments);
 				if (! fields.length)
 					fields = undefined;
-				var user = null;
-				var userId = Meteor.default_connection.userIdAsync(function(userId) {
-					user.$cursor.replaceSelector({username: userId});
-				});
+				//var user = null;
+				//var userId = Meteor.default_connection.userIdAsync(function(userId) {
+				//	user.$cursor.replaceSelector({username: userId});
+				//});
 
-				user = $collection('users', $rootScope).findOne({username: userId}, {fields: fields});
-				return user;
+				return $collection('users', $rootScope).findOne({username: Meteor.userId()}, {fields: fields});
+				//return user;
 			}
 
 			return {
