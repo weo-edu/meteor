@@ -31,9 +31,12 @@
 				return collection;
 
 			function monitor(sel, results) {
-				//XXX this is weird, is deepCopy being used to execute nested functions?
-				if(u.hasFunctions(sel))
-					sel = _.bind(u.deepCopy, u, sel, true);
+				if(u.hasFunctions(sel)) {
+					var o = sel;
+					sel = function() {
+						return u.evalObj(_.clone(o, true));
+					};
+				}
 
 				if(_.isFunction(sel)) {
 					//	JSON stringify/parse are used to skirt around the fact
@@ -88,8 +91,8 @@
 				return results;
 			}
 
-			scopedCollection.findOne = function(selector, options) {
-				var result = {};
+			scopedCollection.findOne = function(selector, options , result) {
+				result = result || {};
 				selector = monitor(selector, result);
 
 				//XXX could use some optimization
@@ -224,12 +227,14 @@
 		meteorModule.factory('$meteor', ['$rootScope', '$collection', function($rootScope, $collection) {
 			function subscribe() {
 				var args = _.toArray(arguments);
+
 				var handle = {loading: true};
 				if (_.isFunction(args[args.length - 1])) {
 					var fn = args.pop();
 				} else {
 					fn = _.identity;
 				}
+
 
 				args.push(function() {
 					$rootScope.$throttledSafeApply(function() {
@@ -238,6 +243,7 @@
 					});
 						
 				});
+
 				var _handle = Meteor.subscribe.apply(Meteor, args);
 				handle.stop = _handle.stop;
 				this.$on && this.$on('destroy', function() {

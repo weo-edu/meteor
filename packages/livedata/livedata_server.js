@@ -774,7 +774,6 @@ Meteor._LivedataServer = function __LivedataServer() {
     socket.on('close', function () {
       socket.disconnected = true;
       if (socket.meteor_session) {
-        console.log('socket closed, detaching session');
         var id = socket.meteor_session.id;
         socket.meteor_session.destroy();
         delete self.sessions[id];
@@ -809,9 +808,6 @@ Meteor._LivedataServer = function __LivedataServer() {
       return memo;
     }, {universal: 0, named: 0});
 
-    console.log('remaining sessions', _.keys(self.sessions).length);
-    console.log(nSubs.universal, 'universal subscriptions');
-    console.log(nSubs.named, 'named subscriptions');
   }, 1 * 60 * 1000);
 };
 
