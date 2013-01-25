@@ -472,7 +472,12 @@
 				loggingIn: _.bind(Meteor.loggingInAsync, Meteor),
 				user: user,
 				isClient: Meteor.isClient,
-				isServer: Meteor.isServer
+				isServer: Meteor.isServer,
+				setTimeout: _.bind(Meteor.setTimeout, Meteor),
+				setInterval: _.bind(Meteor.setInterval, Meteor),
+				uuid: _.bind(Meteor.uuid, Meteor),
+				Collection: _.bind(Meteor.Collection, Meteor),
+				get: _.bind(Meteor.get, Meteor)
 			};
 			if(Meteor.isClient) {
 				ret.status = _.bind(Meteor.default_connection.status, Meteor.default_connection);

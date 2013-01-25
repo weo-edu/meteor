@@ -171,7 +171,7 @@ var run = function () {
     var re = /\/[\w\!]+\.[\w\!]+(?:\?[^\/]*)?$/;
     app.use(function (req, res) {
       // prevent favicon.ico and robots.txt from returning app_html
-      if(re.test(req.url)) {
+      if(re.test(req.url) || req.headers.accept === 'x-angular-template') {
       //if (_.indexOf([path.sep + 'favicon.ico', path.sep + 'robots.txt'], req.url) !== -1) {
         res.writeHead(404);
         res.end();
