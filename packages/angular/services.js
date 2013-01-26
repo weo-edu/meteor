@@ -355,7 +355,21 @@
 		meteorModule.factory('$publish', function() {
 			return _.bind(Meteor.publish, Meteor);
 		});
-	} else {
+
+		meteorModule.factory('$rootScope', function() {
+			return function() {
+				return {};
+			};
+		}).factory('$q', function() {
+			return function() {
+				return {};
+			}
+		}).factory('$templateCache', function() {
+			return function() {
+				return {};
+			}
+		});
+	} {
 		meteorModule.run(['$rootScope', '$q', '$templateCache', '$meteor' , '$collection',
 			function($rootScope, $q, $templateCache, $meteor, $collection) {
 			$rootScope.$safeApply = function(expr) {
@@ -448,18 +462,28 @@
 				//return user;
 			}
 
-			return {
+			var ret = {
 				subscribe: subscribe,
 				methods: _.bind(Meteor.methods, Meteor),
 				call: _.bind(Meteor.call, Meteor),
 				apply: _.bind(Meteor.apply, Meteor),
-				status: _.bind(Meteor.default_connection.status, Meteor.default_connection),
 				reconnect: _.bind(Meteor.reconnect, Meteor),
 				connect: _.bind(Meteor.connect, Meteor),
 				loggingIn: _.bind(Meteor.loggingInAsync, Meteor),
 				user: user,
-				userId: _.bind(Meteor.default_connection.userIdAsync, Meteor.default_connection)
+				isClient: Meteor.isClient,
+				isServer: Meteor.isServer,
+				setTimeout: _.bind(Meteor.setTimeout, Meteor),
+				setInterval: _.bind(Meteor.setInterval, Meteor),
+				uuid: _.bind(Meteor.uuid, Meteor),
+				Collection: _.bind(Meteor.Collection, Meteor),
+				get: _.bind(Meteor.get, Meteor)
 			};
+			if(Meteor.isClient) {
+				ret.status = _.bind(Meteor.default_connection.status, Meteor.default_connection);
+				ret.userId = _.bind(Meteor.default_connection.userIdAsync, Meteor.default_connection);
+			}
+			return ret;
 		}]);
 	}
 })(typeof window === 'undefined' ? global : window);
