@@ -372,12 +372,18 @@
 	} {
 		meteorModule.run(['$rootScope', '$q', '$templateCache', '$meteor' , '$collection',
 			function($rootScope, $q, $templateCache, $meteor, $collection) {
-			$rootScope.$safeApply = function(expr) {
+			$rootScope.__proto__.$safeApply = function(expr) {
 				var phase = this.$root.$$phase;
 				if (phase === '$apply' || phase === '$digest') 
 					this.$eval(expr);
 				else
 					this.$apply(expr);
+			}
+
+			$rootScope.__proto__.$safeDigest = function() {
+				var phase = this.$root.$$phase;
+				if (phase !== '$apply' && phase !== '$digest')
+					this.$digest();
 			}
 
 			function digestNow() {
@@ -387,12 +393,12 @@
 			}
 			var digestAfter = _.bind(setTimeout, global, digestNow, 50);
 			var throttledDigest = _.throttle(digestAfter, 50);
-			$rootScope.$throttledSafeApply = function(expr) {
+			$rootScope.__proto__.$throttledSafeApply = function(expr) {
 				this.$eval(expr);
 				throttledDigest();
 			}
 
-			$rootScope.$promisedCall = function() {
+			$rootScope.__proto__.$promisedCall = function() {
 				var self = this;
 				var args = _.toArray(arguments);
 				var fn = args.shift();
@@ -411,9 +417,9 @@
 				return defer.promise;
 			}
 
-			$rootScope.$subscribe = $meteor.subscribe;
+			$rootScope.__proto__.$subscribe = $meteor.subscribe;
 
-			$rootScope.$collection = function(name) {
+			$rootScope.__proto__.$collection = function(name) {
 				return $collection(name, this);
 			}
 
@@ -449,8 +455,12 @@
 				return handle;
 			}
 			
-			function user() {
+			function user(scope) {
 				var fields = _.toArray(arguments);
+				var scope = null;
+				if(fields.length && ! _.isString(fields[0]))
+					scope = fields.shift();
+
 				if (! fields.length)
 					fields = undefined;
 				//var user = null;
@@ -458,7 +468,8 @@
 				//	user.$cursor.replaceSelector({username: userId});
 				//});
 
-				return $collection('users', $rootScope).findOne({username: Meteor.userId()}, {fields: fields});
+				return $collection('users', scope).findOne({username: Meteor.userId()}, {fields: fields})
+					|| {username: Meteor.userId(), loading: true};
 				//return user;
 			}
 
