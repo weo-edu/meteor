@@ -95,7 +95,7 @@
 
 				//XXX could use some optimization
 				function clearExtend(doc) {
-					_.keys(result, function(key) {
+					_.chain(result).keys().forEach(function(key) {
 						delete result[key];
 					});
 

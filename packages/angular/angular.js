@@ -12381,7 +12381,7 @@ var ngModelDirective = function() {
  *       expect(binding('confirmed')).toEqual('true');
  *     });
  *   </doc:scenario>
- * </doc:example>
+ * </doc:example> 
  */
 var ngChangeDirective = valueFn({
   require: 'ngModel',
