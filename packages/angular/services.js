@@ -392,7 +392,7 @@
 					$rootScope.$digest();
 			}
 			var digestAfter = _.bind(setTimeout, global, digestNow, 50);
-			var throttledDigest = _.throttle(digestAfter, 50);
+			var throttledDigest = _.throttle(digestAfter, 100);
 			$rootScope.__proto__.$throttledSafeApply = function(expr) {
 				this.$eval(expr);
 				throttledDigest();
