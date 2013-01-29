@@ -28,7 +28,7 @@
 			if (! scope || Meteor.isServer)
 				return collection;
 
-			function monitor(sel, results) {
+			function monitor(sel, results, options) {
 				if(u.hasFunctions(sel)) {
 					var o = sel;
 					sel = function() {
@@ -42,7 +42,7 @@
 					//	on them, which minimongo also uses.  XXX Slow?
 					var fn = _.compose(JSON.stringify, sel);
 					scope.$watch(fn, function(s) {
-						results.$cursor && results.$cursor.replaceSelector(JSON.parse(s));
+						s && results.$cursor && results.$cursor.replaceSelector(JSON.parse(s));
 					}, true);
 					sel = sel();
 				}
@@ -52,7 +52,7 @@
 			var scopedCollection = Object.create(collection);
 			scopedCollection.find = function(selector, options) {
 				var results = [];
-				selector = monitor(selector, results);
+				selector = monitor(selector, results, options);
 
 				var cursor = collection.find.call(scopedCollection, selector, options);
 				var handle = cursor.observe({
@@ -91,11 +91,11 @@
 
 			scopedCollection.findOne = function(selector, options , result) {
 				result = result || {};
-				selector = monitor(selector, result);
+				selector = monitor(selector, result, options);
 
 				//XXX could use some optimization
 				function clearExtend(doc) {
-					_.keys(result, function(key) {
+					_.chain(result).keys().forEach(function(key) {
 						delete result[key];
 					});
 
@@ -369,134 +369,139 @@
 				return {};
 			}
 		});
-	} {
-		meteorModule.run(['$rootScope', '$q', '$templateCache', '$meteor' , '$collection',
-			function($rootScope, $q, $templateCache, $meteor, $collection) {
-			$rootScope.__proto__.$safeApply = function(expr) {
-				var phase = this.$root.$$phase;
-				if (phase === '$apply' || phase === '$digest') 
-					this.$eval(expr);
-				else
-					this.$apply(expr);
+	} else {
+		meteorModule.factory('$publish', function() {
+			return function() {
+				return {};
 			}
-
-			$rootScope.__proto__.$safeDigest = function() {
-				var phase = this.$root.$$phase;
-				if (phase !== '$apply' && phase !== '$digest')
-					this.$digest();
-			}
-
-			function digestNow() {
-				var phase = $rootScope.$$phase;
-				if(phase !== '$apply' && phase !== '$digest')
-					$rootScope.$digest();
-			}
-			var digestAfter = _.bind(setTimeout, global, digestNow, 50);
-			var throttledDigest = _.throttle(digestAfter, 100);
-			$rootScope.__proto__.$throttledSafeApply = function(expr) {
-				this.$eval(expr);
-				throttledDigest();
-			}
-
-			$rootScope.__proto__.$promisedCall = function() {
-				var self = this;
-				var args = _.toArray(arguments);
-				var fn = args.shift();
-				var defer = $q.defer();
-
-				args.push(function() {
-					var cbArgs = _.toArray(arguments);
-					var err = cbArgs.shift();
-					self.$throttledSafeApply(function() {
-						if (!err) defer.resolve.apply(defer, cbArgs);
-						else defer.reject(err);
-					});
-				});
-
-				fn.apply(null, args);
-				return defer.promise;
-			}
-
-			$rootScope.__proto__.$subscribe = $meteor.subscribe;
-
-			$rootScope.__proto__.$collection = function(name) {
-				return $collection(name, this);
-			}
-
-			_.each(AngularTemplates, function(tmpl, url) {
-				$templateCache.put(url, tmpl);
-			});
-		}]);
-
-		meteorModule.factory('$meteor', ['$rootScope', '$collection', function($rootScope, $collection) {
-			function subscribe() {
-				var args = _.toArray(arguments);
-
-				var handle = {loading: true};
-				if (_.isFunction(args[args.length - 1])) {
-					var fn = args.pop();
-				} else {
-					fn = _.identity;
-				}
-
-
-				args.push(function() {
-					$rootScope.$throttledSafeApply(function() {
-						handle.loading = false;
-						fn();
-					});	
-				});
-
-				var _handle = Meteor.subscribe.apply(Meteor, args);
-				handle.stop = _handle.stop;
-				this.$on && this.$on('$destroy', function() {
-					handle.stop();
-				});
-				return handle;
-			}
-			
-			function user(scope) {
-				var fields = _.toArray(arguments);
-				var scope = null;
-				if(fields.length && ! _.isString(fields[0]))
-					scope = fields.shift();
-
-				if (! fields.length)
-					fields = undefined;
-				//var user = null;
-				//var userId = Meteor.default_connection.userIdAsync(function(userId) {
-				//	user.$cursor.replaceSelector({username: userId});
-				//});
-
-				return $collection('users', scope).findOne({username: Meteor.userId()}, {fields: fields})
-					|| {username: Meteor.userId(), loading: true};
-				//return user;
-			}
-
-			var ret = {
-				subscribe: subscribe,
-				methods: _.bind(Meteor.methods, Meteor),
-				call: _.bind(Meteor.call, Meteor),
-				apply: _.bind(Meteor.apply, Meteor),
-				reconnect: _.bind(Meteor.reconnect, Meteor),
-				connect: _.bind(Meteor.connect, Meteor),
-				loggingIn: _.bind(Meteor.loggingInAsync, Meteor),
-				user: user,
-				isClient: Meteor.isClient,
-				isServer: Meteor.isServer,
-				setTimeout: _.bind(Meteor.setTimeout, Meteor),
-				setInterval: _.bind(Meteor.setInterval, Meteor),
-				uuid: _.bind(Meteor.uuid, Meteor),
-				Collection: _.bind(Meteor.Collection, Meteor),
-				get: _.bind(Meteor.get, Meteor)
-			};
-			if(Meteor.isClient) {
-				ret.status = _.bind(Meteor.default_connection.status, Meteor.default_connection);
-				ret.userId = _.bind(Meteor.default_connection.userIdAsync, Meteor.default_connection);
-			}
-			return ret;
-		}]);
+		});
 	}
+	meteorModule.run(['$rootScope', '$q', '$templateCache', '$meteor' , '$collection',
+		function($rootScope, $q, $templateCache, $meteor, $collection) {
+		$rootScope.__proto__.$safeApply = function(expr) {
+			var phase = this.$root.$$phase;
+			if (phase === '$apply' || phase === '$digest') 
+				this.$eval(expr);
+			else
+				this.$apply(expr);
+		}
+
+		$rootScope.__proto__.$safeDigest = function() {
+			var phase = this.$root.$$phase;
+			if (phase !== '$apply' && phase !== '$digest')
+				this.$digest();
+		}
+
+		function digestNow() {
+			var phase = $rootScope.$$phase;
+			if(phase !== '$apply' && phase !== '$digest')
+				$rootScope.$digest();
+		}
+		var digestAfter = _.bind(setTimeout, global, digestNow, 50);
+		var throttledDigest = _.throttle(digestAfter, 100);
+		$rootScope.__proto__.$throttledSafeApply = function(expr) {
+			this.$eval(expr);
+			throttledDigest();
+		}
+
+		$rootScope.__proto__.$promisedCall = function() {
+			var self = this;
+			var args = _.toArray(arguments);
+			var fn = args.shift();
+			var defer = $q.defer();
+
+			args.push(function() {
+				var cbArgs = _.toArray(arguments);
+				var err = cbArgs.shift();
+				self.$throttledSafeApply(function() {
+					if (!err) defer.resolve.apply(defer, cbArgs);
+					else defer.reject(err);
+				});
+			});
+
+			fn.apply(null, args);
+			return defer.promise;
+		}
+
+		$rootScope.__proto__.$subscribe = $meteor.subscribe;
+
+		$rootScope.__proto__.$collection = function(name) {
+			return $collection(name, this);
+		}
+
+		_.each(AngularTemplates, function(tmpl, url) {
+			$templateCache.put(url, tmpl);
+		});
+	}]);
+
+	meteorModule.factory('$meteor', ['$rootScope', '$collection', function($rootScope, $collection) {
+		function subscribe() {
+			var args = _.toArray(arguments);
+
+			var handle = {loading: true};
+			if (_.isFunction(args[args.length - 1])) {
+				var fn = args.pop();
+			} else {
+				fn = _.identity;
+			}
+
+
+			args.push(function() {
+				$rootScope.$throttledSafeApply(function() {
+					handle.loading = false;
+					fn();
+				});	
+			});
+
+			var _handle = Meteor.subscribe.apply(Meteor, args);
+			handle.stop = _handle.stop;
+			this.$on && this.$on('$destroy', function() {
+				handle.stop();
+			});
+			return handle;
+		}
+		
+		function user(scope) {
+			var fields = _.toArray(arguments);
+			var scope = null;
+			if(fields.length && ! _.isString(fields[0]))
+				scope = fields.shift();
+
+			if (! fields.length)
+				fields = undefined;
+			//var user = null;
+			//var userId = Meteor.default_connection.userIdAsync(function(userId) {
+			//	user.$cursor.replaceSelector({username: userId});
+			//});
+
+			return $collection('users', scope).findOne({username: Meteor.userId()}, {fields: fields})
+				|| {username: Meteor.userId(), loading: true};
+			//return user;
+		}
+
+		var ret = {
+			subscribe: subscribe,
+			methods: _.bind(Meteor.methods, Meteor),
+			call: _.bind(Meteor.call, Meteor),
+			apply: _.bind(Meteor.apply, Meteor),
+			reconnect: _.bind(Meteor.reconnect, Meteor),
+			connect: _.bind(Meteor.connect, Meteor),
+			loggingIn: _.bind(Meteor.loggingInAsync, Meteor),
+			user: user,
+			isClient: Meteor.isClient,
+			isServer: Meteor.isServer,
+			setTimeout: _.bind(Meteor.setTimeout, Meteor),
+			setInterval: _.bind(Meteor.setInterval, Meteor),
+			uuid: _.bind(Meteor.uuid, Meteor),
+			Collection: _.bind(Meteor.Collection, Meteor),
+			get: _.bind(Meteor.get, Meteor)
+		};
+		if(Meteor.isClient) {
+			ret.status = _.bind(Meteor.default_connection.status, Meteor.default_connection);
+			ret.userId = _.bind(Meteor.default_connection.userIdAsync, Meteor.default_connection);
+		}
+		return ret;
+	}]);
 })(typeof window === 'undefined' ? global : window);
 
 
