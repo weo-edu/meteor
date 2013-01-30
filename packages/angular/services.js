@@ -492,6 +492,8 @@
 			isServer: Meteor.isServer,
 			setTimeout: _.bind(Meteor.setTimeout, Meteor),
 			setInterval: _.bind(Meteor.setInterval, Meteor),
+			clearTimeout: _.bind(Meteor.clearTimeout, Meteor),
+			clearInterval: _.bind(Meteor.clearInterval, Meteor),
 			uuid: _.bind(Meteor.uuid, Meteor),
 			Collection: _.bind(Meteor.Collection, Meteor),
 			get: _.bind(Meteor.get, Meteor)
