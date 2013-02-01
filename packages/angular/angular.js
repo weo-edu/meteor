@@ -5878,7 +5878,7 @@ function parser(text, json, $filter, csp){
       fieldAccess = _fieldAccess,
       objectIndex = _objectIndex,
       filterChain = _filterChain;
-
+      
   if(json){
     // The extra level of aliasing is here, just in case the lexer misses something, so that
     // we prevent any accidental execution in JSON.
