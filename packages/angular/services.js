@@ -18,6 +18,16 @@
 	}]);
 
 
+	function hashFn() {
+		return this._id;
+	}
+	var hashWrap = {$$hashKey: hashFn};
+	function hashKeyWrap(o) {
+		if(! o.$$hashKey)
+			o.__proto__ = hashWrap;
+		return o;
+	}
+
 	meteorModule.factory('$collection', function() {
 		var collections = {users: Meteor.users};
 		function maker(name, scope, local) {
@@ -58,32 +68,28 @@
 				var handle = cursor.observe({
 					added: function(document, beforeIndex) {
 		        scope.$throttledSafeApply(function() {
-		          results.splice(beforeIndex, 0, document);
+		          results.splice(beforeIndex, 0, hashKeyWrap(document));
 		        });
 		      },
 		      changed: function(newDocument, atIndex, oldDocument) {
 		      	scope.$throttledSafeApply(function() {
-		      		results[atIndex] = newDocument;
+		      		results[atIndex] = hashKeyWrap(newDocument);
 		      	});
 		      },
 		      moved: function(document, oldIndex, newIndex) {
 		      	scope.$throttledSafeApply(function() {
 		      		results.splice(oldIndex, 1);
-		      		results.splice(newIndex, 0, document);
+		      		results.splice(newIndex, 0, hashKeyWrap(document));
 		      	});
 		      },
 		      removed: function(oldDocument, atIndex) {
 		      	scope.$throttledSafeApply(function() {
 		      		results.splice(atIndex, 1);
 		      	});
-		        
 		      }
 				});
 
-				scope.$on('$destroy', function() {
-					handle.stop();
-				});
-
+				scope.$on('$destroy', _.bind(handle.stop, handle));
 				results.__proto__ = Object.create(results.__proto__);
 				results.__proto__.$cursor = cursor;
 				return results;
@@ -93,13 +99,14 @@
 				result = result || {};
 				selector = monitor(selector, result, options);
 
-				//XXX could use some optimization
 				function clearExtend(doc) {
-					_.chain(result).keys().forEach(function(key) {
-						delete result[key];
-					});
+					for(var key in result)
+						if(result.hasOwnProperty(key))
+							delete result[key];
 
-					_.extend(result, doc);
+					for(var key in doc)
+						if(doc.hasOwnProperty(key))
+							result[key] = doc[key];
 				}
 
 				var cursor = collection.find.apply(scopedCollection, _.toArray(arguments));
@@ -107,28 +114,28 @@
 					added: function(document, beforeIndex) {
 						if (beforeIndex === 0) {
 							scope.$throttledSafeApply(function() {
-			          clearExtend(document);
+			          clearExtend(hashKeyWrap(document));
 			        });
 						}
 		      },
 		      changed: function(newDocument, atIndex, oldDocument) {
 		      	if (atIndex === 0) {
 		      		scope.$throttledSafeApply(function() {
-			      		clearExtend(newDocument);
+			      		clearExtend(hashKeyWrap(newDocument));
 			      	});
 		      	}
 		      },
 		      moved: function(doc, oldIndex, newIndex) {
 		      	if (oldIndex === 0) {
 		      		scope.$throttledSafeApply(function() {
-		      			clearExtend(cursor.fetch()[0]);
+		      			clearExtend(hashKeyWrap(cursor.fetch()[0]));
 		      		})
 		      	}
 		      },
 		      removed: function(oldDocument, atIndex) {
 		      	if (atIndex === 0) {
 		      		scope.$throttledSafeApply(function() {
-			      		clearExtend(cursor.fetch()[0]);
+			      		clearExtend({});
 			      	});
 		      	}
 		      }
@@ -437,14 +444,8 @@
 	meteorModule.factory('$meteor', ['$rootScope', '$collection', function($rootScope, $collection) {
 		function subscribe() {
 			var args = _.toArray(arguments);
-
 			var handle = {loading: true};
-			if (_.isFunction(args[args.length - 1])) {
-				var fn = args.pop();
-			} else {
-				fn = _.identity;
-			}
-
+			var fn = _.isFunction(_.last(args)) ? args.pop() : _.identity;
 
 			args.push(function() {
 				$rootScope.$throttledSafeApply(function() {

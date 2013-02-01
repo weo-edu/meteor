@@ -220,6 +220,10 @@ _.each(["insert", "update", "remove", "findAndModify"], function (name) {
     var callback;
     var ret;
 
+        if(args[0] && args[0].$$hashKey)
+          console.log('hashkey Present on insert', args[0]);
+        if(args[1] && args[1].$$hashKey)
+          console.log('hashKey present!', args[1]);
     if (args.length && args[args.length - 1] instanceof Function) {
       callback = args.pop();
     }

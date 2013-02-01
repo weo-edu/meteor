@@ -149,6 +149,8 @@ _.extend(Meteor._LivedataSession.prototype, {
     var self = this;
     if (self.socket) {
       msg.msg_id = ++self.last_sent_id;
+      if(msg.msg && msg.msg.replace && msg.msg.replace.$$hashKey)
+        console.log('msg', msg);
       self.socket.send(JSON.stringify(msg));
     }
     else if(! dontQueue)

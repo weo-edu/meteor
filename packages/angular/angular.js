@@ -7886,13 +7886,11 @@ function $RootScopeProvider(){
               exp: watchExp,
               eq: !!objectEquality
             };
-
         // in the case user pass string, we need to compile it, do we really need this ?
         if (!isFunction(listener)) {
           var listenFn = compileToFn(listener || noop, 'listener');
           watcher.fn = function(newVal, oldVal, scope) {listenFn(scope);};
         }
-
         if (!array) {
           array = scope.$$watchers = [];
         }

@@ -533,9 +533,38 @@ LocalCollection._deepcopy = function (v) {
   }
   var ret = {};
   for (var key in v)
-    ret[key] = LocalCollection._deepcopy(v[key]);
+    if(v.hasOwnProperty(key))
+      ret[key] = LocalCollection._deepcopy(v[key]);
   return ret;
 };
+
+LocalCollection._deepcopy2 = function(v) {
+  var stack = [];
+  var root = ret = {};
+  var cur = v;
+  do {
+    var innerstack = [];
+    for(var key in cur) {
+      var val = cur[key];
+      if (typeof v !== "object")
+        ret[key] = val;
+      else if (val === null)
+        ret[key] = null; // null has typeof "object"
+      else if (val instanceof Date)
+        ret[key] = new Date(val.getTime());
+      else if(_.isArray(val)) {
+        ret[key] = val.slice(0);
+        innerstack.push(key);
+      } else {
+        ret[key] = {};
+        innnerstack.push(key);
+      }
+    }
+    stack.push(cur);
+    cur = cur[innerstack.pop()];
+  } while(cur);
+  return root;
+}
 
 // XXX the sorted-query logic below is laughably inefficient. we'll
 // need to come up with a better datastructure for this.
