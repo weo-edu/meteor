@@ -5878,7 +5878,7 @@ function parser(text, json, $filter, csp){
       fieldAccess = _fieldAccess,
       objectIndex = _objectIndex,
       filterChain = _filterChain;
-      
+
   if(json){
     // The extra level of aliasing is here, just in case the lexer misses something, so that
     // we prevent any accidental execution in JSON.
@@ -7886,11 +7886,13 @@ function $RootScopeProvider(){
               exp: watchExp,
               eq: !!objectEquality
             };
+
         // in the case user pass string, we need to compile it, do we really need this ?
         if (!isFunction(listener)) {
           var listenFn = compileToFn(listener || noop, 'listener');
           watcher.fn = function(newVal, oldVal, scope) {listenFn(scope);};
         }
+
         if (!array) {
           array = scope.$$watchers = [];
         }
@@ -14307,7 +14309,7 @@ var ngViewDirective = ['$http', '$templateCache', '$route', '$anchorScroll', '$c
       scope.$on('$routeChangeSuccess', update);
       update();
 
-
+ 
       function destroyLastScope() {
         if (lastScope) {
           lastScope.$destroy();
