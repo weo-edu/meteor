@@ -489,6 +489,11 @@ LocalCollection.prototype.update = function (selector, mod, options) {
 };
 
 LocalCollection.prototype._modifyAndNotify = function (doc, mod) {
+  //  XXX Minimongo/Meteor totally chokes on Mongo's native ObjectID
+  //  data-type, and this value of _id makes it to the client.  We
+  //  need to have a real solution for this at some point, but for now
+  //  just throw an error.
+  console.assert(doc._id !== '[object Object]');
   var self = this;
   var matched_before = {};
   for (var qid in self.queries) {
