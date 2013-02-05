@@ -460,8 +460,15 @@ LocalCollection.prototype.remove = function (selector) {
 // we rollback the whole operation, or what?
 LocalCollection.prototype.update = function (selector, mod, options) {
   if (!options) options = {};
-
   var self = this;
+
+  if(LocalCollection._selectorIsId(selector)) {
+    var doc = self.docs[selector];
+    self._saveOriginal(id, doc);
+    self._modifyAndNotify(doc, mod);
+    return;
+  }
+
   var any = false;
   var selector_f = LocalCollection.compileSelector(selector);
   for (var id in self.docs) {
@@ -489,8 +496,16 @@ LocalCollection.prototype.update = function (selector, mod, options) {
 };
 
 LocalCollection.prototype._modifyAndNotify = function (doc, mod) {
+  //  XXX Minimongo/Meteor totally chokes on Mongo's native ObjectID
+  //  data-type, and this value of _id makes it to the client.  We
+  //  need to have a real solution for this at some point, but for now
+  //  just throw an error.
+  if(doc._id === '[object Object]') {
+    console.log('test');
+    throw new Error('Mongodb ObjectId made it to the client, bailing..');
+  }
   var self = this;
-  var matched_before = {};
+ /* var matched_before = {};
   for (var qid in self.queries) {
     var query = self.queries[qid];
     if (query.ordered) {
@@ -513,6 +528,25 @@ LocalCollection.prototype._modifyAndNotify = function (doc, mod) {
       LocalCollection._insertInResults(query, doc);
     else if (before && after)
       LocalCollection._updateInResults(query, doc, old_doc);
+  }*/
+
+  var old = LocalCollection._deepcopy(doc);
+  LocalCollection._modify(doc, mod);
+
+  for(var qid in self.queries) {
+    var query = self.queries[qid];
+    var before = query.ordered 
+      ? query.selector_f(old) 
+      : _.has(query.results, doc._id);
+    var after = query.selector_f(doc);
+
+    if(before) {
+      if(after)
+        LocalCollection._updateInResults(query, doc, old);
+      else
+        LocalCollection._removeFromResults(query, doc);
+    } else if(after)
+      LocalCollection._insertInResults(query, doc);
   }
 };
 
@@ -533,7 +567,8 @@ LocalCollection._deepcopy = function (v) {
   }
   var ret = {};
   for (var key in v)
-    ret[key] = LocalCollection._deepcopy(v[key]);
+    if(v.hasOwnProperty(key))
+      ret[key] = LocalCollection._deepcopy(v[key]);
   return ret;
 };
 

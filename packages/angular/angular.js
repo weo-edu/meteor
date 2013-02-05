@@ -4334,7 +4334,7 @@ function $CompileProvider($provide) {
 
       $compileNode.html('');
 
-      $http.get(origAsyncDirective.templateUrl, {cache: $templateCache}).
+      $http.get(origAsyncDirective.templateUrl, {cache: $templateCache, headers: {'Accept': 'x-angular-template'}}).
         success(function(content) {
           var compileNode, tempTemplateAttrs, $template;
 
@@ -7485,7 +7485,7 @@ function $RouteProvider(){
               });
               if (isDefined(template = next.template)) {
               } else if (isDefined(template = next.templateUrl)) {
-                template = $http.get(template, {cache: $templateCache}).
+                template = $http.get(template, {cache: $templateCache, headers: {'Accept': 'x-angular-template'}}).
                     then(function(response) { return response.data; });
               }
               if (isDefined(template)) {
@@ -12381,7 +12381,7 @@ var ngModelDirective = function() {
  *       expect(binding('confirmed')).toEqual('true');
  *     });
  *   </doc:scenario>
- * </doc:example>
+ * </doc:example> 
  */
 var ngChangeDirective = valueFn({
   require: 'ngModel',
@@ -13402,7 +13402,7 @@ var ngIncludeDirective = ['$http', '$templateCache', '$anchorScroll', '$compile'
           var thisChangeId = ++changeCounter;
 
           if (src) {
-            $http.get(src, {cache: $templateCache}).success(function(response) {
+            $http.get(src, {cache: $templateCache, headers: {'Accept': 'x-angular-template'}}).success(function(response) {
               if (thisChangeId !== changeCounter) return;
 
               if (childScope) childScope.$destroy();
@@ -14309,7 +14309,7 @@ var ngViewDirective = ['$http', '$templateCache', '$route', '$anchorScroll', '$c
       scope.$on('$routeChangeSuccess', update);
       update();
 
-
+ 
       function destroyLastScope() {
         if (lastScope) {
           lastScope.$destroy();

@@ -163,6 +163,20 @@ _.extend(Meteor.Collection.prototype, {
 
 });
 
+_.extend(Meteor.Collection.prototype, {
+  upsertOne: function(selector, mod, options, cb) {
+    var doc = this.findOne(selector);
+    if (!doc) {
+      doc = {};
+      LocalCollection._modify(doc, mod);
+      LocalCollection._modify(doc, {$set: selector});
+      this.insert(doc);
+    } else {
+      doc = this.findAndModify(selector, [['_id', 'asc']], mod, options);
+    }
+    return doc;
+  }
+})
 
 // protect against dangerous selectors.  falsey and {_id: falsey} are both
 // likely programmer error, and not what you want, particularly for destructive
@@ -220,6 +234,10 @@ _.each(["insert", "update", "remove", "findAndModify"], function (name) {
     var callback;
     var ret;
 
+        if(args[0] && args[0].$$hashKey)
+          console.log('hashkey Present on insert', args[0]);
+        if(args[1] && args[1].$$hashKey)
+          console.log('hashKey present!', args[1]);
     if (args.length && args[args.length - 1] instanceof Function) {
       callback = args.pop();
     }
@@ -260,7 +278,6 @@ _.each(["insert", "update", "remove", "findAndModify"], function (name) {
           if (name === 'findAndModify') {
             ret = res;
           }
-
           callback(error, !error && ret);
         });
 
