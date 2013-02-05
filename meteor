@@ -103,4 +103,4 @@ if [ "$(ulimit -n)" != "unlimited" ] ; then
 fi
 
 export NODE_PATH="$DEV_BUNDLE/lib/node_modules"
-exec "$DEV_BUNDLE/bin/node" "--prof" "$METEOR" "$@"
+exec "$DEV_BUNDLE/bin/node" "$METEOR" "$@"
