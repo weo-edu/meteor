@@ -500,8 +500,10 @@ LocalCollection.prototype._modifyAndNotify = function (doc, mod) {
   //  data-type, and this value of _id makes it to the client.  We
   //  need to have a real solution for this at some point, but for now
   //  just throw an error.
-  if(doc._id === '[object Object]')
-    throw new Error;
+  if(doc._id === '[object Object]') {
+    console.log('test');
+    throw new Error('Mongodb ObjectId made it to the client, bailing..');
+  }
   var self = this;
  /* var matched_before = {};
   for (var qid in self.queries) {
