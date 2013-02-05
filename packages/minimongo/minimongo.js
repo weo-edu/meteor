@@ -460,8 +460,15 @@ LocalCollection.prototype.remove = function (selector) {
 // we rollback the whole operation, or what?
 LocalCollection.prototype.update = function (selector, mod, options) {
   if (!options) options = {};
-
   var self = this;
+
+  if(LocalCollection._selectorIsId(selector)) {
+    var doc = self.docs[selector];
+    self._saveOriginal(id, doc);
+    self._modifyAndNotify(doc, mod);
+    return;
+  }
+
   var any = false;
   var selector_f = LocalCollection.compileSelector(selector);
   for (var id in self.docs) {

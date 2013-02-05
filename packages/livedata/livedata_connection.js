@@ -256,7 +256,7 @@ Meteor._LivedataConnection = function (url, options) {
     changed: function (sub) {
       if (sub.count <= 0) {
         // minimongo not re-entrant.
-        _.defer(function () { self._subCollection.remove({_id: sub._id}); });
+        _.defer(function () { self._subCollection.remove(sub._id); });
       }
     },
     removed: function (obj) {
@@ -422,7 +422,7 @@ _.extend(Meteor._LivedataConnection.prototype, {
     if (existing && existing[0]) {
       // already subbed, inc count.
       id = existing[0]._id;
-      self._subCollection.update({_id: id}, {$inc: {count: 1}});
+      self._subCollection.update(id, {$inc: {count: 1}});
 
       if (callback) {
         if (self._subReadyCallbacks[id])
@@ -446,7 +446,7 @@ _.extend(Meteor._LivedataConnection.prototype, {
     var token = {stop: function () {
       if (!id) return; // must have an id (local from above).
       // just update the database. observe takes care of the rest.
-      self._subCollection.update({_id: id}, {$inc: {count: -1}});
+      self._subCollection.update(id, {$inc: {count: -1}});
     }};
 
     if (captureSubs)
