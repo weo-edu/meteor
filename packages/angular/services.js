@@ -440,6 +440,15 @@
 			return defer.promise;
 		}
 
+		$rootScope.__proto__.$when = function(expr, fn) {
+			var handle = this.$watch(expr, function(val) {
+				if(!! val) {
+					fn(val);
+					handle();
+				}
+			});
+		}
+
 		$rootScope.__proto__.$subscribe = $meteor.subscribe;
 
 		$rootScope.__proto__.$collection = function(name) {
