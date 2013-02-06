@@ -34,6 +34,7 @@
 			var Collection = local ? LocalCollection : Meteor.Collection;
 			collections[name] = collections[name] || new Collection(name);
 
+			var cleanup = [];
 			var collection = collections[name];
 			if (! scope || Meteor.isServer)
 				return collection;
@@ -51,10 +52,11 @@
 					//	that angular's deep equality checker skips keys with $'s
 					//	on them, which minimongo also uses.  XXX Slow?
 					var fn = _.compose(JSON.stringify, sel);
-					scope.$watch(fn, function(s) {
+					var handle = scope.$watch(fn, function(s) {
 						s && results.$cursor && results.$cursor.replaceSelector(JSON.parse(s));
 					}, true);
 					sel = sel();
+					cleanup.push(handle);
 				}
 				return sel;
 			}
@@ -89,7 +91,8 @@
 		      }
 				});
 
-				scope.$on('$destroy', _.bind(handle.stop, handle));
+				cleanup.push(_.bind(handle.stop, handle));
+				scope.$on('$destroy', _.bind(scopedCollection.stop, scopedCollection));
 				results.__proto__ = Object.create(results.__proto__);
 				results.__proto__.$cursor = cursor;
 				return results;
@@ -141,11 +144,17 @@
 		      }
 				});
 
-				scope.$on('$destroy', _.bind(handle.stop, handle));
+				cleanup.push(_.bind(handle.stop, handle));
+				scope.$on('$destroy', _.bind(scopedCollection.stop, scopedCollection));
 				result.__proto__ = {$cursor: cursor};
 				return result;
 			}
 
+			scopedCollection.stop = function() {
+				_.each(cleanup, u.coerce);
+				cleanup = [];
+				collection.stop && collection.stop();
+			}
 			return scopedCollection;
 		}
 
@@ -317,7 +326,7 @@
 
 				_.each(cursors, function(cursor) {
 					var coll = collectionsByName[cursor.collection._name];
-					coll.find().observe({
+					var handle = coll.find().observe({
 						added: function(doc) {
 							add(doc, cursor.collection);
 						},
@@ -328,6 +337,7 @@
 							remove(doc, cursor.collection);
 						}
 					});
+					cleanup.push(_.bind(handle.stop, handle));
 				});
 			}
 
@@ -341,10 +351,10 @@
 						return;
 					setupCursors(cursors);
 				});
-
-				joinCollection.stop = function() {
-					_.each(cleanup, u.coerce);
-				}
+			}
+			joinCollection.stop = function() {
+				_.each(cleanup, u.coerce);
+				cleanup = [];
 			}
 
 			scope && scope.$on('$destroy', function() {
