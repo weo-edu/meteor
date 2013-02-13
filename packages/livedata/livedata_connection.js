@@ -187,7 +187,7 @@ Meteor._LivedataConnection = function (url, options) {
       self._livedata_datas(msg);
     else if (msg.msg === 'nosub')
       self._livedata_nosub(msg);
-    else if (msg.msg === 'result')
+    else if (msg.msg === 'result') 
       self._livedata_result(msg);
     else if (msg.msg === 'error')
       self._livedata_error(msg);
@@ -838,6 +838,7 @@ _.extend(Meteor._LivedataConnection.prototype, {
   },
   _livedata_datas: function(msg) {
     var self = this;
+    console.log('set', msg.set);
     msg.set = JSON.parse(msg.set);
     msg.id = msg.set._id;
     delete msg.set._id;

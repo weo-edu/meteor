@@ -83,7 +83,7 @@ if (!Accounts._preventAutoLogin) {
       if (err) {
         Meteor._debug("Error logging in with token: " + err);
         Accounts._makeClientLoggedOut();
-      }
+      } 
     });
   }
 }

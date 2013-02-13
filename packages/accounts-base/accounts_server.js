@@ -12,6 +12,7 @@
       var result = tryAllLoginHandlers(options);
       if (result !== null)
         this.setUserId(result.name);
+
       return result;
     },
 

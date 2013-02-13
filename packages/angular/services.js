@@ -504,9 +504,7 @@
 			methods: _.bind(Meteor.methods, Meteor),
 			call: _.bind(Meteor.call, Meteor),
 			apply: _.bind(Meteor.apply, Meteor),
-			reconnect: _.bind(Meteor.reconnect, Meteor),
-			connect: _.bind(Meteor.connect, Meteor),
-			loggingIn: _.bind(Meteor.loggingInAsync, Meteor),
+			
 			user: user,
 			isClient: Meteor.isClient,
 			isServer: Meteor.isServer,
@@ -516,12 +514,16 @@
 			clearInterval: _.bind(Meteor.clearInterval, Meteor),
 			uuid: _.bind(Meteor.uuid, Meteor),
 			Collection: _.bind(Meteor.Collection, Meteor),
-			get: _.bind(Meteor.get, Meteor),
+			
 			defer: _.bind(Meteor.defer, Meteor)
 		};
 		if(Meteor.isClient) {
 			ret.status = _.bind(Meteor.default_connection.status, Meteor.default_connection);
 			ret.userId = _.bind(Meteor.default_connection.userIdAsync, Meteor.default_connection);
+			ret.reconnect = _.bind(Meteor.reconnect, Meteor);
+			ret.connect = _.bind(Meteor.connect, Meteor);
+			ret.loggingIn = _.bind(Meteor.loggingInAsync, Meteor);
+			ret.get =  _.bind(Meteor.get, Meteor);
 		}
 		return ret;
 	}]);
