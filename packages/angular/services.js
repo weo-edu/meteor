@@ -517,7 +517,13 @@
 			uuid: _.bind(Meteor.uuid, Meteor),
 			Collection: _.bind(Meteor.Collection, Meteor),
 			get: _.bind(Meteor.get, Meteor),
-			defer: _.bind(Meteor.defer, Meteor)
+			defer: _.bind(Meteor.defer, Meteor),
+			uuid: _.bind(Meteor.uuid, Meteor),
+			mode: function() {
+				return __meteor_runtime_config__.METEOR_DEV_MODE 
+					? 'development' 
+					: 'production';
+			}
 		};
 		if(Meteor.isClient) {
 			ret.status = _.bind(Meteor.default_connection.status, Meteor.default_connection);
