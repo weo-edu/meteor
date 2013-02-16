@@ -67,7 +67,7 @@
 				selector = monitor(selector, results, options);
 
 				var cursor = collection.find.call(scopedCollection, selector, options);
-				var handle = cursor.observe({
+				var callbacks = {
 					added: function(document, beforeIndex) {
 		        scope.$throttledSafeApply(function() {
 		          results.splice(beforeIndex, 0, hashKeyWrap(document));
@@ -89,8 +89,10 @@
 		      		results.splice(atIndex, 1);
 		      	});
 		      }
-				});
-
+				};
+				if(options && options.batch)
+					callbacks = u.batched(callbacks, options.batch.changes, options.batch.per);
+				var handle = cursor.observe(callbacks);
 				cleanup.push(_.bind(handle.stop, handle));
 				scope.$on('$destroy', _.bind(scopedCollection.stop, scopedCollection));
 				results.__proto__ = Object.create(results.__proto__);
