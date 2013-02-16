@@ -449,6 +449,20 @@
 			});
 		}
 
+		$rootScope.__proto__.$get = function(name /*, arguments */) {
+			var args = _.toArray(arguments).slice(1);
+			return this.$watch(function() {
+				return _.map(args, u.coerce);
+			}, function(args) {
+				//	Pass in _.identity as the last argument to ensure that
+				//	the user cannot pass a completion callback in.  The worst
+				//	situation would be that completion callbacks work some
+				//	of the time with this function and inexplicably fail in
+				//	random cases, so avoid that entirely.
+				args && $meteor.get.apply($meteor, [name].concat(args, _.identity));
+			}, true);
+		}
+
 		$rootScope.__proto__.$subscribe = $meteor.subscribe;
 
 		$rootScope.__proto__.$collection = function(name) {
