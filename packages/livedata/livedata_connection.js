@@ -838,7 +838,6 @@ _.extend(Meteor._LivedataConnection.prototype, {
   },
   _livedata_datas: function(msg) {
     var self = this;
-    console.log('set', msg.set);
     msg.set = JSON.parse(msg.set);
     msg.id = msg.set._id;
     delete msg.set._id;

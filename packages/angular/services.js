@@ -513,7 +513,6 @@
 			clearInterval: _.bind(Meteor.clearInterval, Meteor),
 			uuid: _.bind(Meteor.uuid, Meteor),
 			Collection: _.bind(Meteor.Collection, Meteor),
-			get: _.bind(Meteor.get, Meteor),
 			defer: _.bind(Meteor.defer, Meteor),
 			uuid: _.bind(Meteor.uuid, Meteor),
 			mode: function() {
