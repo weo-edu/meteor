@@ -39,7 +39,7 @@
 			if (! scope || Meteor.isServer)
 				return collection;
 
-			function monitor(sel, results, options) {
+			function monitor(sel, results, options, callbacks) {
 				if(u.hasFunctions(sel)) {
 					var o = sel;
 					sel = function() {
@@ -53,7 +53,10 @@
 					//	on them, which minimongo also uses.  XXX Slow?
 					var fn = _.compose(JSON.stringify, sel);
 					var handle = scope.$watch(fn, function(s) {
-						s && results.$cursor && results.$cursor.replaceSelector(JSON.parse(s));
+						if(s && results.$cursor) {
+							callbacks && callbacks.flush && callbacks.flush();
+							results.$cursor.replaceSelector(JSON.parse(s));
+						}
 					}, true);
 					sel = sel();
 					cleanup.push(handle);
@@ -64,9 +67,6 @@
 			var scopedCollection = Object.create(collection);
 			scopedCollection.find = function(selector, options) {
 				var results = [];
-				selector = monitor(selector, results, options);
-
-				var cursor = collection.find.call(scopedCollection, selector, options);
 				var callbacks = {
 					added: function(document, beforeIndex) {
 		        scope.$throttledSafeApply(function() {
@@ -91,7 +91,12 @@
 		      }
 				};
 				if(options && options.batch)
-					callbacks = u.batched(callbacks, options.batch.changes, options.batch.per);
+					callbacks = u.batched(callbacks, options.batch.changes, options.batch.per, null, 'added');
+
+				selector = monitor(selector, results, options, callbacks);
+
+				var cursor = collection.find.call(scopedCollection, selector, options);
+
 				var handle = cursor.observe(callbacks);
 				cleanup.push(_.bind(handle.stop, handle));
 				scope.$on('$destroy', _.bind(scopedCollection.stop, scopedCollection));

@@ -4358,7 +4358,7 @@ function $CompileProvider($provide) {
           }
 
           directives.unshift(derivedSyncDirective);
-          afterTemplateNodeLinkFn = applyDirectivesToNode(directives, $compileNode, tAttrs, childTranscludeFn);
+          afterTemplateNodeLinkFn = applyDirectivesToNode(directives, $compileNode[0], tAttrs, childTranscludeFn);
           afterTemplateChildLinkFn = compileNodes($compileNode.contents(), childTranscludeFn);
 
 
