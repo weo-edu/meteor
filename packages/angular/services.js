@@ -39,7 +39,7 @@
 			if (! scope || Meteor.isServer)
 				return collection;
 
-			function monitor(sel, results, options) {
+			function monitor(sel, results, options, callbacks) {
 				if(u.hasFunctions(sel)) {
 					var o = sel;
 					sel = function() {
@@ -53,7 +53,10 @@
 					//	on them, which minimongo also uses.  XXX Slow?
 					var fn = _.compose(JSON.stringify, sel);
 					var handle = scope.$watch(fn, function(s) {
-						s && results.$cursor && results.$cursor.replaceSelector(JSON.parse(s));
+						if(s && results.$cursor) {
+							callbacks && callbacks.flush && callbacks.flush();
+							results.$cursor.replaceSelector(JSON.parse(s));
+						}
 					}, true);
 					sel = sel();
 					cleanup.push(handle);
@@ -64,10 +67,7 @@
 			var scopedCollection = Object.create(collection);
 			scopedCollection.find = function(selector, options) {
 				var results = [];
-				selector = monitor(selector, results, options);
-
-				var cursor = collection.find.call(scopedCollection, selector, options);
-				var handle = cursor.observe({
+				var callbacks = {
 					added: function(document, beforeIndex) {
 		        scope.$throttledSafeApply(function() {
 		          results.splice(beforeIndex, 0, hashKeyWrap(document));
@@ -89,8 +89,15 @@
 		      		results.splice(atIndex, 1);
 		      	});
 		      }
-				});
+				};
+				if(options && options.batch)
+					callbacks = u.batched(callbacks, options.batch.changes, options.batch.per, null, 'added');
 
+				selector = monitor(selector, results, options, callbacks);
+
+				var cursor = collection.find.call(scopedCollection, selector, options);
+
+				var handle = cursor.observe(callbacks);
 				cleanup.push(_.bind(handle.stop, handle));
 				scope.$on('$destroy', _.bind(scopedCollection.stop, scopedCollection));
 				results.__proto__ = Object.create(results.__proto__);
@@ -447,6 +454,20 @@
 					handle();
 				}
 			});
+		}
+
+		$rootScope.__proto__.$get = function(name /*, arguments */) {
+			var args = _.toArray(arguments).slice(1);
+			return this.$watch(function() {
+				return _.map(args, u.coerce);
+			}, function(args) {
+				//	Pass in _.identity as the last argument to ensure that
+				//	the user cannot pass a completion callback in.  The worst
+				//	situation would be that completion callbacks work some
+				//	of the time with this function and inexplicably fail in
+				//	random cases, so avoid that entirely.
+				args && $meteor.get.apply($meteor, [name].concat(args, _.identity));
+			}, true);
 		}
 
 		$rootScope.__proto__.$subscribe = $meteor.subscribe;
