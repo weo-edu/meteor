@@ -50,8 +50,7 @@ LocalCollection._compileSort = function (spec) {
     if (i !== 0)
       code += "if(x!==0)return x;";
     code += "x=" + (asc[i] ? "" : "-") +
-      "c(a" + LocalCollection._bracketize(keys[i]) + ", b" +
-      LocalCollection._bracketize(keys[i]) + ");";
+      "c("+LocalCollection._getter('a', keys[i])+','+LocalCollection._getter('b', keys[i])+");";
   }
   code += "return x; };})";
   eval(code);
@@ -62,6 +61,17 @@ LocalCollection.compileSort = _.memoize(LocalCollection._compileSort, function(s
   return JSON.stringify(spec);
 });
 
+LocalCollection._getter = function(v, s) {
+  if(! s) return v;
+  var parts = s.split('.');
+  var arr = [v];
+  var path = '';
+  for(var i in parts) {
+    path += '["'+parts[i]+'"]';
+    arr.push(v+path);
+  }
+  return arr.join(' && ');
+}
 LocalCollection._bracketize = function(s){
   return _.reduce(s.split('.'), function(memo, val){
     return memo += '[' + JSON.stringify(val) + ']';
