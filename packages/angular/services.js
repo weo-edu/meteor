@@ -542,7 +542,7 @@
 					: 'production';
 			}
 		};
-		if(Meteor.isClient) {
+		if(Meteor.isClient && Meteor.default_connection) {
 			ret.status = _.bind(Meteor.default_connection.status, Meteor.default_connection);
 			ret.userId = _.bind(Meteor.default_connection.userIdAsync, Meteor.default_connection);
 			ret.reconnect = _.bind(Meteor.reconnect, Meteor);

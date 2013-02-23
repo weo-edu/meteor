@@ -103,7 +103,9 @@ var PackageInstance = function (pkg, bundle) {
     pkg_dir: function() {
       return self.pkg.source_root;
     },
-
+    static: function() {
+      self.bundle.static = true;
+    },
     add_dir: function(dir,where) {
       var files = _.map(fs.readdirSync(path.join(self.pkg.source_root, dir)),function(file) {
         return path.join(dir,file);
@@ -461,11 +463,26 @@ _.extend(Bundle.prototype, {
     self.css = [name];
   },
 
-  _generate_app_html: function () {
+  _generate_app_html: function (build_path) {
     var self = this;
-
+/* test */
     var template = fs.readFileSync(path.join(__dirname, "app.html.in"));
     var f = require('handlebars').compile(template.toString());
+    if(self.static) {
+      var dir = path.join(build_path, 'static');
+      for(var i in self.js.client) {
+        //  Strip comments because otherwise they might contain html (as in the case
+        //  of angular)
+        var contents = fs.readFileSync(path.join(dir, self.js.client[i].split('?')[0]), 'utf8');
+        contents = removeComments(contents);
+        self.head.push("<script type='text/javascript'>"+contents+"</script>");
+      }
+
+      for(var i in self.css)
+        self.head.push("<style type='text/css'>"+fs.readFileSync(path.join(dir, self.css[i].split('?')[0]), 'utf8')+'</style>');
+      self.js.client = [];
+      self.css = [];
+    }
     return f({
       scripts: self.js.client,
       head_extra: self.head.join('\n'),
@@ -590,7 +607,7 @@ _.extend(Bundle.prototype, {
     }
 
     fs.writeFileSync(path.join(build_path, 'app.html'),
-                     self._generate_app_html());
+                     self._generate_app_html(build_path));
     dependencies_json.core.push(path.join('lib', 'app.html.in'));
 
     fs.writeFileSync(path.join(build_path, 'unsupported.html'),
@@ -706,3 +723,95 @@ exports.bundle = function (project_dir, output_path, options) {
     return ["Exception while bundling application:\n" + (err.stack || err)];
   }
 };
+
+
+function removeComments(str) {
+    str = ('__' + str + '__').split('');
+    var mode = {
+        singleQuote: false,
+        doubleQuote: false,
+        regex: false,
+        blockComment: false,
+        lineComment: false,
+        condComp: false 
+    };
+
+    var regexpIds = '([{(;*/+-=';
+    for (var i = 0, l = str.length; i < l; i++) {
+ 
+        if (mode.regex) {
+            if (str[i] === '/' && str[i-1] !== '\\') {
+                mode.regex = false;
+            }
+            continue;
+        }
+ 
+        if (mode.singleQuote) {
+            if (str[i] === "'" && !(str[i-1] === '\\' && str[i-2] !== '\\')) {
+                mode.singleQuote = false;
+            }
+            continue;
+        }
+ 
+        if (mode.doubleQuote) {
+            if (str[i] === '"' && !(str[i-1] === '\\' && str[i-2] !== '\\')) {
+                mode.doubleQuote = false;
+            }
+            continue;
+        }
+ 
+        if (mode.blockComment) {
+            if (str[i] === '*' && str[i+1] === '/') {
+                str[i+1] = '';
+                mode.blockComment = false;
+            }
+            str[i] = '';
+            continue;
+        }
+ 
+        if (mode.lineComment) {
+            if (str[i+1] === '\n' || str[i+1] === '\r') {
+                mode.lineComment = false;
+            }
+            str[i] = '';
+            continue;
+        }
+ 
+        if (mode.condComp) {
+            if (str[i-2] === '@' && str[i-1] === '*' && str[i] === '/') {
+                mode.condComp = false;
+            }
+            continue;
+        }
+ 
+        mode.doubleQuote = str[i] === '"';
+        mode.singleQuote = str[i] === "'";
+ 
+        if (str[i] === '/') {
+ 
+            if (str[i+1] === '*' && str[i+2] === '@') {
+                mode.condComp = true;
+                continue;
+            }
+            if (str[i+1] === '*') {
+                str[i] = '';
+                mode.blockComment = true;
+                continue;
+            }
+            if (str[i+1] === '/') {
+                str[i] = '';
+                mode.lineComment = true;
+                continue;
+            }
+
+            for(var j = i-1; j > 0; j--)
+              if(! /\s/.test(str[j])) {
+                if(_.contains(regexpIds, str[j]))
+                  mode.regex = true;
+                break;
+              }
+        }
+ 
+    }
+    return str.join('').slice(2, -2);
+}
