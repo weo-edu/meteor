@@ -5,9 +5,11 @@ if(Meteor.isClient) {
 } else {
 	
 	angular.start = function(modules) {
-		Meteor.startup(function() {
+		function load() {
 			var injector = createInjector(modules);
 			injector.invoke(['$injector', function(injector){ }]);
-		});
+		}
+		
+		Meteor.startup ? Meteor.startup(load) : load();
 	}	
 }

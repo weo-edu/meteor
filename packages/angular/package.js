@@ -3,6 +3,7 @@ Package.describe({
 });
 
 Package.on_use(function (api) {
+  api.use('jquery');
   api.add_files(['angular.js', 'utils.js'], 'client');
   api.add_files('server.js', 'server');
   api.add_files(['services.js', 'startup.js'], ['client', 'server']);
@@ -44,7 +45,6 @@ Package.register_extension(
         data: results.body,
         where: where
       });
-
     var js = '';
 
     var path_part = path.dirname(serve_path);
