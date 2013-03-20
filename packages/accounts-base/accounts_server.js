@@ -251,7 +251,8 @@
   Meteor.publish(null, function() {
     if (this.userId)
       return Meteor.users.find(
-        {username: this.userId}
+        {username: this.userId},
+        {fields: {services: 0, srp: 0}}
         //,{fields: {profile: 1, username: 1, emails: 1}}
       );
     else {
@@ -264,7 +265,7 @@
   Meteor.default_server.onAutopublish(function () {
     var handler = function () {
       return Meteor.users.find(
-        {}//, {fields: {profile: 1, username: 1}}
+        {}, {fields: {services: 0, srp: 0}}//, {fields: {profile: 1, username: 1}}
         );
     };
     Meteor.default_server.publish(null, handler, {is_auto: true});

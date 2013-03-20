@@ -536,6 +536,9 @@
 			Collection: _.bind(Meteor.Collection, Meteor),
 			defer: _.bind(Meteor.defer, Meteor),
 			uuid: _.bind(Meteor.uuid, Meteor),
+			methods: Meteor.methods && _.bind(Meteor.methods, Meteor),
+			loginWithPassword: _.bind(Meteor.loginWithPassword, Meteor),
+			logout: _.bind(Meteor.logout, Meteor),
 			mode: function() {
 				return __meteor_runtime_config__.METEOR_DEV_MODE 
 					? 'development' 
