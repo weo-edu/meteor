@@ -11,8 +11,8 @@ if(process.env.NODETIME_API_KEY) {
 
 ////////// Requires //////////
 
-require("fibers");
-
+Fiber = require("fibers");
+console.log('******************** ', Fiber);
 var fs = require("fs");
 var path = require("path");
 
@@ -79,7 +79,7 @@ var runtime_config = function (app_html) {
 
   return app_html;
 };
-
+require('fibers')
 var run = function () {
   var bundle_dir = path.join(__dirname, '..');
 

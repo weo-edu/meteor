@@ -22,4 +22,5 @@ if [ "$(ulimit -n)" != "unlimited" ] ; then
     ulimit -n 512 > /dev/null 2>&1
 fi
 
+export NODE_PATH=$SCRIPT_DIR/node_modules
 exec "node" "$SCRIPT_DIR/app/meteor/meteor.js" "$@"

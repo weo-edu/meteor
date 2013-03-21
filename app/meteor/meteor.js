@@ -94,11 +94,13 @@ Commands.push({
     var new_argv = opt.argv;
     var bundle_opts = {
       no_minify: ! new_argv.production,
-      symlink_dev_bundle: true
+      skip_dev_bundle: true
     };
+    console.log('test');
     var bundler = require(path.join(__dirname, '..', 'lib', 'bundler.js'));
     var app_dir = path.resolve(require_project('run', true));
     var bundle_path = path.join(app_dir, '.meteor', 'local', 'build');
+    console.log('test5');
     bundler.bundle(app_dir, bundle_path, bundle_opts);
   }
 });

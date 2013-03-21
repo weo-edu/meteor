@@ -1,0 +1,30 @@
+{
+	"name": "Meteor.weo",
+	"scripts": {
+		"preinstall": "npm install mongodb --mongodb:native"
+	},
+	"dependencies": {
+		"clean-css": "*",
+		"express": "2.5.11",
+		"fibers": "*",
+		"gzippo": "*",
+		"handlebars": "*",
+		"http-proxy": "*",
+		"keypress": "*",
+		"less": "*",
+		"lodash": "*",
+		"mailcomposer": "*",
+		"mime": "*",
+		"nib": "*",
+		"npm": "*",
+		"optimist": "*",
+		"progress": "*",
+		"request": "*",
+		"semver": "*",
+		"simplesmtp": "*",
+		"stream-buffers": "*",
+		"uglify-js": "*",
+		"useragent": "*"
+	},
+	"version": "0.1.0"
+}
