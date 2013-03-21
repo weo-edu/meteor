@@ -3,7 +3,7 @@
 BUNDLE_VERSION=0.2.5
 # Replaced all the OS validation stuff because we don't use the dev bundle
 # and we want it to run on Solaris
-ARCH="X86_65"
+ARCH="X86_64"
 UNAME="Linux"
 
 # Find the script dir, following one level of symlink. Note that symlink
