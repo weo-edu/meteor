@@ -22,4 +22,4 @@ if [ "$(ulimit -n)" != "unlimited" ] ; then
     ulimit -n 512 > /dev/null 2>&1
 fi
 
-exec "node" "app/meteor/meteor.js" "$@"
+exec "node" "$SCRIPT_DIR/app/meteor/meteor.js" "$@"
