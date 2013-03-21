@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# Find the script dir, following one level of symlink. Note that symlink
+# can be relative or absolute. Too bad 'readlink -f' is not portable.
+ORIG_DIR=$(pwd)
+cd $(dirname "$0")
+if [ -L "$(basename $0)" ] ; then
+    cd $(dirname $(readlink $(basename "$0") ) )
+fi
+SCRIPT_DIR=$(pwd -P)
+cd "$ORIG_DIR"
+
 # Bump our file descriptor ulimit as high as it will go. This is a
 # temporary workaround for dependancy watching holding open too many
 # files: https://app.asana.com/0/364581412985/472479912325
