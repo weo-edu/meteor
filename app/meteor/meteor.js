@@ -96,12 +96,12 @@ Commands.push({
       no_minify: ! new_argv.production,
       skip_dev_bundle: true
     };
-    console.log('test');
     var bundler = require(path.join(__dirname, '..', 'lib', 'bundler.js'));
     var app_dir = path.resolve(require_project('run', true));
+    console.log('test');
     var bundle_path = path.join(app_dir, '.meteor', 'local', 'build');
-    console.log('test5');
     bundler.bundle(app_dir, bundle_path, bundle_opts);
+    console.log('end bundle');
   }
 });
 
@@ -857,6 +857,7 @@ var main = function() {
     cmd = argv._.splice(0,1)[0];
 
   findCommand(cmd).func(argv);
+  console.log('returning from main');
 };
 
 main();

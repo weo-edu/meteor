@@ -9,22 +9,23 @@
 		"fibers": "*",
 		"gzippo": "*",
 		"handlebars": "*",
-		"http-proxy": "*",
 		"keypress": "*",
 		"less": "*",
+		"underscore": "*",
 		"lodash": "*",
 		"mailcomposer": "*",
 		"mime": "*",
 		"nib": "*",
-		"npm": "*",
 		"optimist": "*",
 		"progress": "*",
 		"request": "*",
 		"semver": "*",
 		"simplesmtp": "*",
 		"stream-buffers": "*",
+		"stylus": "0.31.0",
 		"uglify-js": "*",
-		"useragent": "*"
+		"useragent": "*",
+		"weo-http-proxy": "git://github.com/weo-edu/node-http-proxy.git"
 	},
 	"version": "0.1.0"
 }

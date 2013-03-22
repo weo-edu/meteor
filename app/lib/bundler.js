@@ -370,7 +370,6 @@ _.extend(Bundle.prototype, {
   use: function (pkg, where, from) {
     var self = this;
     var inst = self._get_instance(pkg);
-    console.log('use1', pkg, where, from);
     if (from)
       from.using[pkg.id] = inst;
 
@@ -391,7 +390,6 @@ _.extend(Bundle.prototype, {
 
     // XXX detect circular dependencies and print an error. (not sure
     // what the current code will do)
-    console.log('use2');
     if (pkg.on_use_handler)
       pkg.on_use_handler(inst.api, where);
   },
@@ -511,6 +509,7 @@ _.extend(Bundle.prototype, {
 
   // dev_bundle_mode should be "skip", "symlink", or "copy"
   write_to_directory: function (output_path, project_dir, dev_bundle_mode, subapp, dontRm) {
+    console.log('write to dir');
     var self = this;
     var app_json = {};
     var dependencies_json = {core: [], app: [], packages: {}};
@@ -520,7 +519,6 @@ _.extend(Bundle.prototype, {
       dependencies_json.app.push(path.join('.meteor', 'packages'));
 
     // --- Set up build area ---
-    console.log('test3');
     // foo/bar => foo/.build.bar
     var build_path = path.join(path.dirname(output_path),
                                '.build.' + path.basename(output_path));
@@ -531,7 +529,6 @@ _.extend(Bundle.prototype, {
     files.mkdir_p(build_path, 0755);
 
     // --- Core runner code ---
-    console.log('copying core', __dirname, build_path);
     files.cp_r(path.join(__dirname, '..', 'server'),
                path.join(build_path, 'server'), {ignore: ignore_files});
     dependencies_json.core.push('server');
@@ -658,6 +655,7 @@ _.extend(Bundle.prototype, {
     // XXX cleaner error handling (no exceptions)
     files.rm_recursive(output_path);
     fs.renameSync(build_path, output_path);
+    console.log('write to dir end');
   }
 
 });
@@ -691,16 +689,12 @@ _.extend(Bundle.prototype, {
  */
 exports.bundle = function (project_dir, output_path, options) {
   options = options || {};
-  console.log('test67');
   try {
     // Create a bundle, add the project
     packages.flush();
     var bundle = new Bundle;
-    console.log(';asasdf');
     var project = packages.get_for_dir(project_dir, ignore_files);
-    console.log('sdflkjs', project);
     bundle.use(project);
-    console.log('testst');
     // Include tests if requested
     if (options.include_tests) {
       // in the future, let use specify the driver, instead of hardcoding?
@@ -713,14 +707,13 @@ exports.bundle = function (project_dir, output_path, options) {
     // Minify, if requested
     if (!options.no_minify)
       bundle.minify();
-    console.log('test2');
     // Write to disk
     var dev_bundle_mode =
           options.skip_dev_bundle ? "skip" : (
             options.symlink_dev_bundle ? "symlink" : "copy");
     bundle.write_to_directory(output_path, project_dir, dev_bundle_mode, options.subapp, options.dont_rm);
 
-
+    console.log('errors', bundle.errors);
     if (bundle.errors.length)
       return bundle.errors;
   } catch (err) {
