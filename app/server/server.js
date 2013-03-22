@@ -12,7 +12,6 @@ if(process.env.NODETIME_API_KEY) {
 ////////// Requires //////////
 
 Fiber = require("fibers");
-console.log('******************** ', Fiber);
 var fs = require("fs");
 var path = require("path");
 
@@ -20,7 +19,6 @@ var express = require('express');
 var gzippo = require('gzippo');
 var argv = require('optimist').argv;
 var mime = require('mime');
-var handlebars = require('handlebars');
 var useragent = require('useragent');
 
 // this is a copy of underscore that will be shipped just for use by

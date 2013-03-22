@@ -509,7 +509,6 @@ _.extend(Bundle.prototype, {
 
   // dev_bundle_mode should be "skip", "symlink", or "copy"
   write_to_directory: function (output_path, project_dir, dev_bundle_mode, subapp, dontRm) {
-    console.log('write to dir');
     var self = this;
     var app_json = {};
     var dependencies_json = {core: [], app: [], packages: {}};
@@ -655,7 +654,6 @@ _.extend(Bundle.prototype, {
     // XXX cleaner error handling (no exceptions)
     files.rm_recursive(output_path);
     fs.renameSync(build_path, output_path);
-    console.log('write to dir end');
   }
 
 });
@@ -713,7 +711,6 @@ exports.bundle = function (project_dir, output_path, options) {
             options.symlink_dev_bundle ? "symlink" : "copy");
     bundle.write_to_directory(output_path, project_dir, dev_bundle_mode, options.subapp, options.dont_rm);
 
-    console.log('errors', bundle.errors);
     if (bundle.errors.length)
       return bundle.errors;
   } catch (err) {
