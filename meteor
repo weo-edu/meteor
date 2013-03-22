@@ -7,6 +7,7 @@ cd $(dirname "$0")
 if [ -L "$(basename $0)" ] ; then
     cd $(dirname $(readlink $(basename "$0") ) )
 fi
+echo $ORIG_DIR
 SCRIPT_DIR=$(pwd -P)
 cd "$ORIG_DIR"
 
