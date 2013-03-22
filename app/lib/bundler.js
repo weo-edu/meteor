@@ -711,6 +711,7 @@ exports.bundle = function (project_dir, output_path, options) {
             options.symlink_dev_bundle ? "symlink" : "copy");
     bundle.write_to_directory(output_path, project_dir, dev_bundle_mode, options.subapp, options.dont_rm);
 
+    console.log('errors', bundle.errors);
     if (bundle.errors.length)
       return bundle.errors;
   } catch (err) {
