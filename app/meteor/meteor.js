@@ -100,7 +100,12 @@ Commands.push({
     var bundler = require(path.join(__dirname, '..', 'lib', 'bundler.js'));
     var app_dir = path.resolve(require_project('run', true));
     var bundle_path = path.join(app_dir, '.meteor', 'local', 'build');
-    bundler.bundle(app_dir, bundle_path, bundle_opts);
+    try{
+      bundler.bundle(app_dir, bundle_path, bundle_opts);
+      console.log('done bundling');
+    } catch(e) {
+      console.log('error while bundling', e);
+    }
 
   }
 });
