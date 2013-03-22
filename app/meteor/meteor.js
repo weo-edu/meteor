@@ -96,6 +96,7 @@ Commands.push({
       no_minify: ! new_argv.production,
       skip_dev_bundle: true
     };
+    console.log('bundling...');
     var bundler = require(path.join(__dirname, '..', 'lib', 'bundler.js'));
     var app_dir = path.resolve(require_project('run', true));
     var bundle_path = path.join(app_dir, '.meteor', 'local', 'build');
