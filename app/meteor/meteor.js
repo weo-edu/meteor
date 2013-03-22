@@ -96,17 +96,11 @@ Commands.push({
       no_minify: ! new_argv.production,
       skip_dev_bundle: true
     };
-    console.log('bundling...');
     var bundler = require(path.join(__dirname, '..', 'lib', 'bundler.js'));
     var app_dir = path.resolve(require_project('run', true));
     var bundle_path = path.join(app_dir, '.meteor', 'local', 'build');
-    try{
-      var ret = bundler.bundle(app_dir, bundle_path, bundle_opts);
-      console.log('done bundling', ret);
-    } catch(e) {
-      console.log('error while bundling', e);
-    }
-
+    var ret = bundler.bundle(app_dir, bundle_path, bundle_opts);
+    if(ret) console.log('bundling errors', ret);
   }
 });
 
