@@ -9,6 +9,17 @@
 // /app [user code]
 // /app.json: [data for server.js]
 //  - load [list of files to load, relative to root, presumably under /app]
+//  - manifest [list of resources in load order, each consists of an object]:
+//     {
+//       "path": relative path of file in the bundle, normalized to use forward slashes
+//       "where": "client", "internal"  [could also be "server" in future]
+//       "type": "js", "css", or "static"
+//       "cacheable": (client) boolean, is it safe to ask the browser to cache this file
+//       "url": (client) relative url to download the resource, includes cache
+//              busting param if used
+//       "size": size in bytes
+//       "hash": sha1 hash of the contents
+//     }
 // /dependencies.json: files to monitor for changes in development mode
 //  - extensions [list of extensions registered for user code, with dots]
 //  - packages [map from package name to list of paths relative to the package]
@@ -31,7 +42,7 @@ var crypto = require('crypto');
 var fs = require('fs');
 var uglify = require('uglify-js');
 var cleanCSS = require('clean-css');
-var _ = require(path.join(__dirname, 'third', 'underscore.js'));
+var _ = require('underscore');
 
 // files to ignore when bundling. node has no globs, so use regexps
 exports.ignore_files = [
@@ -253,9 +264,20 @@ var Bundle = function () {
   // list of filenames
   self.css = [];
 
+  // images and other static files added from packages
+  // map from environment, to list of filenames
+  self.static = {client: [], server: []};
+
   // Map from environment, to path name (server relative), to contents
   // of file as buffer.
   self.files = {client: {}, client_cacheable: {}, server: {}};
+
+  // See description of the manifest at the top.
+  // Note that in contrast to self.js etc., the manifest only includes
+  // files which are in the final bundler output: for example, if code
+  // is minified, the manifest includes the minify output file but not
+  // the individual input files that were combined.
+  self.manifest = [];
 
   // list of segments of additional HTML for <head>/<body>
   self.head = [];
@@ -334,6 +356,7 @@ var Bundle = function () {
           self[options.type].push(data);
         } else if (options.type === "static") {
           self.files[w][options.path] = data;
+          self.static[w].push(options.path);
         } else {
           throw new Error("Unknown type " + options.type);
         }
@@ -360,6 +383,12 @@ _.extend(Bundle.prototype, {
     }
 
     return inst;
+  },
+
+  _hash: function (contents) {
+    var hash = crypto.createHash('sha1');
+    hash.update(contents);
+    return hash.digest('hex');
   },
 
   // Call to add a package to this bundle
@@ -410,38 +439,36 @@ _.extend(Bundle.prototype, {
   minify: function () {
     var self = this;
 
+    var addFile = function (type, finalCode) {
+      var contents = new Buffer(finalCode);
+      var hash = self._hash(contents);
+      var name = '/' + hash + '.' + type;
+      self.files.client_cacheable[name] = contents;
+      self.manifest.push({
+        path: 'static_cacheable' + name,
+        where: 'client',
+        type: type,
+        cacheable: true,
+        url: name,
+        size: contents.length,
+        hash: hash
+      });
+    };
+
     /// Javascript
-    var code_parts = [];
-
+    var codeParts = [];
     _.each(self.js.client, function (js_path) {
-      var code = self.files.client[js_path].toString('utf8');
+      codeParts.push(self.files.client[js_path].toString('utf8'));
 
-      // Uglify has a bug -- it will incorrectly minifiy files that
-      // contain the 'debugger' statement.
-      // https://github.com/mishoo/UglifyJS/issues/243
-      // For now, just skip minification of such files.
-      // XXX fix uglify, and once that happens, go back to
-      // concatenating before minifying, rather than vice versa
-      // https://app.asana.com/0/159908330244/522242142181
-      if (!(code.match(/debugger/))) {
-        var ast = uglify.parser.parse(code);
-        ast = uglify.uglify.ast_mangle(ast);
-        ast = uglify.uglify.ast_squeeze(ast);
-        code = uglify.uglify.gen_code(ast);
-      }
-
-      code_parts.push(code);
       delete self.files.client[js_path];
     });
-    var final_code = code_parts.join('\n;\n');
+    self.js.client = [];
 
-    var hash = crypto.createHash('sha1');
-    hash.update(final_code);
-    var digest = hash.digest('hex');
-    var name = path.sep + digest + ".js";
+    var combinedCode = codeParts.join('\n;\n');
+    var finalCode = uglify.minify(
+      combinedCode, {fromString: true, compress: {drop_debugger: false}}).code;
 
-    self.files.client_cacheable[name] = new Buffer(final_code);
-    self.js.client = [name];
+    addFile('js', finalCode);
 
     /// CSS
     var css_concat = "";
@@ -451,16 +478,21 @@ _.extend(Bundle.prototype, {
 
       delete self.files.client[css_path];
     });
+    self.css = [];
 
     var final_css = cleanCSS.process(css_concat);
 
-    hash = crypto.createHash('sha1');
-    hash.update(final_css);
-    digest = hash.digest('hex');
-    name = path.sep + digest + ".css";
+    addFile('css', final_css);
+  },
 
-    self.files.client_cacheable[name] = new Buffer(final_css);
-    self.css = [name];
+  _clientUrlsFor: function (type) {
+    var self = this;
+    return _.pluck(
+      _.filter(self.manifest, function (resource) {
+        return resource.where === 'client' && resource.type === type;
+      }),
+      'url'
+    );
   },
 
   _generate_app_html: function (build_path) {
@@ -484,10 +516,10 @@ _.extend(Bundle.prototype, {
       self.css = [];
     }
     return f({
-      scripts: self.js.client,
+      scripts: self._clientUrlsFor('js'),
       head_extra: self.head.join('\n'),
       body_extra: self.body.join('\n'),
-      stylesheets: self.css
+      stylesheets: self._clientUrlsFor('css')
     });
   },
 
@@ -554,19 +586,71 @@ _.extend(Bundle.prototype, {
 
     // --- Static assets ---
 
+    var addClientFileToManifest = function (filepath, contents, type, cacheable, url) {
+      if (! contents instanceof Buffer)
+        throw new Error('contents must be a Buffer');
+      var normalized = filepath.split(path.sep).join('/');
+      if (normalized.charAt(0) === '/')
+        normalized = normalized.substr(1);
+      self.manifest.push({
+        // path is normalized to use forward slashes
+        path: (cacheable ? 'static_cacheable' : 'static') + '/' + normalized,
+        where: 'client',
+        type: type,
+        cacheable: cacheable,
+        url: url || '/' + normalized,
+        // contents is a Buffer and so correctly gives us the size in bytes
+        size: contents.length,
+        hash: self._hash(contents)
+      });
+    };
+        
     if (is_app) {
       if (fs.existsSync(path.join(project_dir, 'public'))) {
-        files.cp_r(path.join(project_dir, 'public'),
-                   path.join(build_path, 'static'), {ignore: ignore_files});
+        var copied =
+          files.cp_r(path.join(project_dir, 'public'),
+                     path.join(build_path, 'static'), {ignore: ignore_files});
+
+        _.each(copied, function (fs_relative_path) {
+          var filepath = path.join(build_path, 'static', fs_relative_path);
+          var contents = fs.readFileSync(filepath);
+          addClientFileToManifest(fs_relative_path, contents, 'static', false);
+        });
       }
       dependencies_json.app.push('public');
     }
+
+    // Add cache busting query param if needed, and
+    // add to manifest.
+    var processClientCode = function (type, file) {
+      var contents, url;
+      if (file in self.files.client_cacheable) {
+        contents = self.files.client_cacheable[file];
+        url = file;
+      }
+      else if (file in self.files.client) {
+        // Client css and js becomes cacheable with the addition of the
+        // cache busting query parameter.
+        contents = self.files.client[file];
+        delete self.files.client[file];
+        self.files.client_cacheable[file] = contents;
+        url = file + '?' + self._hash(contents)
+      }
+      else
+        throw new Error('unable to find file: ' + file);
+
+      addClientFileToManifest(file, contents, type, true, url);
+    };
+
+    _.each(self.js.client, function (file) { processClientCode('js',  file); });
+    _.each(self.css,       function (file) { processClientCode('css', file); });
 
     // -- Client code --
     for (var rel_path in self.files.client) {
       var full_path = path.join(build_path, 'static', rel_path);
       files.mkdir_p(path.dirname(full_path), 0755);
       fs.writeFileSync(full_path, self.files.client[rel_path]);
+      addClientFileToManifest(rel_path, self.files.client[rel_path], 'static', false);
     }
 
     // -- Client cache forever code --
@@ -575,26 +659,6 @@ _.extend(Bundle.prototype, {
       files.mkdir_p(path.dirname(full_path), 0755);
       fs.writeFileSync(full_path, self.files.client_cacheable[rel_path]);
     }
-
-    // -- Add query params to client js and css --
-    // This busts through browser caches when files change.
-    var add_query_param = function (file) {
-      if (file in self.files.client_cacheable)
-        return file;
-      else if (file in self.files.client) {
-        var hash = crypto.createHash('sha1');
-        hash.update(self.files.client[file]);
-        var digest = hash.digest('hex');
-        return file + "?" + digest;
-      }
-      // er? file we don't know how to serve? thats not right...
-      return file;
-    };
-
-    self.js.client = _.map(self.js.client, add_query_param);
-    self.css = _.map(self.css, add_query_param);
-
-    // ---  Server code and generated files ---
 
     app_json.load = [];
     files.mkdir_p(path.join(build_path, 'app'), 0755);
@@ -606,8 +670,13 @@ _.extend(Bundle.prototype, {
       fs.writeFileSync(full_path, self.files.server[rel_path]);
     }
 
-    fs.writeFileSync(path.join(build_path, 'app.html'),
-                     self._generate_app_html(build_path));
+    var app_html = self._generate_app_html();
+    fs.writeFileSync(path.join(build_path, 'app.html'), app_html);
+    self.manifest.push({
+      path: 'app.html',
+      where: 'internal',
+      hash: self._hash(app_html)
+    });
     dependencies_json.core.push(path.join('lib', 'app.html.in'));
 
     fs.writeFileSync(path.join(build_path, 'unsupported.html'),
@@ -623,7 +692,7 @@ _.extend(Bundle.prototype, {
 "This is a Meteor application bundle. It has only one dependency,\n" +
 "node.js (with the 'fibers' package). To run the application:\n" +
 "\n" +
-"  $ npm install fibers\n" +
+"  $ npm install fibers@1.0.0\n" +
 "  $ export MONGO_URL='mongodb://user:password@host:port/databasename'\n" +
 "  $ export ROOT_URL='http://example.com'\n" +
 "  $ export MAIL_URL='smtp://user:password@mailhost:port/'\n" +
@@ -637,6 +706,8 @@ _.extend(Bundle.prototype, {
 
     // --- Metadata ---
 
+    app_json.manifest = self.manifest;
+
     dependencies_json.extensions = self._app_extensions();
     dependencies_json.exclude = _.pluck(ignore_files, 'source');
     dependencies_json.packages = {};
@@ -647,7 +718,7 @@ _.extend(Bundle.prototype, {
     }
 
     fs.writeFileSync(path.join(build_path, 'app.json'),
-                     JSON.stringify(app_json));
+                     JSON.stringify(app_json, null, 2));
     fs.writeFileSync(path.join(build_path, 'dependencies.json'),
                      JSON.stringify(dependencies_json));
 

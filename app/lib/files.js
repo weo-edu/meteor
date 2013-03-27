@@ -1,6 +1,6 @@
 var fs = require("fs");
 var path = require('path');
-var _ = require(path.join(__dirname, 'third', 'underscore.js'));
+var _ = require('underscore');
 
 var files = module.exports = {
   // A sort comparator to order files into load order.
@@ -98,7 +98,14 @@ var files = module.exports = {
   // given a path, returns true if it is a meteor application (has a
   // .meteor directory with a 'packages' file). false otherwise.
   is_app_dir: function (filepath) {
-    return fs.existsSync(path.join(filepath, '.meteor', 'packages'));
+    // .meteor/packages must be a *file*, not a directory; future versions of
+    // meteor will create a directory at $HOME/.meteor which contains a
+    // subdirectory called packages, but this doesn't make it an app!
+    try { // use try/catch to avoid the additional syscall to fs.existsSync
+      return fs.statSync(path.join(filepath, '.meteor', 'packages')).isFile();
+    } catch (e) {
+      return false;
+    }
   },
 
   // given a path, returns true if it is a meteor package (is a
@@ -294,9 +301,14 @@ var files = module.exports = {
   // If options.ignore is present, it should be a list of regexps. Any
   // file whose basename matches one of the regexps, before
   // transformation, will be skipped.
+  //
+  // Returns the list of relative file paths copied to the
+  // destination, as filtered by ignore and transformed by
+  // transformer_filename.
   cp_r: function (from, to, options) {
     options = options || {};
     files.mkdir_p(to, 0755);
+    var copied = [];
     _.each(fs.readdirSync(from), function (f) {
       if (_.any(options.ignore || [], function (pattern) {
         return f.match(pattern);
@@ -306,8 +318,12 @@ var files = module.exports = {
       if (options.transform_filename)
         f = options.transform_filename(f);
       var full_to = path.join(to, f);
-      if (fs.statSync(full_from).isDirectory())
-        files.cp_r(full_from, full_to, options);
+      if (fs.statSync(full_from).isDirectory()) {
+        var subdir_paths = files.cp_r(full_from, full_to, options);
+        copied = copied.concat(_.map(subdir_paths, function (subpath) {
+          return path.join(f, subpath);
+        }));
+      }
       else {
         if (!options.transform_contents) {
           // XXX reads full file into memory.. lame.
@@ -317,8 +333,10 @@ var files = module.exports = {
           contents = options.transform_contents(contents, f);
           fs.writeFileSync(full_to, contents);
         }
+        copied.push(f);
       }
     });
+    return copied;
   },
 
   // Make a temporary directory. Returns the path to the newly created

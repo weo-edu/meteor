@@ -11,7 +11,7 @@
     Handlebars._default_helpers.each = function (arg, options) {
       // if arg isn't an observable (like LocalCollection.Cursor),
       // don't use this reactive implementation of #each.
-      if (!(arg && 'observe' in arg))
+      if (!(arg && 'observeChanges' in arg))
         return orig.call(this, arg, options);
 
       return Spark.list(
@@ -176,7 +176,10 @@
     events: function (eventMap) {
       var events =
             (this._tmpl_data.events = (this._tmpl_data.events || {}));
-      _.extend(events, eventMap);
+      _.each(eventMap, function(callback, spec) {
+        events[spec] = (events[spec] || []);
+        events[spec].push(callback);
+      });
     },
     preserve: function (preserveMap) {
       var preserve =
@@ -297,11 +300,17 @@
           // for Spark, by inserting logic to create the template object.
           var wrapEventMap = function (oldEventMap) {
             var newEventMap = {};
-            _.each(oldEventMap, function (handler, key) {
-              newEventMap[key] = function (event, landmark) {
-                return handler.call(this, event,
-                                    templateObjFromLandmark(landmark));
-              };
+            _.each(oldEventMap, function (handlers, key) {
+              if ('function' === typeof handlers) {
+                //Template.foo.events = ... way will give a fn, not an array
+                handlers = [ handlers ];
+              }
+              newEventMap[key] = _.map(handlers, function (handler) {
+                return function (event, landmark) {
+                  return handler.call(this, event,
+                                      templateObjFromLandmark(landmark));
+                };
+              });
             });
             return newEventMap;
           };

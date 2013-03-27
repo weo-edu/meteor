@@ -58,7 +58,7 @@
 
   // support reconnecting using a meteor login token
   Accounts._generateStampedLoginToken = function () {
-    return {token: Meteor.uuid(), when: +(new Date)};
+    return {token: Random.id(), when: +(new Date)};
   };
 
   Accounts.registerLoginHandler(function(options) {
@@ -124,9 +124,19 @@
     return user;
   };
   Accounts.insertUserDoc = function (options, user) {
-    // add created at timestamp (and protect passed in user object from
-    // modification)
-    user = _.extend({createdAt: +(new Date)}, user);
+    // - clone user document, to protect from modification
+    // - add createdAt timestamp
+    // - prepare an _id, so that you can modify other collections (eg
+    // create a first task for every new user)
+    //
+    // XXX If the onCreateUser or validateNewUser hooks fail, we might
+    // end up having modified some other collection
+    // inappropriately. The solution is probably to have onCreateUser
+    // accept two callbacks - one that gets called before inserting
+    // the user document (in which you can modify its contents), and
+    // one that gets called after (in which you should change other
+    // collections)
+    user = _.extend({createdAt: +(new Date), _id: Random.id()}, user);
 
     var result = {};
     if (options.generateLoginToken) {
@@ -210,7 +220,23 @@
 
     // Look for a user with the appropriate service user id.
     var selector = {};
-    selector["services." + serviceName + ".id"] = serviceData.id;
+    var serviceIdKey = "services." + serviceName + ".id";
+
+    // XXX Temporary special case for Twitter. (Issue #629)
+    //   The serviceData.id will be a string representation of an integer.
+    //   We want it to match either a stored string or int representation.
+    //   This is to cater to earlier versions of Meteor storing twitter
+    //   user IDs in number form, and recent versions storing them as strings.
+    //   This can be removed once migration technology is in place, and twitter
+    //   users stored with integer IDs have been migrated to string IDs.
+    if (serviceName === "twitter" && !isNaN(serviceData.id)) {
+      selector["$or"] = [{},{}];
+      selector["$or"][0][serviceIdKey] = serviceData.id;
+      selector["$or"][1][serviceIdKey] = parseInt(serviceData.id, 10);
+    } else {
+      selector[serviceIdKey] = serviceData.id;
+    }
+
     var user = Meteor.users.findOne(selector);
 
     if (user) {
@@ -256,7 +282,6 @@
         //,{fields: {profile: 1, username: 1, emails: 1}}
       );
     else {
-      this.complete();
       return null;
     }
   }, {is_auto: true});
@@ -298,13 +323,8 @@
   /*Meteor.users.allow({
     // clients can modify the profile field of their own document, and
     // nothing else.
-    update: function (userId, docs, fields, modifier) {
-      // if there is more than one doc, at least one of them isn't our
-      // user record.
-      if (docs.length !== 1)
-        return false;
+    update: function (userId, user, fields, modifier) {
       // make sure it is our record
-      var user = docs[0];
       if (user._id !== userId)
         return false;
 

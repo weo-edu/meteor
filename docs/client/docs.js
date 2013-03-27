@@ -1,4 +1,4 @@
-METEOR_VERSION = "0.5.2";
+METEOR_VERSION = "0.5.9";
 
 Meteor.startup(function () {
   // XXX this is broken by the new multi-page layout.  Also, it was
@@ -53,6 +53,9 @@ Meteor.startup(function () {
   };
 
   var scrollToSection = function (section) {
+    if (! $(section).length)
+      return;
+
     ignore_waypoints = true;
     Session.set("section", section.substr(1));
     scroller().animate({
@@ -94,21 +97,22 @@ var toc = [
       "Meteor.isClient",
       "Meteor.isServer",
       "Meteor.startup",
-      "Meteor.absoluteUrl"
+      "Meteor.absoluteUrl",
+      "Meteor.settings"
     ],
 
     "Publish and subscribe", [
       "Meteor.publish", [
         {instance: "this", name: "userId", id: "publish_userId"},
-        {instance: "this", name: "set", id: "publish_set"},
-        {instance: "this", name: "unset", id: "publish_unset"},
-        {instance: "this", name: "complete", id: "publish_complete"},
-        {instance: "this", name: "flush", id: "publish_flush"},
+        {instance: "this", name: "added", id: "publish_added"},
+        {instance: "this", name: "changed", id: "publish_changed"},
+        {instance: "this", name: "removed", id: "publish_removed"},
+        {instance: "this", name: "ready", id: "publish_ready"},
         {instance: "this", name: "onStop", id: "publish_onstop"},
+        {instance: "this", name: "error", id: "publish_error"},
         {instance: "this", name: "stop", id: "publish_stop"}
       ],
-      "Meteor.subscribe",
-      "Meteor.autosubscribe"
+      "Meteor.subscribe"
     ],
 
     {name: "Methods", id: "methods_header"}, [
@@ -146,10 +150,11 @@ var toc = [
         {instance: "cursor", name: "fetch"},
         {instance: "cursor", name: "count"},
         {instance: "cursor", name: "rewind"},
-        {instance: "cursor", name: "observe"}
+        {instance: "cursor", name: "observe"},
+        {instance: "cursor", name: "observeChanges", id: "observe_changes"}
       ],
       {type: "spacer"},
-      "Meteor.uuid",
+      {name: "Meteor.Collection.ObjectID", id: "collection_object_id"},
       {type: "spacer"},
       {name: "Selectors", style: "noncode"},
       {name: "Modifiers", style: "noncode"},
@@ -159,6 +164,7 @@ var toc = [
 
     "Session", [
       "Session.set",
+      {name: "Session.setDefault", id: "session_set_default"},
       "Session.get",
       "Session.equals"
     ],
@@ -173,6 +179,7 @@ var toc = [
       {name: "Meteor.loginWithFacebook", id: "meteor_loginwithexternalservice"},
       {name: "Meteor.loginWithGithub", id: "meteor_loginwithexternalservice"},
       {name: "Meteor.loginWithGoogle", id: "meteor_loginwithexternalservice"},
+      {name: "Meteor.loginWithMeetup", id: "meteor_loginwithexternalservice"},
       {name: "Meteor.loginWithTwitter", id: "meteor_loginwithexternalservice"},
       {name: "Meteor.loginWithWeibo", id: "meteor_loginwithexternalservice"},
       {type: "spacer"},
@@ -233,16 +240,29 @@ var toc = [
       "Meteor.clearInterval"
     ],
 
-    "Meteor.deps", [
-      {name: "Meteor.deps.Context", id: "context"}, [
-        {instance: "context", name: "run"},
-        {instance: "context", name: "onInvalidate", id: "oninvalidate"},
-        {instance: "context", name: "invalidate"}
+    "Deps", [
+      "Deps.autorun",
+      "Deps.flush",
+      "Deps.nonreactive",
+      "Deps.active",
+      "Deps.currentComputation",
+      "Deps.onInvalidate",
+      "Deps.afterFlush",
+      "Deps.depend",
+      "Deps.Computation", [
+        {instance: "computation", name: "stop", id: "computation_stop"},
+        {instance: "computation", name: "invalidate", id: "computation_invalidate"},
+        {instance: "computation", name: "onInvalidate", id: "computation_oninvalidate"},
+        {instance: "computation", name: "stopped", id: "computation_stopped"},
+        {instance: "computation", name: "invalidated", id: "computation_invalidated"},
+        {instance: "computation", name: "firstRun", id: "computation_firstrun"}
       ],
-      {name: "Meteor.deps.Context.current", id: "current"},
-      "Meteor.autorun",
-      "Meteor.flush"
-    // ],
+      "Deps.Dependency", [
+        {instance: "dependency", name: "changed", id: "dependency_changed"},
+        {instance: "dependency", name: "addDependent", id: "dependency_adddependent"},
+        {instance: "dependency", name: "hasDependents", id: "dependency_hasdependents"}
+      ]
+    ],
 
     // "Environment Variables", [
     //   "Meteor.EnvironmentVariable", [
@@ -250,7 +270,25 @@ var toc = [
     //     {instance: "env_var", name: "withValue", id: "env_var_withvalue"},
     //     {instance: "env_var", name: "bindEnvironment", id: "env_var_bindenvironment"}
     //   ]
+    //],
+
+    {name: "EJSON", id: "ejson"}, [
+      {name: "EJSON.parse", id: "ejson_parse"},
+      {name: "EJSON.stringify", id: "ejson_stringify"},
+      {name: "EJSON.fromJSONValue", id: "ejson_from_json_value"},
+      {name: "EJSON.toJSONValue", id: "ejson_to_json_value"},
+      {name: "EJSON.equals", id: "ejson_equals"},
+      {name: "EJSON.clone", id: "ejson_clone"},
+      {name: "EJSON.newBinary", id: "ejson_new_binary"},
+      {name: "EJSON.addType", id: "ejson_add_type"},
+      [
+        {instance: "instance", id: "ejson_type_clone", name: "clone"},
+        {instance: "instance", id: "ejson_type_equals", name: "equals"},
+        {instance: "instance", id: "ejson_type_typeName", name: "typeName"},
+        {instance: "instance", id: "ejson_type_toJSONValue", name: "toJSONValue"}
+      ]
     ],
+
 
     "Meteor.http", [
       "Meteor.http.call",
@@ -266,6 +304,7 @@ var toc = [
 
   "Packages", [ [
     "accounts-ui",
+    "appcache",
     "amplify",
     "backbone",
     "bootstrap",
@@ -274,6 +313,7 @@ var toc = [
     "force-ssl",
     "jquery",
     "less",
+    "random",
     "spiderable",
     "stylus",
     "showdown",

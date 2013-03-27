@@ -6,22 +6,23 @@
   };
 
   var loggingIn = false;
-  var loggingInListeners = new Meteor.deps._ContextSet;
   var loggingInCallbacks = [];
+  var loggingInDeps = new Deps.Dependency;
+
   // This is mostly just called within this file, but Meteor.loginWithPassword
   // also uses it to make loggingIn() be true during the beginPasswordExchange
   // method call too.
   Accounts._setLoggingIn = function (x) {
     if (loggingIn !== x) {
       loggingIn = x;
-      loggingInListeners.invalidateAll();
       _.each(loggingInCallbacks, function(cb) {
         cb(x);
       });
+      loggingInDeps.changed();
     }
   };
   Meteor.loggingIn = function () {
-    loggingInListeners.addCurrentContext();
+    Deps.depend(loggingInDeps);
     return loggingIn;
   };
   Meteor.loggingInAsync = function(cb) {
@@ -35,7 +36,7 @@
     if (!userId)
       return null;
     
-    var user = Meteor.users.findOne({username: userId});
+    var user = Meteor.users.findOne(userId);
     if (user) return user;
 
     // For some reason this user has no published fields (and thus is considered
@@ -195,10 +196,10 @@
   // XXX this can be simplified if we merge in
   // https://github.com/meteor/meteor/pull/273
   var loginServicesConfigured = false;
-  var loginServicesConfiguredListeners = new Meteor.deps._ContextSet;
+  var loginServicesConfiguredDeps = new Deps.Dependency;
   Meteor.subscribe("meteor.loginServiceConfiguration", function () {
     loginServicesConfigured = true;
-    loginServicesConfiguredListeners.invalidateAll();
+    loginServicesConfiguredDeps.changed();
   });
 
   // A reactive function returning whether the
@@ -210,7 +211,7 @@
       return true;
 
     // not yet complete, save the context for invalidation once we are.
-    loginServicesConfiguredListeners.addCurrentContext();
+    Deps.depend(loginServicesConfiguredDeps);
     return false;
   };
 })();
