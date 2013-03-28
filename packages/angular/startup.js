@@ -3,7 +3,6 @@ if(Meteor.isClient) {
 		angular.bootstrap(document, ["app"]);
 	});
 } else {
-	
 	angular.start = function(modules) {
 		function load() {
 			var injector = createInjector(modules);

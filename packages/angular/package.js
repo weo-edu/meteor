@@ -5,7 +5,7 @@
 
   Package.on_use(function (api) {
     api.use('jquery');
-    api.add_files(['angular.js', 'utils.js'], 'client');
+    api.add_files(['angular.js', 'angular-mocks.js', 'utils.js'], 'client');
     api.add_files('server.js', 'server');
     api.add_files(['services.js', 'startup.js'], ['client', 'server']);
   });
