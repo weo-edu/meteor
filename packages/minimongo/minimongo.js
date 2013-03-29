@@ -83,7 +83,8 @@ LocalCollection.Cursor = function (collection, selector, options) {
   var self = this;
   if (!options) options = {};
 
-  this.collection = collection;
+  self.collection = collection;
+  self.selector = selector;
 
   if (LocalCollection._selectorIsId(selector)) {
     // stash for fast path
@@ -111,6 +112,31 @@ LocalCollection.Cursor = function (collection, selector, options) {
   if (typeof Deps !== "undefined")
     self.reactive = (options.reactive === undefined) ? true : options.reactive;
 };
+
+LocalCollection.Cursor.prototype.augmentSelector = function(mod, sort_f) {
+  var self = this;
+  var selector = self.selector;
+  _.each(mod, function(val, key) {
+    delete selector[key];
+    if(val !== undefined)
+      selector[key] = val;
+  });
+
+  return self.replaceSelector(selector, sort_f);
+}
+
+LocalCollection.Cursor.prototype.replaceSelector = function(selector, sort_f) {
+  this.selector = selector;
+  this.selector_f = LocalCollection._compileSelector(selector);
+  if(sort_f !== undefined)
+    this.sort_f = sort_f;
+
+  if(this.query) {
+    this.query.selector_f = this.selector_f;
+    LocalCollection._recomputeResults(this.query);
+    this.db_objects = this.query.results;
+  }
+}
 
 LocalCollection.Cursor.prototype.rewind = function () {
   var self = this;

@@ -60,9 +60,10 @@ Meteor._parseDDP = function (stringMessage) {
     Meteor._debug("Discarding message with invalid JSON", stringMessage);
     return null;
   }
+
   // DDP messages must be objects.
   if (msg === null || typeof msg !== 'object') {
-    Meteor._debug("Discarding non-object DDP message", stringMessage);
+    Meteor._debug("Discarding non-object DDP message", [stringMessage]);
     return null;
   }
 
@@ -87,7 +88,7 @@ Meteor._parseDDP = function (stringMessage) {
   return msg;
 };
 
-Meteor._stringifyDDP = function (msg) {
+Meteor._stringifyDDP = function (msg, dontStringify) {
   var copy = EJSON.clone(msg);
   // swizzle 'changed' messages from 'fields undefined' rep to 'fields
   // and cleared' rep
@@ -112,7 +113,7 @@ Meteor._stringifyDDP = function (msg) {
   if (msg.id && typeof msg.id !== 'string') {
     throw new Error("Message id is not a string");
   }
-  return JSON.stringify(copy);
+  return dontStringify ? copy : JSON.stringify(copy);
 };
 
 Meteor._CurrentInvocation = new Meteor.EnvironmentVariable;

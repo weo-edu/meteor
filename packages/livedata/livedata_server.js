@@ -527,7 +527,7 @@ _.extend(Meteor._LivedataSession.prototype, {
         return;
       }
 
-      if (_.has(self._namedSubs, msg.id))
+      if (_.has(self._namedSubs, msg.id)) {
         // subs are idempotent, or rather, they are ignored if a sub
         // with that id already exists. this is important during
         // reconnect.
@@ -900,7 +900,7 @@ _.extend(Meteor._LivedataSubscription.prototype, {
       });
       self.ready();
     } else if(res && '_publish' in res) {
-      res._publish(sub);
+      res._publish(self);
     }
   },
 
@@ -981,6 +981,15 @@ _.extend(Meteor._LivedataSubscription.prototype, {
     id = self._idFilter.idStringify(id);
     Meteor._ensure(self._documents, collectionName)[id] = true;
     self._session.added(self._subscriptionHandle, collectionName, id, fields);
+  },
+
+  addedString: function(collectionName, string) {
+    var self = this;
+    self._session.send({
+      msg: 'addeds',
+      collection: collectionName,
+      fields: string
+    });
   },
 
   changed: function (collectionName, id, fields) {

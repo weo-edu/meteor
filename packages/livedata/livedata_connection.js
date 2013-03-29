@@ -207,7 +207,7 @@ Meteor._LivedataConnection = function (url, options) {
     }
     else if (_.include(['added', 'changed', 'removed', 'ready', 'updated'], msg.msg))
       self._livedata_data(msg);
-    else if (msg.msg === 'datas')
+    else if (msg.msg === 'addeds')
       self._livedata_datas(msg);
     else if (msg.msg === 'nosub')
       self._livedata_nosub(msg);
@@ -414,8 +414,20 @@ _.extend(Meteor._LivedataConnection.prototype, {
     return true;
   },
 
+  get: function(name /* .. [arguments] .. */) {
+    var args = _.toArray(arguments);
+    var handle = null;
+    args.push(function() {
+      handle && handle.stop();
+    });
+    handle = this.subscribe.apply(this, args);
+  },
+
   subscribe: function (name /* .. [arguments] .. (callback|callbacks) */) {
     var self = this;
+
+    var name = _.toArray(arguments)[0];
+    console.log('subscribe', arguments);
 
     var params = Array.prototype.slice.call(arguments, 1);
     var callbacks = {};
@@ -773,7 +785,7 @@ _.extend(Meteor._LivedataConnection.prototype, {
   // Sends the DDP stringification of the given message object
   _send: function (obj) {
     var self = this;
-    self._stream.send(Meteor._stringifyDDP(obj));
+    self._stream.send(Meteor._stringifyDDP(obj, true));
   },
 
   status: function (/*passthrough args*/) {
@@ -936,6 +948,15 @@ _.extend(Meteor._LivedataConnection.prototype, {
     var self = this;
     // Using underscore here so as not to need to capitalize.
     self['_process_' + msg.msg](msg, updates);
+  },
+
+  _livedata_datas: function(msg) {
+    var self = this;
+    msg.fields = JSON.parse(msg.fields);
+    msg.id = msg.fields._id;
+    delete msg.fields._id;
+    msg.msg = 'added';
+    self._livedata_data(msg);
   },
 
   _livedata_data: function (msg) {

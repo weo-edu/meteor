@@ -146,7 +146,7 @@ var LOGICAL_OPERATORS = {
 var VALUE_OPERATORS = {
   "$in": function (operand) {
     if (!isArray(operand))
-      throw new Error("Argument to $in must be array");
+      return function() {return false;}
     return function (value) {
       return _anyIfArrayPlus(value, function (x) {
         return _.any(operand, function (operandElt) {
@@ -580,8 +580,7 @@ LocalCollection._compileSelector = function (selector) {
     return function (doc) {
       return EJSON.equals(doc._id, selector);
     };
-  } else if(_.isArray(selector))
-    selector = {_id: {$in: selector}};
+  }
 
   // protect against dangerous selectors.  falsey and {_id: falsey} are both
   // likely programmer error, and not what you want, particularly for

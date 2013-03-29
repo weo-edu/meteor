@@ -68,23 +68,23 @@
 			scopedCollection.find = function(selector, options) {
 				var results = [];
 				var callbacks = {
-					added: function(document, beforeIndex) {
+					addedAt: function(document, beforeIndex) {
 		        scope.$throttledSafeApply(function() {
 		          results.splice(beforeIndex, 0, hashKeyWrap(document));
 		        });
 		      },
-		      changed: function(newDocument, atIndex, oldDocument) {
+		      changedAt: function(newDocument, atIndex, oldDocument) {
 		      	scope.$throttledSafeApply(function() {
 		      		results[atIndex] = hashKeyWrap(newDocument);
 		      	});
 		      },
-		      moved: function(document, oldIndex, newIndex) {
+		      movedTo: function(document, oldIndex, newIndex) {
 		      	scope.$throttledSafeApply(function() {
 		      		results.splice(oldIndex, 1);
 		      		results.splice(newIndex, 0, hashKeyWrap(document));
 		      	});
 		      },
-		      removed: function(oldDocument, atIndex) {
+		      removedAt: function(oldDocument, atIndex) {
 		      	scope.$throttledSafeApply(function() {
 		      		results.splice(atIndex, 1);
 		      	});
@@ -109,45 +109,38 @@
 				result = result || {};
 				selector = monitor(selector, result, options);
 
-				function clearExtend(doc) {
-					for(var key in result)
-						if(result.hasOwnProperty(key))
-							delete result[key];
-
-					for(var key in doc)
-						if(doc.hasOwnProperty(key))
-							result[key] = doc[key];
+				function clearExtend(fields) {
+					if (! fields) {
+						for(var key in result) {
+							if(result.hasOwnProperty(key))
+								delete result[key];
+						}
+					} else {
+						for(var key in fields) {
+							result[key] = fields[key];
+						}
+					}
 				}
 
-				var cursor = collection.find.apply(scopedCollection, _.toArray(arguments));
-				var handle = cursor.observe({
-					added: function(document, beforeIndex) {
-						if (beforeIndex === 0) {
-							scope.$throttledSafeApply(function() {
-			          clearExtend(hashKeyWrap(document));
-			        });
-						}
+				options = options || {};
+				options.limit = 1;
+
+				var cursor = collection.find.call(scopedCollection, selector, options);
+				var handle = cursor.observeChanges({
+					addedBefore: function(id, fields) {
+						scope.$throttledSafeApply(function() {
+		          clearExtend(fields);
+		        });
 		      },
-		      changed: function(newDocument, atIndex, oldDocument) {
-		      	if (atIndex === 0) {
-		      		scope.$throttledSafeApply(function() {
-			      		clearExtend(hashKeyWrap(newDocument));
-			      	});
-		      	}
+		      changed: function(id, fields) {
+	      		scope.$throttledSafeApply(function() {
+		      		clearExtend(fields);
+		      	});
 		      },
-		      moved: function(doc, oldIndex, newIndex) {
-		      	if (oldIndex === 0) {
-		      		scope.$throttledSafeApply(function() {
-		      			clearExtend(hashKeyWrap(cursor.fetch()[0]));
-		      		})
-		      	}
-		      },
-		      removed: function(oldDocument, atIndex) {
-		      	if (atIndex === 0) {
-		      		scope.$throttledSafeApply(function() {
-			      		clearExtend({});
-			      	});
-		      	}
+		      removed: function(id) {
+	      		scope.$throttledSafeApply(function() {
+		      		clearExtend();
+		      	});
 		      }
 				});
 
@@ -405,9 +398,9 @@
 		$rootScope.__proto__.$safeApply = function(expr) {
 			var phase = this.$root.$$phase;
 			if (phase === '$apply' || phase === '$digest') 
-				this.$eval(expr);
+				return this.$eval(expr);
 			else
-				this.$apply(expr);
+				return this.$apply(expr);
 		}
 
 		$rootScope.__proto__.$safeDigest = function() {
@@ -510,13 +503,13 @@
 
 			if (! fields.length)
 				fields = undefined;
-			//var user = null;
-			//var userId = Meteor.default_connection.userIdAsync(function(userId) {
-			//	user.$cursor.replaceSelector({username: userId});
-			//});
+			
+			var def = {username: Meteor.userId(), loading: true};
 
-			return $collection('users', scope).findOne({username: Meteor.userId()}, {fields: fields})
-				|| {username: Meteor.userId(), loading: true};
+			//XXX add fields support
+			return $collection('users', scope).findOne(
+				{username: Meteor.userId()}, {}, 
+				def) || def;
 			//return user;
 		}
 

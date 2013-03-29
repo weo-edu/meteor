@@ -99,6 +99,7 @@ _Mongo = function (url) {
       url += '?autoReconnect=true';
   }
 
+  console.log('connect url', url);
   MongoDB.connect(url, {db: {safe: true}}, function(err, db) {
     if (err)
       throw err;

@@ -36,12 +36,7 @@
     if (!userId)
       return null;
     
-    var user = Meteor.users.findOne(userId);
-    if (user) return user;
-
-    // For some reason this user has no published fields (and thus is considered
-    // to not exist in minimongo). Return a minimal object.
-    return {username: userId};
+    return Meteor.users.findOne({username: userId}) || {username: userId};
   };
 
   // Call a login method on the server.
