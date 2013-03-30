@@ -1,7 +1,7 @@
 if(Meteor.isClient) {
-	angular.element(document).ready(function() {
-		angular.bootstrap(document, ["app"]);
-	});
+//	angular.element(document).ready(function() {
+//		angular.bootstrap(document, ["app"]);
+//	});
 } else {
 	angular.start = function(modules) {
 		function load() {
