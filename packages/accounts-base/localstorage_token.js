@@ -7,8 +7,8 @@
   // logging in and out, to protect multiple tabs running the same tests
   // simultaneously from interfering with each others' localStorage.
   Accounts._isolateLoginTokenForTest = function () {
-    loginTokenKey = loginTokenKey + Meteor.uuid();
-    userIdKey = userIdKey + Meteor.uuid();
+    loginTokenKey = loginTokenKey + Random.id();
+    userIdKey = userIdKey + Random.id();
   };
 
   Accounts._storeLoginToken = function(userId, token) {
@@ -36,82 +36,83 @@
   Accounts._storedUserId = function() {
     return localStorage.getItem(userIdKey);
   };
-})();
 
-//XXX double check this;
-Meteor.loginConnection = function(con, errorCallback) {
-  if (!Accounts._storedLoginToken())
-    return;
-  con.apply('login', [{resume: Accounts._storedLoginToken()}], {wait: true}, function(error, result) {
-    if (error) {
-      errorCallback && errorCallback();
-      throw error;
-    }
-    var userId = result.name;
-    var token = result.token;
-    con.setUserId(userId);
-    con.onReconnect = function() {
-      Meteor.loginConnection(con, function(error, result) {
-        if (error) {
-          con.setUserId(null);
-          con.onReconnect = null;
-          throw error;
+  //XXX double check this;
+  Meteor.loginConnection = function(con, errorCallback) {
+    if (!Accounts._storedLoginToken())
+      return;
+    con.apply('login', [{resume: Accounts._storedLoginToken()}], {wait: true}, function(error, result) {
+      if (error) {
+        errorCallback && errorCallback();
+        throw error;
+      }
+      var userId = result.name;
+      var token = result.token;
+      con.setUserId(userId);
+      con.onReconnect = function() {
+        Meteor.loginConnection(con, function(error, result) {
+          if (error) {
+            con.setUserId(null);
+            con.onReconnect = null;
+            throw error;
+          }
+        });
+      };
+    });
+  };
+
+  // Login with a Meteor access token
+  //
+  Meteor.loginWithToken = function (token, callback) {
+    Accounts.callLoginMethod({
+      methodArguments: [{resume: token}],
+      userCallback: callback});
+  };
+
+  if (!Accounts._preventAutoLogin) {
+    // Immediately try to log in via local storage, so that any DDP
+    // messages are sent after we have established our user account
+    var token = Accounts._storedLoginToken();
+    if (token) {
+      // On startup, optimistically present us as logged in while the
+      // request is in flight. This reduces page flicker on startup.
+      var userId = Accounts._storedUserId();
+      userId && Meteor.default_connection.setUserId(userId);
+      Meteor.loginWithToken(token, function (err) {
+        if (err) {
+          Meteor._debug("Error logging in with token: " + err);
+          Accounts._makeClientLoggedOut();
         }
       });
-    };
-  });
-};
-
-// Login with a Meteor access token
-//
-Meteor.loginWithToken = function (token, callback) {
-  Accounts.callLoginMethod({
-    methodArguments: [{resume: token}],
-    userCallback: callback});
-};
-
-if (!Accounts._preventAutoLogin) {
-  // Immediately try to log in via local storage, so that any DDP
-  // messages are sent after we have established our user account
-  var token = Accounts._storedLoginToken();
-  if (token) {
-    // On startup, optimistically present us as logged in while the
-    // request is in flight. This reduces page flicker on startup.
-    var userId = Accounts._storedUserId();
-    userId && Meteor.default_connection.setUserId(userId);
-    Meteor.loginWithToken(token, function (err) {
-      if (err) {
-        Meteor._debug("Error logging in with token: " + err);
-        Accounts._makeClientLoggedOut();
-      }
-    });
+    }
   }
-}
 
-// Poll local storage every 3 seconds to login if someone logged in in
-// another tab
-Accounts._lastLoginTokenWhenPolled = token;
-Accounts._pollStoredLoginToken = function() {
-  if (Accounts._preventAutoLogin)
-    return;
+  // Poll local storage every 3 seconds to login if someone logged in in
+  // another tab
+  Accounts._lastLoginTokenWhenPolled = token;
+  Accounts._pollStoredLoginToken = function() {
+    if (Accounts._preventAutoLogin)
+      return;
 
-  var currentLoginToken = Accounts._storedLoginToken();
+    var currentLoginToken = Accounts._storedLoginToken();
 
-  // != instead of !== just to make sure undefined and null are treated the same
-  if (Accounts._lastLoginTokenWhenPolled != currentLoginToken) {
-    if (currentLoginToken)
-      Meteor.loginWithToken(currentLoginToken); // XXX should we pass a callback here?
-    else
-      Meteor.logout();
-  }
-  Accounts._lastLoginTokenWhenPolled = currentLoginToken;
-};
+    // != instead of !== just to make sure undefined and null are treated the same
+    if (Accounts._lastLoginTokenWhenPolled != currentLoginToken) {
+      if (currentLoginToken)
+        Meteor.loginWithToken(currentLoginToken); // XXX should we pass a callback here?
+      else
+        Meteor.logout();
+    }
+    Accounts._lastLoginTokenWhenPolled = currentLoginToken;
+  };
 
-// Semi-internal API. Call this function to re-enable auto login after
-// if it was disabled at startup.
-Accounts._enableAutoLogin = function () {
-  Accounts._preventAutoLogin = false;
-  Accounts._pollStoredLoginToken();
-};
+  // Semi-internal API. Call this function to re-enable auto login after
+  // if it was disabled at startup.
+  Accounts._enableAutoLogin = function () {
+    Accounts._preventAutoLogin = false;
+    Accounts._pollStoredLoginToken();
+  };
 
-setInterval(Accounts._pollStoredLoginToken, 3000);
+  setInterval(Accounts._pollStoredLoginToken, 3000);
+})();
+

@@ -28,6 +28,10 @@
 		return o;
 	}
 
+	var hasFields = function(doc) {
+		return _.keys(doc).length > 1;
+	}
+
 	meteorModule.factory('$collection', function() {
 		var collections = {users: Meteor.users};
 		function maker(name, scope, local) {
@@ -64,27 +68,29 @@
 				return sel;
 			}
 
+
+
 			var scopedCollection = Object.create(collection);
 			scopedCollection.find = function(selector, options) {
 				var results = [];
 				var callbacks = {
-					added: function(document, beforeIndex) {
+					addedAt: function(document, atIndex) {
 		        scope.$throttledSafeApply(function() {
-		          results.splice(beforeIndex, 0, hashKeyWrap(document));
+		          results.splice(atIndex, 0, hashKeyWrap(document));
 		        });
 		      },
-		      changed: function(newDocument, atIndex, oldDocument) {
+		      changedAt: function(newDocument, oldDocument, atIndex) {
 		      	scope.$throttledSafeApply(function() {
 		      		results[atIndex] = hashKeyWrap(newDocument);
 		      	});
 		      },
-		      moved: function(document, oldIndex, newIndex) {
+		      movedTo: function(document, oldIndex, newIndex) {
 		      	scope.$throttledSafeApply(function() {
 		      		results.splice(oldIndex, 1);
 		      		results.splice(newIndex, 0, hashKeyWrap(document));
 		      	});
 		      },
-		      removed: function(oldDocument, atIndex) {
+		      removedAt: function(oldDocument, atIndex) {
 		      	scope.$throttledSafeApply(function() {
 		      		results.splice(atIndex, 1);
 		      	});
@@ -109,45 +115,38 @@
 				result = result || {};
 				selector = monitor(selector, result, options);
 
-				function clearExtend(doc) {
-					for(var key in result)
-						if(result.hasOwnProperty(key))
-							delete result[key];
-
-					for(var key in doc)
-						if(doc.hasOwnProperty(key))
-							result[key] = doc[key];
+				function clearExtend(fields) {
+					if (! fields) {
+						for(var key in result) {
+							if(result.hasOwnProperty(key))
+								delete result[key];
+						}
+					} else {
+						for(var key in fields) {
+							result[key] = fields[key];
+						}
+					}
 				}
 
-				var cursor = collection.find.apply(scopedCollection, _.toArray(arguments));
-				var handle = cursor.observe({
-					added: function(document, beforeIndex) {
-						if (beforeIndex === 0) {
-							scope.$throttledSafeApply(function() {
-			          clearExtend(hashKeyWrap(document));
-			        });
-						}
+				options = options || {};
+				options.limit = 1;
+
+				var cursor = collection.find.call(scopedCollection, selector, options);
+				var handle = cursor.observeChanges({
+					addedBefore: function(id, fields) {
+						scope.$throttledSafeApply(function() {
+		          clearExtend(fields);
+		        });
 		      },
-		      changed: function(newDocument, atIndex, oldDocument) {
-		      	if (atIndex === 0) {
-		      		scope.$throttledSafeApply(function() {
-			      		clearExtend(hashKeyWrap(newDocument));
-			      	});
-		      	}
+		      changed: function(id, fields) {
+	      		scope.$throttledSafeApply(function() {
+		      		clearExtend(fields);
+		      	});
 		      },
-		      moved: function(doc, oldIndex, newIndex) {
-		      	if (oldIndex === 0) {
-		      		scope.$throttledSafeApply(function() {
-		      			clearExtend(hashKeyWrap(cursor.fetch()[0]));
-		      		})
-		      	}
-		      },
-		      removed: function(oldDocument, atIndex) {
-		      	if (atIndex === 0) {
-		      		scope.$throttledSafeApply(function() {
-			      		clearExtend({});
-			      	});
-		      	}
+		      removed: function(id) {
+	      		scope.$throttledSafeApply(function() {
+		      		clearExtend();
+		      	});
 		      }
 				});
 
@@ -405,9 +404,9 @@
 		$rootScope.__proto__.$safeApply = function(expr) {
 			var phase = this.$root.$$phase;
 			if (phase === '$apply' || phase === '$digest') 
-				this.$eval(expr);
+				return this.$eval(expr);
 			else
-				this.$apply(expr);
+				return this.$apply(expr);
 		}
 
 		$rootScope.__proto__.$safeDigest = function() {
@@ -510,13 +509,13 @@
 
 			if (! fields.length)
 				fields = undefined;
-			//var user = null;
-			//var userId = Meteor.default_connection.userIdAsync(function(userId) {
-			//	user.$cursor.replaceSelector({username: userId});
-			//});
+			
+			var def = {username: Meteor.userId(), loading: true};
 
-			return $collection('users', scope).findOne({username: Meteor.userId()}, {fields: fields})
-				|| {username: Meteor.userId(), loading: true};
+			//XXX add fields support
+			return $collection('users', scope).findOne(
+				{username: Meteor.userId()}, {fields: fields}, 
+				def) || def;
 			//return user;
 		}
 
@@ -525,9 +524,6 @@
 			methods: _.bind(Meteor.methods, Meteor),
 			call: _.bind(Meteor.call, Meteor),
 			apply: _.bind(Meteor.apply, Meteor),
-			reconnect: _.bind(Meteor.reconnect, Meteor),
-			connect: _.bind(Meteor.connect, Meteor),
-			loggingIn: _.bind(Meteor.loggingInAsync, Meteor),
 			user: user,
 			isClient: Meteor.isClient,
 			isServer: Meteor.isServer,
@@ -537,7 +533,6 @@
 			clearInterval: _.bind(Meteor.clearInterval, Meteor),
 			uuid: _.bind(Meteor.uuid, Meteor),
 			Collection: _.bind(Meteor.Collection, Meteor),
-			get: _.bind(Meteor.get, Meteor),
 			defer: _.bind(Meteor.defer, Meteor),
 			uuid: _.bind(Meteor.uuid, Meteor),
 			methods: Meteor.methods && _.bind(Meteor.methods, Meteor),
@@ -552,6 +547,10 @@
 		if(Meteor.isClient && Meteor.default_connection) {
 			ret.status = _.bind(Meteor.default_connection.status, Meteor.default_connection);
 			ret.userId = _.bind(Meteor.default_connection.userIdAsync, Meteor.default_connection);
+			ret.reconnect = _.bind(Meteor.reconnect, Meteor);
+			ret.connect = _.bind(Meteor.connect, Meteor);
+			ret.loggingIn = _.bind(Meteor.loggingInAsync, Meteor);
+			ret.get =  _.bind(Meteor.get, Meteor);
 		}
 		return ret;
 	}]);

@@ -12,6 +12,7 @@ if(process.env.NODETIME_API_KEY) {
 ////////// Requires //////////
 
 Fiber = require("fibers");
+
 var fs = require("fs");
 var path = require("path");
 
@@ -86,6 +87,7 @@ var run = function () {
 
   // check for a valid MongoDB URL right away
   var mongo_url = process.env.MONGO_URL;
+  console.log('mongo url', mongo_url);
   if (!mongo_url)
     throw new Error("MONGO_URL must be set in environment");
 

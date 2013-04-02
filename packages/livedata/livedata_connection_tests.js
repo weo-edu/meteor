@@ -5,6 +5,18 @@ var newConnection = function (stream) {
   return new Meteor._LivedataConnection(stream, {reloadWithOutstanding: true});
 };
 
+var makeConnectMessage = function (session) {
+  var msg = {
+    msg: 'connect',
+    version: Meteor._SUPPORTED_DDP_VERSIONS[0],
+    support: Meteor._SUPPORTED_DDP_VERSIONS
+  };
+
+  if (session)
+    msg.session = session;
+  return msg;
+}
+
 var testGotMessage = function (test, stream, expected) {
   var retVal = undefined;
 
@@ -46,7 +58,7 @@ var testGotMessage = function (test, stream, expected) {
 var startAndConnect = function(test, stream) {
   stream.reset(); // initial connection start.
 
-  testGotMessage(test, stream, {msg: 'connect'});
+  testGotMessage(test, stream, makeConnectMessage());
   test.length(stream.sent, 0);
 
   stream.receive({msg: 'connected', session: SESSION_ID});
@@ -62,9 +74,9 @@ Tinytest.add("livedata stub - receive data", function (test) {
   startAndConnect(test, stream);
 
   // data comes in for unknown collection.
-  var coll_name = Meteor.uuid();
-  stream.receive({msg: 'data', collection: coll_name, id: '1234',
-                  set: {a: 1}});
+  var coll_name = Random.id();
+  stream.receive({msg: 'added', collection: coll_name, id: '1234',
+                  fields: {a: 1}});
   // break throught the black box and test internal state
   test.length(conn._updatesForUnknownStores[coll_name], 1);
 
@@ -77,13 +89,13 @@ Tinytest.add("livedata stub - receive data", function (test) {
   test.equal(coll.find({}).fetch(), [{_id:'1234', a:1}]);
 
   // second message. applied directly to the db.
-  stream.receive({msg: 'data', collection: coll_name, id: '1234',
-                  set: {a:2}});
+  stream.receive({msg: 'changed', collection: coll_name, id: '1234',
+                  fields: {a:2}});
   test.equal(coll.find({}).fetch(), [{_id:'1234', a:2}]);
   test.isUndefined(conn._updatesForUnknownStores[coll_name]);
 });
 
-Tinytest.addAsync("livedata stub - subscribe", function (test, onComplete) {
+Tinytest.add("livedata stub - subscribe", function (test) {
   var stream = new Meteor._StubStream();
   var conn = newConnection(stream);
 
@@ -103,24 +115,27 @@ Tinytest.addAsync("livedata stub - subscribe", function (test, onComplete) {
   delete message.id;
   test.equal(message, {msg: 'sub', name: 'my_data', params: []});
 
+  var reactivelyReady = false;
+  var autorunHandle = Deps.autorun(function () {
+    reactivelyReady = sub.ready();
+  });
+  test.isFalse(reactivelyReady);
+
   // get the sub satisfied. callback fires.
-  stream.receive({msg: 'data', 'subs': [id]});
+  stream.receive({msg: 'ready', 'subs': [id]});
   test.isTrue(callback_fired);
+  Deps.flush();
+  test.isTrue(reactivelyReady);
+  autorunHandle.stop();
 
-  // This defers the actual unsub message, so we need to set a timeout
-  // to observe the message. We also test that we can resubscribe even
-  // before the unsub has been sent.
-  //
-  // Note: it would be perfectly fine for livedata_connection to send the unsub
-  // synchronously, so if this test fails just because we've made that change,
-  // that's OK! This is a regression test for a failure case where it *never*
-  // sent the unsub if there was a quick resub afterwards.
-  //
-  // XXX rewrite Meteor.defer to guarantee ordered execution so we don't have to
-  // use setTimeout
+  // Unsubscribe.
   sub.stop();
-  conn.subscribe('my_data');
+  test.length(stream.sent, 1);
+  message = JSON.parse(stream.sent.shift());
+  test.equal(message, {msg: 'unsub', id: id});
 
+  // Resubscribe.
+  conn.subscribe('my_data');
   test.length(stream.sent, 1);
   //message = _.identity(stream.sent.shift());
   message = stream.sent.shift();
@@ -128,16 +143,124 @@ Tinytest.addAsync("livedata stub - subscribe", function (test, onComplete) {
   test.notEqual(id, id2);
   delete message.id;
   test.equal(message, {msg: 'sub', name: 'my_data', params: []});
-
-  setTimeout(function() {
-    test.length(stream.sent, 1);
-    //var message = _.identity(stream.sent.shift());
-    var message = stream.sent.shift();
-    test.equal(message, {msg: 'unsub', id: id});
-    onComplete();
-  }, 10);
 });
 
+
+Tinytest.add("livedata stub - reactive subscribe", function (test) {
+  var stream = new Meteor._StubStream();
+  var conn = newConnection(stream);
+
+  startAndConnect(test, stream);
+
+  var rFoo = new ReactiveVar('foo1');
+  var rBar = new ReactiveVar('bar1');
+
+  var onReadyCount = {};
+  var onReady = function (tag) {
+    return function () {
+      if (_.has(onReadyCount, tag))
+        ++onReadyCount[tag];
+      else
+        onReadyCount[tag] = 1;
+    };
+  };
+
+  // Subscribe to some subs.
+  var stopperHandle;
+  var autorunHandle = Deps.autorun(function () {
+    conn.subscribe("foo", rFoo.get(), onReady(rFoo.get()));
+    conn.subscribe("bar", rBar.get(), onReady(rBar.get()));
+    conn.subscribe("completer", onReady("completer"));
+    stopperHandle = conn.subscribe("stopper", onReady("stopper"));
+  });
+
+  // Check sub messages. (Assume they are sent in the order executed.)
+  test.length(stream.sent, 4);
+  var message = JSON.parse(stream.sent.shift());
+  var idFoo1 = message.id;
+  delete message.id;
+  test.equal(message, {msg: 'sub', name: 'foo', params: ['foo1']});
+
+  message = JSON.parse(stream.sent.shift());
+  var idBar1 = message.id;
+  delete message.id;
+  test.equal(message, {msg: 'sub', name: 'bar', params: ['bar1']});
+
+  message = JSON.parse(stream.sent.shift());
+  var idCompleter = message.id;
+  delete message.id;
+  test.equal(message, {msg: 'sub', name: 'completer', params: []});
+
+  message = JSON.parse(stream.sent.shift());
+  var idStopper = message.id;
+  delete message.id;
+  test.equal(message, {msg: 'sub', name: 'stopper', params: []});
+
+  // Haven't hit onReady yet.
+  test.equal(onReadyCount, {});
+
+  // "completer" gets ready now. its callback should fire.
+  stream.receive({msg: 'ready', 'subs': [idCompleter]});
+  test.equal(onReadyCount, {completer: 1});
+  test.length(stream.sent, 0);
+
+  // Stop 'stopper'.
+  stopperHandle.stop();
+  test.length(stream.sent, 1);
+  message = JSON.parse(stream.sent.shift());
+  test.equal(message, {msg: 'unsub', id: idStopper});
+
+  test.equal(onReadyCount, {completer: 1});
+
+  // Change the foo subscription and flush. We should sub to the new foo
+  // subscription, re-sub to the stopper subscription, and then unsub from the old
+  // foo subscription.  The bar subscription should be unaffected. The completer
+  // subscription should *NOT* call its new onReady callback, because we only
+  // call at most one onReady for a given reactively-saved subscription.
+  rFoo.set("foo2");
+  Deps.flush();
+  test.length(stream.sent, 3);
+
+  message = JSON.parse(stream.sent.shift());
+  var idFoo2 = message.id;
+  delete message.id;
+  test.equal(message, {msg: 'sub', name: 'foo', params: ['foo2']});
+
+  message = JSON.parse(stream.sent.shift());
+  var idStopperAgain = message.id;
+  delete message.id;
+  test.equal(message, {msg: 'sub', name: 'stopper', params: []});
+
+  message = JSON.parse(stream.sent.shift());
+  test.equal(message, {msg: 'unsub', id: idFoo1});
+
+  test.equal(onReadyCount, {completer: 1});
+
+  // Ready the stopper and bar subs. Completing stopper should call only the
+  // onReady from the new subscription because they were separate subscriptions
+  // started at different times and the first one was explicitly torn down by
+  // the client; completing bar should call only the onReady from the new
+  // subscription because we only call at most one onReady per reactively-saved
+  // subscription.
+  stream.receive({msg: 'ready', 'subs': [idStopperAgain, idBar1]});
+  test.equal(onReadyCount, {completer: 1, bar1: 1, stopper: 1});
+
+  // Shut down the autorun. This should unsub us from all current subs at flush
+  // time.
+  autorunHandle.stop();
+  Deps.flush();
+
+  test.length(stream.sent, 4);
+  // The order of unsubs here is not important.
+  var unsubMessages = _.map(stream.sent, JSON.parse);
+  stream.sent.length = 0;
+  test.equal(_.unique(_.pluck(unsubMessages, 'msg')), ['unsub']);
+  var actualIds = _.pluck(unsubMessages, 'id');
+  var expectedIds = [idFoo2, idBar1, idCompleter, idStopperAgain];
+  actualIds.sort();
+  expectedIds.sort();
+  test.equal(actualIds, expectedIds);
+});
 
 Tinytest.add("livedata stub - this", function (test) {
   var stream = new Meteor._StubStream();
@@ -163,7 +286,7 @@ Tinytest.add("livedata stub - this", function (test) {
   test.length(stream.sent, 0);
 
   stream.receive({msg: 'result', id:message.id, result:null});
-  stream.receive({msg: 'data', 'methods': [message.id]});
+  stream.receive({msg: 'updated', 'methods': [message.id]});
 
 });
 
@@ -174,7 +297,7 @@ Tinytest.add("livedata stub - methods", function (test) {
 
   startAndConnect(test, stream);
 
-  var collName = Meteor.uuid();
+  var collName = Random.id();
   var coll = new Meteor.Collection(collName, {manager: conn});
 
   // setup method
@@ -185,10 +308,10 @@ Tinytest.add("livedata stub - methods", function (test) {
   // setup observers
   var counts = {added: 0, removed: 0, changed: 0, moved: 0};
   var handle = coll.find({}).observe(
-    { added: function () { counts.added += 1; },
-      removed: function () { counts.removed += 1; },
-      changed: function () { counts.changed += 1; },
-      moved: function () { counts.moved += 1; }
+    { addedAt: function () { counts.added += 1; },
+      removedAt: function () { counts.removed += 1; },
+      changedAt: function () { counts.changed += 1; },
+      movedTo: function () { counts.moved += 1; }
     });
 
 
@@ -225,8 +348,8 @@ Tinytest.add("livedata stub - methods", function (test) {
   test.equal(counts, {added: 1, removed: 0, changed: 0, moved: 0});
 
   // data methods do not show up (not quiescent yet)
-  stream.receive({msg: 'data', collection: collName, id: docId,
-                  set: {value: 'tuesday'}});
+  stream.receive({msg: 'added', collection: collName, id: Meteor.idStringify(docId),
+                  fields: {value: 'tuesday'}});
   test.equal(coll.find({}).count(), 1);
   test.equal(coll.find({value: 'friday!'}).count(), 1);
   test.equal(counts, {added: 1, removed: 0, changed: 0, moved: 0});
@@ -247,7 +370,7 @@ Tinytest.add("livedata stub - methods", function (test) {
   // get the first data satisfied message. changes are applied to database even
   // though another method is outstanding, because the other method didn't have
   // a stub. and its callback is called.
-  stream.receive({msg: 'data', 'methods': [message.id]});
+  stream.receive({msg: 'updated', 'methods': [message.id]});
   test.isTrue(callback1Fired);
   test.isFalse(callback2Fired);
 
@@ -260,7 +383,7 @@ Tinytest.add("livedata stub - methods", function (test) {
   test.isFalse(callback2Fired);
 
   // get second satisfied; no new changes are applied.
-  stream.receive({msg: 'data', 'methods': [message2.id]});
+  stream.receive({msg: 'updated', 'methods': [message2.id]});
   test.isTrue(callback2Fired);
 
   test.equal(coll.find({}).count(), 1);
@@ -270,14 +393,33 @@ Tinytest.add("livedata stub - methods", function (test) {
   handle.stop();
 });
 
+Tinytest.add("livedata stub - mutating method args", function (test) {
+  var stream = new Meteor._StubStream();
+  var conn = newConnection(stream);
+
+  startAndConnect(test, stream);
+
+  conn.methods({mutateArgs: function (arg) {
+    arg.foo = 42;
+  }});
+
+  conn.call('mutateArgs', {foo: 50});
+
+  // Method should be called with original arg, not mutated arg.
+  var message = JSON.parse(stream.sent.shift());
+  test.equal(message, {msg: 'method', method: 'mutateArgs',
+                       params: [{foo: 50}], id: message.id});
+  test.length(stream.sent, 0);
+});
+
 var observeCursor = function (test, cursor) {
   var counts = {added: 0, removed: 0, changed: 0, moved: 0};
   var expectedCounts = _.clone(counts);
   var handle = cursor.observe(
-    { added: function () { counts.added += 1; },
-      removed: function () { counts.removed += 1; },
-      changed: function () { counts.changed += 1; },
-      moved: function () { counts.moved += 1; }
+    { addedAt: function () { counts.added += 1; },
+      removedAt: function () { counts.removed += 1; },
+      changedAt: function () { counts.changed += 1; },
+      movedTo: function () { counts.moved += 1; }
     });
   return {
     stop: _.bind(handle.stop, handle),
@@ -298,7 +440,7 @@ Tinytest.add("livedata stub - methods calling methods", function (test) {
 
   startAndConnect(test, stream);
 
-  var coll_name = Meteor.uuid();
+  var coll_name = Random.id();
   var coll = new Meteor.Collection(coll_name, {manager: conn});
 
   // setup methods
@@ -334,12 +476,12 @@ Tinytest.add("livedata stub - methods calling methods", function (test) {
 
   // get data from the method. data from this doc does not show up yet, but data
   // from another doc does.
-  stream.receive({msg: 'data', collection: coll_name, id: docId,
-                  set: {value: 'tuesday'}});
+  stream.receive({msg: 'added', collection: coll_name, id: Meteor.idStringify(docId),
+                  fields: {value: 'tuesday'}});
   o.expectCallbacks();
   test.equal(coll.findOne(docId), {_id: docId, a: 1});
-  stream.receive({msg: 'data', collection: coll_name, id: 'monkey',
-                  set: {value: 'bla'}});
+  stream.receive({msg: 'added', collection: coll_name, id: 'monkey',
+                  fields: {value: 'bla'}});
   o.expectCallbacks({added: 1});
   test.equal(coll.findOne(docId), {_id: docId, a: 1});
   var newDoc = coll.findOne({value: 'bla'});
@@ -348,7 +490,7 @@ Tinytest.add("livedata stub - methods calling methods", function (test) {
 
   // get method satisfied. all data shows up. the 'a' field is reverted and
   // 'value' field is set.
-  stream.receive({msg: 'data', 'methods': [message.id]});
+  stream.receive({msg: 'updated', 'methods': [message.id]});
   o.expectCallbacks({changed: 1});
   test.equal(coll.findOne(docId), {_id: docId, value: 'tuesday'});
   test.equal(coll.findOne(newDoc._id), {_id: newDoc._id, value: 'bla'});
@@ -373,7 +515,7 @@ Tinytest.add("livedata stub - method call before connect", function (test) {
   // Now connect.
   stream.reset();
 
-  testGotMessage(test, stream, {msg: 'connect'});
+  testGotMessage(test, stream, makeConnectMessage());
   testGotMessage(test, stream, {msg: 'method', method: 'someMethod',
                                 params: [], id: '*'});
 });
@@ -384,7 +526,7 @@ Tinytest.add("livedata stub - reconnect", function (test) {
 
   startAndConnect(test, stream);
 
-  var collName = Meteor.uuid();
+  var collName = Random.id();
   var coll = new Meteor.Collection(collName, {manager: conn});
 
   var o = observeCursor(test, coll.find());
@@ -402,15 +544,16 @@ Tinytest.add("livedata stub - reconnect", function (test) {
                           id: subMessage.id});
 
   // get some data. it shows up.
-  stream.receive({msg: 'data', collection: collName,
-                  id: '1234', set: {a:1}});
+  stream.receive({msg: 'added', collection: collName,
+                  id: '1234', fields: {a:1}});
 
   test.equal(coll.find({}).count(), 1);
   o.expectCallbacks({added: 1});
   test.isFalse(subCallbackFired);
 
-  stream.receive({msg: 'data', collection: collName,
-                  id: '1234', set: {b:2},
+  stream.receive({msg: 'changed', collection: collName,
+                  id: '1234', fields: {b:2}});
+  stream.receive({msg: 'ready',
                   subs: [subMessage.id] // satisfy sub
                  });
   test.isTrue(subCallbackFired);
@@ -436,8 +579,8 @@ Tinytest.add("livedata stub - reconnect", function (test) {
   test.equal(stream.sent.length, 0);
 
   // more data. shows up immediately because there was no relevant method stub.
-  stream.receive({msg: 'data', collection: collName,
-                  id: '1234', set: {c:3}});
+  stream.receive({msg: 'changed', collection: collName,
+                  id: '1234', fields: {c:3}});
   test.equal(coll.findOne('1234'), {_id: '1234', a: 1, b: 2, c: 3});
   o.expectCallbacks({changed: 1});
 
@@ -445,7 +588,7 @@ Tinytest.add("livedata stub - reconnect", function (test) {
   // sub. The wait method still is blocked.
   stream.reset();
 
-  testGotMessage(test, stream, {msg: 'connect', session: SESSION_ID});
+  testGotMessage(test, stream, makeConnectMessage(SESSION_ID));
   testGotMessage(test, stream, methodMessage);
   testGotMessage(test, stream, subMessage);
 
@@ -453,16 +596,16 @@ Tinytest.add("livedata stub - reconnect", function (test) {
   stream.receive({msg: 'connected', session: SESSION_ID + 1});
 
   // resend data. doesn't show up: we're in reconnect quiescence.
-  stream.receive({msg: 'data', collection: collName,
-                  id: '1234', set: {a:1, b:2, c:3, d: 4}});
-  stream.receive({msg: 'data', collection: collName,
-                  id: '2345', set: {e: 5}});
+  stream.receive({msg: 'added', collection: collName,
+                  id: '1234', fields: {a:1, b:2, c:3, d: 4}});
+  stream.receive({msg: 'added', collection: collName,
+                  id: '2345', fields: {e: 5}});
   test.equal(coll.findOne('1234'), {_id: '1234', a: 1, b: 2, c: 3});
   test.isFalse(coll.findOne('2345'));
   o.expectCallbacks();
 
   // satisfy and return the method
-  stream.receive({msg: 'data',
+  stream.receive({msg: 'updated',
                   methods: [methodMessage.id]});
   test.isFalse(methodCallbackFired);
   stream.receive({msg: 'result', id:methodMessage.id, result:"bupkis"});
@@ -477,7 +620,7 @@ Tinytest.add("livedata stub - reconnect", function (test) {
   o.expectCallbacks();
 
   // re-satisfy sub
-  stream.receive({msg: 'data', subs: [subMessage.id]});
+  stream.receive({msg: 'ready', subs: [subMessage.id]});
 
   // now the doc changes and method callback is called, and the wait method is
   // sent. the sub callback isn't re-called.
@@ -493,7 +636,7 @@ Tinytest.add("livedata stub - reconnect", function (test) {
   test.equal(stream.sent.length, 0);
   stream.receive({msg: 'result', id: waitMethodMessage.id, result: "bupkis"});
   test.equal(stream.sent.length, 0);
-  stream.receive({msg: 'data', methods: [waitMethodMessage.id]});
+  stream.receive({msg: 'updated', methods: [waitMethodMessage.id]});
 
   // wait method done means we can send the third method
   test.equal(stream.sent.length, 1);
@@ -509,7 +652,7 @@ Tinytest.add("livedata stub - reconnect method which only got result", function 
   var conn = newConnection(stream);
   startAndConnect(test, stream);
 
-  var collName = Meteor.uuid();
+  var collName = Random.id();
   var coll = new Meteor.Collection(collName, {manager: conn});
   var o = observeCursor(test, coll.find());
 
@@ -544,8 +687,8 @@ Tinytest.add("livedata stub - reconnect method which only got result", function 
   test.equal(stream.sent.length, 0);
 
   // Get some data.
-  stream.receive({msg: 'data', collection: collName,
-                  id: stubWrittenId, set: {baz: 42}});
+  stream.receive({msg: 'added', collection: collName,
+                  id: Meteor.idStringify(stubWrittenId), fields: {baz: 42}});
   // It doesn't show up yet.
   test.equal(coll.find().count(), 1);
   test.equal(coll.findOne(stubWrittenId), {_id: stubWrittenId, foo: 'bar'});
@@ -565,7 +708,7 @@ Tinytest.add("livedata stub - reconnect method which only got result", function 
   // in. Reconnect quiescence happens as soon as 'connected' is received because
   // there are no pending methods or subs in need of revival.
   stream.reset();
-  testGotMessage(test, stream, {msg: 'connect', session: SESSION_ID});
+  testGotMessage(test, stream, makeConnectMessage(SESSION_ID));
   // Still holding out hope for session resumption, so nothing updated yet.
   test.equal(coll.find().count(), 1);
   test.equal(coll.findOne(stubWrittenId), {_id: stubWrittenId, foo: 'bar'});
@@ -579,8 +722,8 @@ Tinytest.add("livedata stub - reconnect method which only got result", function 
   o.expectCallbacks({removed: 1});
   test.equal(callbackOutput, ['bla']);
   test.equal(onResultReceivedOutput, ['bla']);
-  stream.receive({msg: 'data', collection: collName,
-                  id: stubWrittenId, set: {baz: 42}});
+  stream.receive({msg: 'added', collection: collName,
+                  id: Meteor.idStringify(stubWrittenId), fields: {baz: 42}});
   test.equal(coll.findOne(stubWrittenId), {_id: stubWrittenId, baz: 42});
   o.expectCallbacks({added: 1});
 
@@ -611,8 +754,8 @@ Tinytest.add("livedata stub - reconnect method which only got result", function 
   test.equal(stream.sent.length, 0);
 
   // Get some data.
-  stream.receive({msg: 'data', collection: collName,
-                  id: stubWrittenId2, set: {baz: 42}});
+  stream.receive({msg: 'added', collection: collName,
+                  id: Meteor.idStringify(stubWrittenId2), fields: {baz: 42}});
   // It doesn't show up yet.
   test.equal(coll.find().count(), 2);
   test.equal(coll.findOne(stubWrittenId2), {_id: stubWrittenId2, foo: 'bar'});
@@ -637,7 +780,7 @@ Tinytest.add("livedata stub - reconnect method which only got result", function 
   // but slowMethod gets called via onReconnect. Reconnect quiescence is now
   // blocking on slowMethod.
   stream.reset();
-  testGotMessage(test, stream, {msg: 'connect', session: SESSION_ID + 1});
+  testGotMessage(test, stream, makeConnectMessage(SESSION_ID + 1));
   var slowMethodId = testGotMessage(
     test, stream,
     {msg: 'method', method: 'slowMethod', params: [], id: '*'});
@@ -655,15 +798,15 @@ Tinytest.add("livedata stub - reconnect method which only got result", function 
   test.equal(callbackOutput, ['bla']);
 
   // Receive data matching our stub. It doesn't take effect yet.
-  stream.receive({msg: 'data', collection: collName,
-                  id: stubWrittenId2, set: {foo: 'bar'}});
+  stream.receive({msg: 'added', collection: collName,
+                  id: Meteor.idStringify(stubWrittenId2), fields: {foo: 'bar'}});
   o.expectCallbacks();
 
   // slowMethod is done writing, so we get full reconnect quiescence (but no
   // slowMethod callback)... ie, a reset followed by applying the data we just
   // got, as well as calling the callback from the method that half-finished
   // before reset. The net effect is deleting doc 'stubWrittenId'.
-  stream.receive({msg: 'data', methods: [slowMethodId]});
+  stream.receive({msg: 'updated', methods: [slowMethodId]});
   test.equal(coll.find().count(), 1);
   test.equal(coll.findOne(stubWrittenId2), {_id: stubWrittenId2, foo: 'bar'});
   o.expectCallbacks({removed: 1});
@@ -682,7 +825,7 @@ Tinytest.add("livedata stub - reconnect method which only got data", function (t
   var conn = newConnection(stream);
   startAndConnect(test, stream);
 
-  var collName = Meteor.uuid();
+  var collName = Random.id();
   var coll = new Meteor.Collection(collName, {manager: conn});
   var o = observeCursor(test, coll.find());
 
@@ -707,15 +850,15 @@ Tinytest.add("livedata stub - reconnect method which only got data", function (t
   test.equal(stream.sent.length, 0);
 
   // Get some data.
-  stream.receive({msg: 'data', collection: collName,
-                  id: 'photo', set: {baz: 42}});
+  stream.receive({msg: 'added', collection: collName,
+                  id: 'photo', fields: {baz: 42}});
   // It shows up instantly because the stub didn't write anything.
   test.equal(coll.find().count(), 1);
   test.equal(coll.findOne('photo'), {_id: 'photo', baz: 42});
   o.expectCallbacks({added: 1});
 
   // Get the data-done message.
-  stream.receive({msg: 'data', methods: [methodId]});
+  stream.receive({msg: 'updated', methods: [methodId]});
   // Data still here.
   test.equal(coll.find().count(), 1);
   test.equal(coll.findOne('photo'), {_id: 'photo', baz: 42});
@@ -727,7 +870,7 @@ Tinytest.add("livedata stub - reconnect method which only got data", function (t
   // Reset stream. Method gets resent (with same ID), and blocks reconnect
   // quiescence.
   stream.reset();
-  testGotMessage(test, stream, {msg: 'connect', session: SESSION_ID});
+  testGotMessage(test, stream, makeConnectMessage(SESSION_ID));
   testGotMessage(
     test, stream, {msg: 'method', method: 'doLittle',
                    params: [], id: methodId});
@@ -754,7 +897,7 @@ Tinytest.add("livedata stub - reconnect method which only got data", function (t
   test.equal(onResultReceivedOutput, ['res']);
 
   // Now we get data-done. Collection is reset and callback is called.
-  stream.receive({msg: 'data', methods: [methodId]});
+  stream.receive({msg: 'updated', methods: [methodId]});
   test.equal(coll.find().count(), 0);
   o.expectCallbacks({removed: 1});
   test.equal(callbackOutput, ['res']);
@@ -769,7 +912,7 @@ Tinytest.add("livedata stub - multiple stubs same doc", function (test) {
   var conn = newConnection(stream);
   startAndConnect(test, stream);
 
-  var collName = Meteor.uuid();
+  var collName = Random.id();
   var coll = new Meteor.Collection(collName, {manager: conn});
   var o = observeCursor(test, coll.find());
 
@@ -811,8 +954,8 @@ Tinytest.add("livedata stub - multiple stubs same doc", function (test) {
   test.equal(stream.sent.length, 0);
 
   // Get some data... slightly different than what we wrote.
-  stream.receive({msg: 'data', collection: collName,
-                  id: stubWrittenId, set: {foo: 'barb', other: 'field',
+  stream.receive({msg: 'added', collection: collName,
+                  id: Meteor.idStringify(stubWrittenId), fields: {foo: 'barb', other: 'field',
                                            other2: 'bla'}});
   // It doesn't show up yet.
   test.equal(coll.find().count(), 1);
@@ -822,22 +965,22 @@ Tinytest.add("livedata stub - multiple stubs same doc", function (test) {
 
   // And get the first method-done. Still no updates to minimongo: we can't
   // quiesce the doc until the second method is done.
-  stream.receive({msg: 'data', methods: [insertMethodId]});
+  stream.receive({msg: 'updated', methods: [insertMethodId]});
   test.equal(coll.find().count(), 1);
   test.equal(coll.findOne(stubWrittenId),
              {_id: stubWrittenId, foo: 'bar', baz: 42});
   o.expectCallbacks();
 
   // More data. Not quite what we wrote. Also ignored for now.
-  stream.receive({msg: 'data', collection: collName,
-                  id: stubWrittenId, set: {baz: 43}, unset: ['other']});
+  stream.receive({msg: 'changed', collection: collName,
+                  id: Meteor.idStringify(stubWrittenId), fields: {baz: 43}, cleared: ['other']});
   test.equal(coll.find().count(), 1);
   test.equal(coll.findOne(stubWrittenId),
              {_id: stubWrittenId, foo: 'bar', baz: 42});
   o.expectCallbacks();
 
   // Second data-ready. Now everything takes effect!
-  stream.receive({msg: 'data', methods: [updateMethodId]});
+  stream.receive({msg: 'updated', methods: [updateMethodId]});
   test.equal(coll.find().count(), 1);
   test.equal(coll.findOne(stubWrittenId),
              {_id: stubWrittenId, foo: 'barb', other2: 'bla',
@@ -846,6 +989,141 @@ Tinytest.add("livedata stub - multiple stubs same doc", function (test) {
 
   o.stop();
 });
+
+Tinytest.add("livedata stub - unsent methods don't block quiescence", function (test) {
+  // This test is for https://github.com/meteor/meteor/issues/555
+
+  var stream = new Meteor._StubStream;
+  var conn = newConnection(stream);
+  startAndConnect(test, stream);
+
+  var collName = Random.id();
+  var coll = new Meteor.Collection(collName, {manager: conn});
+
+  conn.methods({
+    insertSomething: function () {
+      // stub write
+      coll.insert({foo: 'bar'});
+    }
+  });
+
+  test.equal(coll.find().count(), 0);
+
+  // Call a random method (no-op)
+  conn.call('no-op');
+  // Call a wait method
+  conn.apply('no-op', [], {wait: true});
+  // Call a method with a stub that writes.
+  conn.call('insertSomething');
+
+
+  // Stub write is visible.
+  test.equal(coll.find({foo: 'bar'}).count(), 1);
+  var stubWrittenId = coll.findOne({foo: 'bar'})._id;
+
+  // first method sent
+  var firstMethodId = testGotMessage(
+    test, stream, {msg: 'method', method: 'no-op',
+                   params: [], id: '*'});
+  test.equal(stream.sent.length, 0);
+
+  // ack the first method
+  stream.receive({msg: 'updated', methods: [firstMethodId]});
+  stream.receive({msg: 'result', id: firstMethodId});
+
+  // Wait method sent.
+  var waitMethodId = testGotMessage(
+    test, stream, {msg: 'method', method: 'no-op',
+                   params: [], id: '*'});
+  test.equal(stream.sent.length, 0);
+
+  // ack the wait method
+  stream.receive({msg: 'updated', methods: [waitMethodId]});
+  stream.receive({msg: 'result', id: waitMethodId});
+
+  // insert method sent.
+  var insertMethodId = testGotMessage(
+    test, stream, {msg: 'method', method: 'insertSomething',
+                   params: [], id: '*'});
+  test.equal(stream.sent.length, 0);
+
+  // ack the insert method
+  stream.receive({msg: 'updated', methods: [insertMethodId]});
+  stream.receive({msg: 'result', id: insertMethodId});
+
+  // simulation reverted.
+  test.equal(coll.find({foo: 'bar'}).count(), 0);
+
+});
+
+Tinytest.add("livedata stub - reactive resub", function (test) {
+  var stream = new Meteor._StubStream();
+  var conn = newConnection(stream);
+
+  startAndConnect(test, stream);
+
+  var readiedSubs = {};
+  var markAllReady = function () {
+    // synthesize a "ready" message in response to any "sub"
+    // message with an id we haven't seen before
+    _.each(stream.sent, function (msg) {
+      msg = JSON.parse(msg);
+      if (msg.msg === 'sub' && ! _.has(readiedSubs, msg.id)) {
+        stream.receive({msg: 'ready', subs: [msg.id]});
+        readiedSubs[msg.id] = true;
+      }
+    });
+  };
+
+  var fooArg = new ReactiveVar('A');
+  var fooReady = 0;
+
+  var inner;
+  var outer = Deps.autorun(function () {
+    inner = Deps.autorun(function () {
+      conn.subscribe("foo-sub", fooArg.get(),
+                     function () { fooReady++; });
+    });
+  });
+
+  markAllReady();
+  test.equal(fooReady, 1);
+
+  // Rerun the inner autorun with different subscription
+  // arguments.  Detect the re-sub via onReady.
+  fooArg.set('B');
+  test.isTrue(inner.invalidated);
+  Deps.flush();
+  test.isFalse(inner.invalidated);
+  markAllReady();
+  test.equal(fooReady, 2);
+
+  // Rerun inner again with same args; should be no re-sub.
+  inner.invalidate();
+  test.isTrue(inner.invalidated);
+  Deps.flush();
+  test.isFalse(inner.invalidated);
+  markAllReady();
+  test.equal(fooReady, 2);
+
+  // Rerun outer!  Should still be no re-sub even though
+  // the inner computation is stopped and a new one is
+  // started.
+  outer.invalidate();
+  test.isTrue(inner.invalidated);
+  Deps.flush();
+  test.isFalse(inner.invalidated);
+  markAllReady();
+  test.equal(fooReady, 2);
+
+  // Change the subscription.  Now we should get an onReady.
+  fooArg.set('C');
+  Deps.flush();
+  markAllReady();
+  test.equal(fooReady, 3);
+});
+
+
 
 Tinytest.add("livedata connection - reactive userId", function (test) {
   var stream = new Meteor._StubStream();
@@ -861,7 +1139,7 @@ Tinytest.add("livedata connection - two wait methods", function (test) {
   var conn = newConnection(stream);
   startAndConnect(test, stream);
 
-  var collName = Meteor.uuid();
+  var collName = Random.id();
   var coll = new Meteor.Collection(collName, {manager: conn});
 
   // setup method
@@ -899,15 +1177,15 @@ Tinytest.add("livedata connection - two wait methods", function (test) {
   // Receive some data. "one" is not a wait method and there are no stubs, so it
   // gets applied immediately.
   test.equal(coll.find().count(), 0);
-  stream.receive({msg: 'data', collection: collName,
-                  id: 'foo', set: {x: 1}});
+  stream.receive({msg: 'added', collection: collName,
+                  id: 'foo', fields: {x: 1}});
   test.equal(coll.find().count(), 1);
   test.equal(coll.findOne('foo'), {_id: 'foo', x: 1});
 
   // Let "one!" finish. Both messages are required to fire the callback.
   stream.receive({msg: 'result', id: one_message.id});
   test.equal(responses, []);
-  stream.receive({msg: 'data', methods: [one_message.id]});
+  stream.receive({msg: 'updated', methods: [one_message.id]});
   test.equal(responses, ['one']);
 
   // Now we've send out "two!".
@@ -919,13 +1197,13 @@ Tinytest.add("livedata connection - two wait methods", function (test) {
 
   // Receive more data. "two" is a wait method, so the data doesn't get applied
   // yet.
-  stream.receive({msg: 'data', collection: collName,
-                  id: 'foo', set: {y: 3}});
+  stream.receive({msg: 'changed', collection: collName,
+                  id: 'foo', fields: {y: 3}});
   test.equal(coll.find().count(), 1);
   test.equal(coll.findOne('foo'), {_id: 'foo', x: 1});
 
   // Let "two!" finish, with its end messages in the opposite order to "one!".
-  stream.receive({msg: 'data', methods: [two_message.id]});
+  stream.receive({msg: 'updated', methods: [two_message.id]});
   test.equal(responses, ['one']);
   test.equal(stream.sent.length, 0);
   // data-done message is enough to allow data to be written.
@@ -945,12 +1223,12 @@ Tinytest.add("livedata connection - two wait methods", function (test) {
   // Out of order response is OK for non-wait methods.
   stream.receive({msg: 'result', id: three_message.id});
   stream.receive({msg: 'result', id: four_message.id});
-  stream.receive({msg: 'data', methods: [four_message.id]});
+  stream.receive({msg: 'updated', methods: [four_message.id]});
   test.equal(responses, ['one', 'two', 'four']);
   test.equal(stream.sent.length, 0);
 
   // Let three finish too.
-  stream.receive({msg: 'data', methods: [three_message.id]});
+  stream.receive({msg: 'updated', methods: [three_message.id]});
   test.equal(responses, ['one', 'two', 'four', 'three']);
 
   // Verify that we just sent "five!" (the next wait method).
@@ -961,7 +1239,7 @@ Tinytest.add("livedata connection - two wait methods", function (test) {
 
   // Let five finish.
   stream.receive({msg: 'result', id: five_message.id});
-  stream.receive({msg: 'data', methods: [five_message.id]});
+  stream.receive({msg: 'updated', methods: [five_message.id]});
   test.equal(responses, ['one', 'two', 'four', 'three', 'five']);
 
   
@@ -980,7 +1258,10 @@ Tinytest.add("livedata connection - two wait methods", function (test) {
   test.equal(two_message.params, ['two!']);
   test.equal(responses, []);
 
-  conn.apply('do_something', ['three!']);
+  // reconnect
+  stream.sent = [];
+  stream.reset();
+  testGotMessage(test, stream, makeConnectMessage(conn._lastSessionId));
 
   // Verify that we did not send "three!" since we're waiting for
   // "one!" and "two!" to send their response back
@@ -988,20 +1269,50 @@ Tinytest.add("livedata connection - two wait methods", function (test) {
   stream.receive({msg: 'result', id: two_message.id});
   test.equal(responses, []);
 
-  test.equal(stream.sent.length, 0);
-  stream.receive({msg: 'result', id: one_message.id});
-  test.equal(responses, ['one', 'two']); // Namely not two, one
+  // white-box test:
+  test.equal(_.map(conn._outstandingMethodBlocks, function (block) {
+    return [block.wait, _.map(block.methods, function (method) {
+      return method._message.params[0];
+    })];
+  }), [
+    [false, ['reconnect zero', 'reconnect one']],
+    [true, ['reconnect two']],
+    [false, ['reconnect three', 'one']],
+    [true, ['two']],
+    [false, ['three']]
+  ]);
+});
 
-  // Verify that we just sent "three!" now that we got responses for
-  // "one!" and "two!"
-  test.equal(stream.sent.length, 1);
-  var three_message = _.identity(stream.sent.shift());
-  test.equal(three_message.params, ['three!']);
-  // Since we sent it, it should no longer be in "blocked_methods".
-  test.equal(conn.blocked_methods, []);
+Tinytest.addAsync("livedata connection - version negotiation requires renegotiating",
+                  function (test, onComplete) {
+  var connection = new Meteor._LivedataConnection("/", {
+    reloadWithOutstanding: true,
+    supportedDDPVersions: ["garbled", Meteor._SUPPORTED_DDP_VERSIONS[0]],
+    onConnectionFailure: function () { test.fail(); onComplete(); },
+    onConnected: function () {
+      test.equal(connection._version, Meteor._SUPPORTED_DDP_VERSIONS[0]);
+      connection._stream.forceDisconnect();
+      onComplete();
+    }
+  });
+});
 
-  var six_message = stream.sent.shift();
-  test.equal(six_message.params, ['six!']);
+Tinytest.addAsync("livedata connection - version negotiation fails",
+                  function (test, onComplete) {
+  var connection = new Meteor._LivedataConnection("/", {
+    reloadWithOutstanding: true,
+    supportedDDPVersions: ["garbled", "more garbled"],
+    onConnectionFailure: function () {
+      test.equal(connection.status().status, "failed");
+      test.matches(connection.status().reason, /Version negotiation failed/);
+      test.isFalse(connection.status().connected);
+      onComplete();
+    },
+    onConnected: function () {
+      test.fail();
+      onComplete();
+    }
+  });
 });
 
 Tinytest.add("livedata connection - onReconnect prepends messages correctly without a wait method", function(test) {
@@ -1026,8 +1337,7 @@ Tinytest.add("livedata connection - onReconnect prepends messages correctly with
   // reconnect
   stream.sent = [];
   stream.reset();
-  testGotMessage(
-    test, stream, {msg: 'connect', session: conn._lastSessionId});
+  testGotMessage(test, stream, makeConnectMessage(conn._lastSessionId));
 
   // Test that we sent what we expect to send, and we're blocked on
   // what we expect to be blocked. The subsequent logic to correctly
@@ -1048,6 +1358,49 @@ Tinytest.add("livedata connection - onReconnect prepends messages correctly with
     [false, ['four']]
   ]);
 });
+
+Tinytest.add("livedata connection - onReconnect with sent messages", function(test) {
+  var stream = new Meteor._StubStream();
+  var conn = newConnection(stream);
+  startAndConnect(test, stream);
+
+  // setup method
+  conn.methods({do_something: function (x) {}});
+
+  conn.onReconnect = function() {
+    conn.apply('do_something', ['login'], {wait: true});
+  };
+
+  conn.apply('do_something', ['one']);
+
+  // initial connect
+  stream.sent = [];
+  stream.reset();
+  testGotMessage(
+    test, stream, makeConnectMessage(conn._lastSessionId));
+
+  // Test that we sent just the login message.
+  var loginId = testGotMessage(
+    test, stream, {msg: 'method', method: 'do_something',
+                   params: ['login'], id: '*'});
+
+  // we connect.
+  stream.receive({msg: 'connected', session: Random.id()});
+  test.length(stream.sent, 0);
+
+  // login got result (but not yet data)
+  stream.receive({msg: 'result', id: loginId, result: 'foo'});
+  test.length(stream.sent, 0);
+
+  // login got data. now we send next method.
+  stream.receive({msg: 'updated', methods: [loginId]});
+
+  testGotMessage(
+    test, stream, {msg: 'method', method: 'do_something',
+                   params: ['one'], id: '*'});
+});
+
+
 
 Tinytest.add("livedata stub - reconnect double wait method", function (test) {
   var stream = new Meteor._StubStream;
@@ -1080,7 +1433,7 @@ Tinytest.add("livedata stub - reconnect double wait method", function (test) {
   // Reset stream. halfwayMethod does NOT get resent, but reconnectMethod does!
   // Reconnect quiescence happens when reconnectMethod is done.
   stream.reset();
-  testGotMessage(test, stream, {msg: 'connect', session: SESSION_ID});
+  testGotMessage(test, stream, makeConnectMessage(SESSION_ID));
   var reconnectId = testGotMessage(
     test, stream, {msg: 'method', method: 'reconnectMethod',
                    params: [], id: '*'});
@@ -1096,7 +1449,7 @@ Tinytest.add("livedata stub - reconnect double wait method", function (test) {
   // Data-done for reconnectMethod. This gets us to reconnect quiescence, so
   // halfwayMethod's callback fires. reconnectMethod's is still waiting on its
   // result.
-  stream.receive({msg: 'data', methods: [reconnectId]});
+  stream.receive({msg: 'updated', methods: [reconnectId]});
   test.equal(output.shift(), 'halfway');
   test.equal(output, []);
 
@@ -1111,6 +1464,84 @@ Tinytest.add("livedata stub - reconnect double wait method", function (test) {
   conn.call('lastMethod');
   testGotMessage(test, stream,
                  {msg: 'method', method: 'lastMethod', params: [], id: '*'});
+});
+
+Tinytest.add("livedata stub - subscribe failure", function (test) {
+  var stream = new Meteor._StubStream();
+  var conn = newConnection(stream);
+
+  startAndConnect(test, stream);
+
+  // subscribe
+  var onReadyFired = false;
+  var subError = null;
+  var sub = conn.subscribe('unknownSub', {
+    onReady: function () {
+      onReadyFired = true;
+    },
+    onError: function (error) {
+      subError = error;
+    }
+  });
+  test.isFalse(onReadyFired);
+  test.equal(subError, null);
+
+  var subMessage = JSON.parse(stream.sent.shift());
+  test.equal(subMessage, {msg: 'sub', name: 'unknownSub', params: [],
+                          id: subMessage.id});
+
+  // Reject the sub.
+  stream.receive({msg: 'nosub', id: subMessage.id,
+                  error: new Meteor.Error(404, "Subscription not found")});
+  test.isFalse(onReadyFired);
+  test.instanceOf(subError, Meteor.Error);
+  test.equal(subError.error, 404);
+  test.equal(subError.reason, "Subscription not found");
+
+  // stream reset: reconnect!
+  stream.reset();
+  // We send a connect.
+  testGotMessage(test, stream, makeConnectMessage(SESSION_ID));
+  // We should NOT re-sub to the sub, because we processed the error.
+  test.length(stream.sent, 0);
+  test.isFalse(onReadyFired);
+});
+
+Tinytest.add("livedata stub - stubs before connected", function (test) {
+  var stream = new Meteor._StubStream();
+  var conn = newConnection(stream);
+
+  var collName = Random.id();
+  var coll = new Meteor.Collection(collName, {manager: conn});
+
+  // Start and send "connect", but DON'T get 'connected' quite yet.
+  stream.reset(); // initial connection start.
+
+  testGotMessage(test, stream, makeConnectMessage());
+  test.length(stream.sent, 0);
+
+  // Insert a document. The stub updates "conn" directly.
+  coll.insert({_id: "foo", bar: 42});
+  test.equal(coll.find().count(), 1);
+  test.equal(coll.findOne(), {_id: "foo", bar: 42});
+  // It also sends the method message.
+  var methodMessage = JSON.parse(stream.sent.shift());
+  test.equal(methodMessage, {msg: 'method', method: '/' + collName + '/insert',
+                             params: [{_id: "foo", bar: 42}],
+                             id: methodMessage.id});
+  test.length(stream.sent, 0);
+
+  // Now receive a connected message. This should not clear the
+  // _documentsWrittenByStub state!
+  stream.receive({msg: 'connected', session: SESSION_ID});
+  test.length(stream.sent, 0);
+  test.equal(coll.find().count(), 1);
+
+  // Now receive the "updated" message for the method. This should revert the
+  // insert.
+  stream.receive({msg: 'updated', methods: [methodMessage.id]});
+  test.length(stream.sent, 0);
+  test.equal(coll.find().count(), 0);
 });
 
 // XXX also test:
