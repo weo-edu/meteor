@@ -25,3 +25,19 @@ LocalCollection._fields = function(obj, fields) {
 		return new_obj;
 	}, {});
 }
+
+LocalCollection._filteredChanges = function(obj, fields) {
+	return _.reduce(fields, function(newObj, field) {
+		var exists = true;
+		var val = _.reduce(field.split('.'), function(obj, attr) {
+			if (obj && attr in obj)
+				return obj[attr];
+			else
+				exists = false;
+		}, obj);
+
+		if (exists)
+			LocalCollection._setField(newObj, field, val);
+		return newObj;
+	}, {});
+}

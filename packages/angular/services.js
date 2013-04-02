@@ -28,6 +28,10 @@
 		return o;
 	}
 
+	var hasFields = function(doc) {
+		return _.keys(doc).length > 1;
+	}
+
 	meteorModule.factory('$collection', function() {
 		var collections = {users: Meteor.users};
 		function maker(name, scope, local) {
@@ -64,16 +68,18 @@
 				return sel;
 			}
 
+
+
 			var scopedCollection = Object.create(collection);
 			scopedCollection.find = function(selector, options) {
 				var results = [];
 				var callbacks = {
-					addedAt: function(document, beforeIndex) {
+					addedAt: function(document, atIndex) {
 		        scope.$throttledSafeApply(function() {
-		          results.splice(beforeIndex, 0, hashKeyWrap(document));
+		          results.splice(atIndex, 0, hashKeyWrap(document));
 		        });
 		      },
-		      changedAt: function(newDocument, atIndex, oldDocument) {
+		      changedAt: function(newDocument, oldDocument, atIndex) {
 		      	scope.$throttledSafeApply(function() {
 		      		results[atIndex] = hashKeyWrap(newDocument);
 		      	});
@@ -508,7 +514,7 @@
 
 			//XXX add fields support
 			return $collection('users', scope).findOne(
-				{username: Meteor.userId()}, {}, 
+				{username: Meteor.userId()}, {fields: fields}, 
 				def) || def;
 			//return user;
 		}

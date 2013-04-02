@@ -84,6 +84,7 @@ LocalCollection.Cursor = function (collection, selector, options) {
   if (!options) options = {};
 
   self.collection = collection;
+  self.queries = {};
   self.selector = selector;
 
   if (LocalCollection._selectorIsId(selector)) {
@@ -102,6 +103,8 @@ LocalCollection.Cursor = function (collection, selector, options) {
     self._transform = Deps._makeNonreactive(options.transform);
   else
     self._transform = options.transform;
+
+  self.fields = options.fields;
 
   // db_objects is a list of the objects that match the cursor. (It's always a
   // list, never an object: LocalCollection.Cursor is always ordered.)
@@ -131,11 +134,12 @@ LocalCollection.Cursor.prototype.replaceSelector = function(selector, sort_f) {
   if(sort_f !== undefined)
     this.sort_f = sort_f;
 
-  if(this.query) {
-    this.query.selector_f = this.selector_f;
-    LocalCollection._recomputeResults(this.query);
-    this.db_objects = this.query.results;
+  for(var qid in this.queries) {
+    var query = this.queries[qid];
+    query.selector_f = this.selector_f;
+    LocalCollection._recomputeResults(query);
   }
+  this.db_objects = null;
 }
 
 LocalCollection.Cursor.prototype.rewind = function () {
@@ -178,6 +182,8 @@ LocalCollection.Cursor.prototype.forEach = function (callback) {
 
   while (self.cursor_pos < self.db_objects.length) {
     var elt = EJSON.clone(self.db_objects[self.cursor_pos++]);
+    if (self.fields)
+      elt = LocalCollection._fields(elt, self.fields);
     if (self._transform)
       elt = self._transform(elt);
     callback(elt);
@@ -279,6 +285,7 @@ _.extend(LocalCollection.Cursor.prototype, {
     if (self.reactive) {
       qid = self.collection.next_qid++;
       self.collection.queries[qid] = query;
+      self.queries[qid] = query;
     }
     query.results = self._getRawObjects(ordered);
     if (self.collection.paused)
@@ -295,12 +302,22 @@ _.extend(LocalCollection.Cursor.prototype, {
           f.apply(this, arguments);
       };
     };
-    query.added = if_not_paused(options.added);
-    query.changed = if_not_paused(options.changed);
+
+    var fieldsFilter = function(f) {
+      if (! self.fields) return f;
+      else return function(id, fields, before) {
+        fields = LocalCollection._filteredChanges(fields, self.fields);
+        if (_.keys(fields).length)
+          f.call(this, id, fields, before);
+      }
+    }
+
+    query.added = fieldsFilter(if_not_paused(options.added));
+    query.changed = fieldsFilter(if_not_paused(options.changed));
     query.removed = if_not_paused(options.removed);
     if (ordered) {
       query.moved = if_not_paused(options.moved);
-      query.addedBefore = if_not_paused(options.addedBefore);
+      query.addedBefore = fieldsFilter(if_not_paused(options.addedBefore));
       query.movedBefore = if_not_paused(options.movedBefore);
     }
 
@@ -318,8 +335,11 @@ _.extend(LocalCollection.Cursor.prototype, {
     _.extend(handle, {
       collection: self.collection,
       stop: function () {
-        if (self.reactive)
+        if (self.reactive) {
           delete self.collection.queries[qid];
+          delete self.queries[qid];
+        }
+          
       }
     });
 

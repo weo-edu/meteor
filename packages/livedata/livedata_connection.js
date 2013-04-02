@@ -426,9 +426,6 @@ _.extend(Meteor._LivedataConnection.prototype, {
   subscribe: function (name /* .. [arguments] .. (callback|callbacks) */) {
     var self = this;
 
-    var name = _.toArray(arguments)[0];
-    console.log('subscribe', arguments);
-
     var params = Array.prototype.slice.call(arguments, 1);
     var callbacks = {};
     if (params.length) {
