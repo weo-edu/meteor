@@ -526,12 +526,8 @@ var SynchronousCursor = function (dbCursor, transform) {
   else
     self._transform = transform;
   self._dbCursor = dbCursor;
-  // Need to specify that the callback is the first argument to nextObject,
-  // since otherwise when we try to call it with no args the driver will
-  // interpret "undefined" first arg as an options hash and crash.
-  self._synchronousNextObject = Future.wrap(
-    dbCursor.nextObject.bind(dbCursor), 0);
-  self._synchronousCount = Future.wrap(dbCursor.count.bind(dbCursor));
+  self._synchronousNextObject = Future.wrap(dbCursor.nextObject.bind(dbCursor, {}));
+  self._synchronousCount = Future.wrap(dbCursor.count.bind(dbCursor, {}));
   self._visitedIds = {};
 };
 

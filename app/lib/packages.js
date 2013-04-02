@@ -87,7 +87,6 @@ _.extend(Package.prototype, {
 
     self.source_root = files.get_package_dir(name);
     self.serve_root = path.join(path.sep, 'packages', name);
-
     if (!self.source_root)
       throw new Error("The package named " + self.name + " does not exist.");
 

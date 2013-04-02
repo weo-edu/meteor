@@ -11,7 +11,7 @@ if(process.env.NODETIME_API_KEY) {
 
 ////////// Requires //////////
 
-var Fiber = require("fibers");
+Fiber = require("fibers");
 
 var fs = require("fs");
 var path = require("path");
@@ -20,7 +20,6 @@ var express = require('express');
 var gzippo = require('gzippo');
 var argv = require('optimist').argv;
 var mime = require('mime');
-var handlebars = require('handlebars');
 var useragent = require('useragent');
 
 // this is a copy of underscore that will be shipped just for use by
@@ -79,7 +78,7 @@ var runtime_config = function (app_html) {
 
   return app_html;
 };
-
+require('fibers')
 var run = function () {
   var bundle_dir = path.join(__dirname, '..');
 

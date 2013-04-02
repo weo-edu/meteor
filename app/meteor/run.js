@@ -423,7 +423,6 @@ var start_server = function (bundle_path, outer_port, inner_port, mongo_url,
   var proc = spawn(process.execPath,
                    [path.join(bundle_path, 'main.js'), '--keepalive'],
                    {env: env, cwd: bundle_path});
-
   // XXX deal with test server logging differently?!
 
   proc.stdout.setEncoding('utf8');

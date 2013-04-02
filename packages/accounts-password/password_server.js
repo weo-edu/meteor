@@ -28,7 +28,6 @@
     //   B: hex encoded int. server's public key for this exchange
     beginPasswordExchange: function (request) {
       var selector = selectorFromUserQuery(request.user);
-
       var user = Meteor.users.findOne(selector);
       if (!user)
         throw new Meteor.Error(403, "User not found");
