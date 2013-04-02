@@ -89,17 +89,45 @@ Commands.push({
   func: function(argv) {
     var opt = require('optimist')
       .boolean('production')
+      .boolean('recursive')
       .describe('production', 'Bundle for production mode');
 
+    if(opt.argv.recursive) {
+      var success = true;
+      var num = 0;
+      _.each(fs.readdirSync(process.cwd()), function(p) {
+        if(p[0] !== '.' && fs.existsSync(path.join(process.cwd(), p, '.meteor'))) {
+          num++;
+          console.log('process', process.env.PACKAGE_DIRS);
+          var proc = require('child_process').spawn('meteor', ['bundle'], {cwd: path.join(process.cwd(), p), env: process.env});
+          proc.stdout.on('data', function(data) {
+            console.log(p, ':', data.toString());
+          });
+          proc.stderr.on('data', function(data) {
+            console.error(p, ':', data.toString());
+          });
+          proc.on('close', function(code) {
+            success = success && ! code;
+            maybeDone();
+          });
+        }
+      });
+
+      var maybeDone = _.after(num, function() {
+        process.exit(success ? 0 : 1);
+      });
+      return;
+    }
     var new_argv = opt.argv;
     var bundle_opts = {
       no_minify: ! new_argv.production,
-      symlink_dev_bundle: true
+      skip_dev_bundle: true
     };
     var bundler = require(path.join(__dirname, '..', 'lib', 'bundler.js'));
     var app_dir = path.resolve(require_project('run', true));
     var bundle_path = path.join(app_dir, '.meteor', 'local', 'build');
-    bundler.bundle(app_dir, bundle_path, bundle_opts);
+    var ret = bundler.bundle(app_dir, bundle_path, bundle_opts);
+    if(ret) console.error('bundling errors', ret);
   }
 });
 

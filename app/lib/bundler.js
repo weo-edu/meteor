@@ -31,7 +31,8 @@ var crypto = require('crypto');
 var fs = require('fs');
 var uglify = require('uglify-js');
 var cleanCSS = require('clean-css');
-var _ = require(path.join(__dirname, 'third', 'underscore.js'));
+//var _ = require(path.join(__dirname, 'third', 'underscore.js'));
+var _ = require('underscore');
 
 // files to ignore when bundling. node has no globs, so use regexps
 exports.ignore_files = [
@@ -369,7 +370,6 @@ _.extend(Bundle.prototype, {
   use: function (pkg, where, from) {
     var self = this;
     var inst = self._get_instance(pkg);
-
     if (from)
       from.using[pkg.id] = inst;
 
@@ -390,7 +390,6 @@ _.extend(Bundle.prototype, {
 
     // XXX detect circular dependencies and print an error. (not sure
     // what the current code will do)
-
     if (pkg.on_use_handler)
       pkg.on_use_handler(inst.api, where);
   },
@@ -519,7 +518,6 @@ _.extend(Bundle.prototype, {
       dependencies_json.app.push(path.join('.meteor', 'packages'));
 
     // --- Set up build area ---
-
     // foo/bar => foo/.build.bar
     var build_path = path.join(path.dirname(output_path),
                                '.build.' + path.basename(output_path));
@@ -530,7 +528,6 @@ _.extend(Bundle.prototype, {
     files.mkdir_p(build_path, 0755);
 
     // --- Core runner code ---
-
     files.cp_r(path.join(__dirname, '..', 'server'),
                path.join(build_path, 'server'), {ignore: ignore_files});
     dependencies_json.core.push('server');
@@ -547,11 +544,11 @@ _.extend(Bundle.prototype, {
     else
       /* dev_bundle_mode === "skip" */;
 
-    fs.writeFileSync(
+    /*fs.writeFileSync(
       path.join(build_path, 'server', '.bundle_version.txt'),
       fs.readFileSync(
         path.join(files.get_dev_bundle(), '.bundle_version.txt')));
-
+    */
     // --- Static assets ---
 
     if (is_app) {
@@ -650,7 +647,8 @@ _.extend(Bundle.prototype, {
                      JSON.stringify(app_json));
     fs.writeFileSync(path.join(build_path, 'dependencies.json'),
                      JSON.stringify(dependencies_json));
-
+    fs.writeFileSync(path.join(build_path, 'js.json'), 
+                     JSON.stringify(self.js));
     // --- Move into place ---
 
     // XXX cleaner error handling (no exceptions)
@@ -689,14 +687,12 @@ _.extend(Bundle.prototype, {
  */
 exports.bundle = function (project_dir, output_path, options) {
   options = options || {};
-
   try {
     // Create a bundle, add the project
     packages.flush();
     var bundle = new Bundle;
     var project = packages.get_for_dir(project_dir, ignore_files);
     bundle.use(project);
-
     // Include tests if requested
     if (options.include_tests) {
       // in the future, let use specify the driver, instead of hardcoding?
@@ -709,13 +705,11 @@ exports.bundle = function (project_dir, output_path, options) {
     // Minify, if requested
     if (!options.no_minify)
       bundle.minify();
-
     // Write to disk
     var dev_bundle_mode =
           options.skip_dev_bundle ? "skip" : (
             options.symlink_dev_bundle ? "symlink" : "copy");
     bundle.write_to_directory(output_path, project_dir, dev_bundle_mode, options.subapp, options.dont_rm);
-
 
     if (bundle.errors.length)
       return bundle.errors;

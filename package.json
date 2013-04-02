@@ -1,0 +1,31 @@
+{
+	"name": "Meteor.weo",
+	"scripts": {
+		"preinstall": "npm install mongodb --mongodb:native"
+	},
+	"dependencies": {
+		"clean-css": "*",
+		"express": "2.5.11",
+		"fibers": "*",
+		"gzippo": "*",
+		"handlebars": "*",
+		"keypress": "*",
+		"less": "*",
+		"underscore": "*",
+		"lodash": "*",
+		"mailcomposer": "*",
+		"mime": "*",
+		"nib": "*",
+		"optimist": "*",
+		"progress": "*",
+		"request": "*",
+		"semver": "*",
+		"simplesmtp": "*",
+		"stream-buffers": "*",
+		"stylus": "0.31.0",
+		"uglify-js": "*",
+		"useragent": "*",
+		"weo-http-proxy": "git://github.com/weo-edu/node-http-proxy.git"
+	},
+	"version": "0.1.0"
+}

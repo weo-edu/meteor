@@ -9,4 +9,4 @@
 *.iml
 *.sublime-project
 *.sublime-workspace
-
+*.o

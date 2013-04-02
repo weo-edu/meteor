@@ -436,8 +436,8 @@ _Mongo.prototype._createSynchronousCursor = function (cursorDescription) {
 var SynchronousCursor = function (dbCursor) {
   var self = this;
   self._dbCursor = dbCursor;
-  self._synchronousNextObject = Future.wrap(dbCursor.nextObject.bind(dbCursor));
-  self._synchronousCount = Future.wrap(dbCursor.count.bind(dbCursor));
+  self._synchronousNextObject = Future.wrap(dbCursor.nextObject.bind(dbCursor, {}));
+  self._synchronousCount = Future.wrap(dbCursor.count.bind(dbCursor, {}));
   self._visitedIds = {};
 };
 
