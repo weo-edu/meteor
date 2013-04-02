@@ -580,13 +580,16 @@ LocalCollection._compileSelector = function (selector) {
     return function (doc) {
       return EJSON.equals(doc._id, selector);
     };
-  }
+  } else if (_.isArray(selector))
+    selector = {_id: {$in: selector}};
 
   // protect against dangerous selectors.  falsey and {_id: falsey} are both
   // likely programmer error, and not what you want, particularly for
   // destructive operations.
   if (!selector || (('_id' in selector) && !selector._id))
     return function (doc) {return false;};
+
+
 
   // Top level can't be an array or true or binary.
   if (typeof(selector) === 'boolean' || isArray(selector) ||
