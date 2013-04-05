@@ -8099,7 +8099,9 @@ function $RouteProvider(){
 
 
       if (next && last && next.$$route === last.$$route
-          && equals(next.pathParams, last.pathParams) && !next.reloadOnSearch && !forceReload) {
+          && equals(next.pathParams, last.pathParams) 
+          && (!(!equals(next.params, last.params) && next.reloadOnSearch))
+          && !forceReload) {
         last.params = next.params;
 
         scope.$routeParams = scopedParams(next.params);
@@ -15849,7 +15851,7 @@ var ngViewDirective = ['$http', '$templateCache', '$route', '$anchorScroll', '$c
           onloadExp = attr.onload || '',
           animate = $animator(scope, attr);
 
-      if (scope.hasOwnProperty('$router')) {
+      if ('$router' in scope) {
         var router = $route.scopedRouter(scope)
         scope.$router(router);
         router.updateRoute();
