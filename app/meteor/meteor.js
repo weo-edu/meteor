@@ -679,7 +679,7 @@ Commands.push({
       subapp_prefix += argv.prefix + '-';
 
     process.env.METEOR_SUBAPP_PREFIX = subapp_prefix;
-    var utils = require(process.env.PACKAGE_DIRS + '/utilities/utilities.js').utils;
+    require(process.env.PACKAGE_DIRS + '/utilities/utilities.js');
 
     var new_argv = opt.argv;
     var base_port = new_argv.port;
