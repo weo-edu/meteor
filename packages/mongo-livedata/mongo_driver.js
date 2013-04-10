@@ -125,7 +125,7 @@ _Mongo.ObjectId = function(id) {
 
 _Mongo.prototype.withDB = function(cb) {
   var self = this;
-  if (self.db) 
+  if (self.db)
     cb(self.db);
   else
     self.db_callbacks.push(cb);
@@ -301,7 +301,7 @@ _Mongo.prototype.update = function (collection_name, selector, mod, options) {
 _Mongo.prototype.findAndModify = function(collection_name, selector, sort, mod, options) {
   var self = this,
     write = self._maybeBeginWrite();
-  
+
   var finish = Meteor.bindEnvironment(function() {
     Meteor.refresh({collection: collection_name});
     write.committed();
@@ -919,7 +919,7 @@ _.extend(LiveResultsSet.prototype, {
       if (handle._added || handle._addedBefore) {
         _.each(self._results, function (doc, i) {
           var fields = EJSON.clone(doc);
-          delete fields._id;
+          //delete fields._id;
           if (self._ordered) {
             handle._added && handle._added(doc._id, fields);
             handle._addedBefore && handle._addedBefore(doc._id, fields, null);
