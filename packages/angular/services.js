@@ -286,14 +286,14 @@
 				return forupdate;
 			}
 
-			
+
 			function add(doc, collection) {
 				var self = this;
 				var jdoc = jDoc(doc, collection);
 
 				if (joinCollection.find(jdoc.query()).count() > 0)
 					return;
-				
+
 				var resultsByCollectionName = {};
 				resultsByCollectionName[collection._name] = [doc];
 				_.each(jdoc.otherCollections(), function(attr, name) {
@@ -318,7 +318,7 @@
 				doc = jDoc(doc, collection);
 				joinCollection.remove(doc.query());
 			}
-			
+
 			var cleanup = [];
 			function setupCursors(cursors) {
 				_.each(cursors, function(cursor) {
@@ -347,7 +347,7 @@
 				});
 			}
 
-			if (_.isArray(options.cursor)) {        
+			if (_.isArray(options.cursor)) {
 				setupCursors(options.cursor);
 			} else if (scope && _.isFunction(options.cursor)) {
 				var fn = _.compose(JSON.stringify, options.cursor);
@@ -403,7 +403,7 @@
 		function($rootScope, $q, $templateCache, $meteor, $collection) {
 		$rootScope.__proto__.$safeApply = function(expr) {
 			var phase = this.$root.$$phase;
-			if (phase === '$apply' || phase === '$digest') 
+			if (phase === '$apply' || phase === '$digest')
 				return this.$eval(expr);
 			else
 				return this.$apply(expr);
@@ -490,7 +490,7 @@
 				$rootScope.$throttledSafeApply(function() {
 					handle.loading = false;
 					fn();
-				});	
+				});
 			});
 
 			var _handle = Meteor.subscribe.apply(Meteor, args);
@@ -500,7 +500,7 @@
 			});
 			return handle;
 		}
-		
+
 		function user(scope) {
 			var fields = _.toArray(arguments);
 			var scope = null;
@@ -509,19 +509,18 @@
 
 			if (! fields.length)
 				fields = undefined;
-			
+
 			var def = {username: Meteor.userId(), loading: true};
 
 			//XXX add fields support
 			return $collection('users', scope).findOne(
-				{username: Meteor.userId()}, {fields: fields}, 
+				{username: Meteor.userId()}, {fields: fields},
 				def) || def;
 			//return user;
 		}
 
 		var ret = {
 			subscribe: subscribe,
-			methods: _.bind(Meteor.methods, Meteor),
 			call: _.bind(Meteor.call, Meteor),
 			apply: _.bind(Meteor.apply, Meteor),
 			user: user,
@@ -533,12 +532,23 @@
 			clearInterval: _.bind(Meteor.clearInterval, Meteor),
 			Collection: _.bind(Meteor.Collection, Meteor),
 			defer: _.bind(Meteor.defer, Meteor),
-			methods: Meteor.methods && _.bind(Meteor.methods, Meteor),
 			loginWithPassword: _.bind(Meteor.loginWithPassword, Meteor),
 			logout: _.bind(Meteor.logout, Meteor),
+			methods: function(module, methods) {
+				var namespaced = {};
+				if(arguments.length === 1)
+					namespaced = module;
+				else {
+					_.each(methods, function(val, key) {
+						namespaced[module+'.'+key] = val;
+					});
+				}
+
+				Meteor.methods(namespaced);
+			},
 			mode: function() {
-				return __meteor_runtime_config__.METEOR_DEV_MODE 
-					? 'development' 
+				return __meteor_runtime_config__.METEOR_DEV_MODE
+					? 'development'
 					: 'production';
 			}
 		};

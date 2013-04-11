@@ -272,13 +272,13 @@ Meteor.Collection._rewriteSelector = function (selector) {
   return ret;
 };
 
-//XXX add back in
 var throwIfSelectorIsNotId = function (selector, methodName) {
-  /*if (!LocalCollection._selectorIsIdPerhapsAsObject(selector)) {
+  if (!LocalCollection._selectorIsIdPerhapsAsObject(selector)) {
+    console.log('other error, throwIfSelectorIsNotId', selector);
     throw new Meteor.Error(
       403, "Not permitted. Untrusted code may only " + methodName +
         " documents by ID.");
-  }*/
+  }
 };
 
 // 'insert' immediately returns the inserted document's new _id.  The
@@ -645,9 +645,10 @@ Meteor.Collection.prototype._validatedUpdate = function(
     userId, selector, mutator, options) {
   var self = this;
 
-  // XXX add this back in
-  /*if (!LocalCollection._selectorIsIdPerhapsAsObject(selector))
-    throw new Error("validated update should be of a single ID");*/
+  if (!LocalCollection._selectorIsIdPerhapsAsObject(selector)) {
+    console.log('throwing error');
+    throw new Error("validated update should be of a single ID");
+  }
 
   // compute modified fields
   var fields = [];

@@ -647,7 +647,7 @@ _.extend(Bundle.prototype, {
                      JSON.stringify(app_json));
     fs.writeFileSync(path.join(build_path, 'dependencies.json'),
                      JSON.stringify(dependencies_json));
-    fs.writeFileSync(path.join(build_path, 'js.json'), 
+    fs.writeFileSync(path.join(build_path, 'js.json'),
                      JSON.stringify(self.js));
     // --- Move into place ---
 
@@ -727,33 +727,33 @@ function removeComments(str) {
         regex: false,
         blockComment: false,
         lineComment: false,
-        condComp: false 
+        condComp: false
     };
 
-    var regexpIds = '([{(;*/+-=';
+    var regexpIds = '([{(;*/+-=,';
     for (var i = 0, l = str.length; i < l; i++) {
- 
+
         if (mode.regex) {
             if (str[i] === '/' && str[i-1] !== '\\') {
                 mode.regex = false;
             }
             continue;
         }
- 
+
         if (mode.singleQuote) {
             if (str[i] === "'" && !(str[i-1] === '\\' && str[i-2] !== '\\')) {
                 mode.singleQuote = false;
             }
             continue;
         }
- 
+
         if (mode.doubleQuote) {
             if (str[i] === '"' && !(str[i-1] === '\\' && str[i-2] !== '\\')) {
                 mode.doubleQuote = false;
             }
             continue;
         }
- 
+
         if (mode.blockComment) {
             if (str[i] === '*' && str[i+1] === '/') {
                 str[i+1] = '';
@@ -762,7 +762,7 @@ function removeComments(str) {
             str[i] = '';
             continue;
         }
- 
+
         if (mode.lineComment) {
             if (str[i+1] === '\n' || str[i+1] === '\r') {
                 mode.lineComment = false;
@@ -770,19 +770,19 @@ function removeComments(str) {
             str[i] = '';
             continue;
         }
- 
+
         if (mode.condComp) {
             if (str[i-2] === '@' && str[i-1] === '*' && str[i] === '/') {
                 mode.condComp = false;
             }
             continue;
         }
- 
+
         mode.doubleQuote = str[i] === '"';
         mode.singleQuote = str[i] === "'";
- 
+
         if (str[i] === '/') {
- 
+
             if (str[i+1] === '*' && str[i+2] === '@') {
                 mode.condComp = true;
                 continue;
@@ -805,7 +805,7 @@ function removeComments(str) {
                 break;
               }
         }
- 
+
     }
     return str.join('').slice(2, -2);
 }
