@@ -31,7 +31,7 @@ LocalCollection._diffQueryUnorderedChanges = function (oldResults, newResults,
       }
     } else {
       var fields = EJSON.clone(newDoc);
-      delete fields._id;
+      //delete fields._id;
       observer.added && observer.added(newDoc._id, fields);
     }
   });
@@ -162,7 +162,7 @@ LocalCollection._diffQueryOrderedChanges = function (old_results, new_results, o
       newDoc = new_results[i];
       if (!_.has(old_index_of_id, newDoc._id)) {
         fields = EJSON.clone(newDoc);
-        delete fields._id;
+        //delete fields._id;
         observer.addedBefore && observer.addedBefore(newDoc._id, fields, groupId);
         observer.added && observer.added(newDoc._id, fields);
       } else {

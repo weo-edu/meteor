@@ -60,10 +60,14 @@ LocalCollection._selectorIsId = function (selector) {
 };
 
 // Is the selector just lookup by _id (shorthand or not)?
+//
+//  XXX-WEO: Added selector.username to the list of allowable
+//  types
 LocalCollection._selectorIsIdPerhapsAsObject = function (selector) {
   return LocalCollection._selectorIsId(selector) ||
     (selector && typeof selector === "object" &&
-     selector._id && LocalCollection._selectorIsId(selector._id) &&
+     (selector._id || selector.username) && (LocalCollection._selectorIsId(selector._id)
+      || LocalCollection._selectorIsId(selector.username)) &&
      _.size(selector) === 1);
 };
 
