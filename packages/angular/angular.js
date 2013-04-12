@@ -2999,7 +2999,7 @@ function $AnimationProvider($provide) {
    *
    * @param {string} name The name of the animation.
    * @param {function} factory The factory function that will be executed to return the animation object.
-   * 
+   *
    */
   this.register = function(name, factory) {
     $provide.factory(camelCase(name) + suffix, factory);
@@ -4869,7 +4869,7 @@ function $CompileProvider($provide) {
 
       $compileNode.html('');
 
-      $http.get(templateUrl, {cache: $templateCache}).
+      $http.get(templateUrl, {cache: $templateCache, headers: {Accept: 'x-angular-template'}}).
         success(function(content) {
           var compileNode, tempTemplateAttrs, $template;
 
@@ -6068,7 +6068,7 @@ function $LocationProvider(){
 function $LogProvider(){
   var debug = true,
       self = this;
-  
+
   /**
    * @ngdoc property
    * @name ng.$logProvider#debugEnabled
@@ -6085,7 +6085,7 @@ function $LogProvider(){
       return debug;
     }
   };
-  
+
   this.$get = ['$window', function($window){
     return {
       /**
@@ -6127,18 +6127,18 @@ function $LogProvider(){
        * Write an error message
        */
       error: consoleLog('error'),
-      
+
       /**
        * @ngdoc method
        * @name ng.$log#debug
        * @methodOf ng.$log
-       * 
+       *
        * @description
        * Write a debug message
        */
       debug: (function () {
       var fn = consoleLog('debug');
-      
+
       return function() {
         if (debug) {
           fn.apply(self, arguments);
@@ -7210,25 +7210,25 @@ function $ParseProvider() {
  *   you can treat promises attached to a scope as if they were the resulting values.
  * - Q has many more features that $q, but that comes at a cost of bytes. $q is tiny, but contains
  *   all the important functionality needed for common async tasks.
- * 
+ *
  *  # Testing
- * 
+ *
  *  <pre>
  *    it('should simulate promise', inject(function($q, $rootScope) {
  *      var deferred = $q.defer();
  *      var promise = deferred.promise;
  *      var resolvedValue;
- * 
+ *
  *      promise.then(function(value) { resolvedValue = value; });
  *      expect(resolvedValue).toBeUndefined();
- * 
+ *
  *      // Simulate resolving of promise
  *      deferred.resolve(123);
  *      // Note that the 'then' function does not get called synchronously.
  *      // This is because we want the promise API to always be async, whether or not
  *      // it got called synchronously or asynchronously.
  *      expect(resolvedValue).toBeUndefined();
- * 
+ *
  *      // Propagate promise resolution to 'then' functions using $apply().
  *      $rootScope.$apply();
  *      expect(resolvedValue).toEqual(123);
@@ -7667,7 +7667,7 @@ function $RouteProvider(){
     }
 
     pushRoute(scope, extend(
-      {reloadOnSearch: true}, 
+      {reloadOnSearch: true},
       route,
       path && pathRegExp(path, extend({}, options, opts))
     ));
@@ -7740,11 +7740,11 @@ function $RouteProvider(){
    * @returns {Object} self
    */
    function otherwise(scope, params) {
-    var key = scopeKey(scope), 
+    var key = scopeKey(scope),
         routes = scopedRoutes[key].routes;
 
     routes[null] = extend(
-      {reloadOnSearch: true}, 
+      {reloadOnSearch: true},
       params);
     return this;
    }
@@ -7761,7 +7761,7 @@ function $RouteProvider(){
    *   - `sensitive` enable case-sensitive routes
    *   - `strict` disable strict matching for trailing slashes
    */
-  
+
   this.options = function(opts) {
     extend(options, opts);
     return this;
@@ -8038,7 +8038,7 @@ function $RouteProvider(){
     return $route;
 
     /////////////////////////////////////////////////////
-    
+
     function basePath(scope) {
       var current  = $route.scoped(scope).current;
       if (!current) return;
@@ -8099,7 +8099,7 @@ function $RouteProvider(){
 
 
       if (next && last && next.$$route === last.$$route
-          && equals(next.pathParams, last.pathParams) 
+          && equals(next.pathParams, last.pathParams)
           && (!(!equals(next.params, last.params) && next.reloadOnSearch))
           && !forceReload) {
         last.params = next.params;
@@ -8143,7 +8143,7 @@ function $RouteProvider(){
                 }
                 if (isDefined(template)) {
                   next.loadedTemplateUrl = template;
-                  template = $http.get(template, {cache: $templateCache}).
+                  template = $http.get(template, {cache: $templateCache, headers: {Accept: 'x-angular-template'}}).
                       then(function(response) { return response.data; });
                 }
               }
@@ -9006,7 +9006,7 @@ function $RootScopeProvider(){
        *     propagation (available only for events that were `$emit`-ed).
        *   - `stopDescent` - `{function=}`: calling `stopDescent` function will cancel further event
        *     propagation to listeners on scope and children scope. events will continue to propogate to
-       *     sibling scopes and their children (available only for events that were `$broadcast`-ed). 
+       *     sibling scopes and their children (available only for events that were `$broadcast`-ed).
        *   - `preventDefault` - `{function}`: calling `preventDefault` sets `defaultPrevented` flag to true.
        *   - `defaultPrevented` - `{boolean}`: true if `preventDefault` was called.
        *
@@ -9633,7 +9633,7 @@ function $HttpProvider() {
      *
      * A custom default cache built with $cacheFactory can be provided in $http.defaults.cache.
      * To skip it, set configuration property `cache` to `false`.
-     * 
+     *
      *
      * # Interceptors
      *
@@ -10166,8 +10166,8 @@ function $HttpProvider() {
 
 
       if ((config.cache || defaults.cache) && config.cache !== false && config.method == 'GET') {
-        cache = isObject(config.cache) ? config.cache 
-              : isObject(defaults.cache) ? defaults.cache 
+        cache = isObject(config.cache) ? config.cache
+              : isObject(defaults.cache) ? defaults.cache
               : defaultCache;
       }
 
@@ -11133,7 +11133,7 @@ var DATE_FORMATS = {
      m: dateGetter('Minutes', 1),
     ss: dateGetter('Seconds', 2),
      s: dateGetter('Seconds', 1),
-     // while ISO 8601 requires fractions to be prefixed with `.` or `,` 
+     // while ISO 8601 requires fractions to be prefixed with `.` or `,`
      // we can be just safely rely on using `sss` since we currently don't support single or two digit fractions
    sss: dateGetter('Milliseconds', 3),
   EEEE: dateStrGetter('Day'),
@@ -11368,9 +11368,9 @@ var uppercaseFilter = valueFn(uppercase);
  * {@link ng.$filter} for more information about Angular arrays.
  *
  * @param {Array|string} input Source array or string to be limited.
- * @param {string|number} limit The length of the returned array or string. If the `limit` number 
+ * @param {string|number} limit The length of the returned array or string. If the `limit` number
  *     is positive, `limit` number of items from the beginning of the source array/string are copied.
- *     If the number is negative, `limit` number  of items from the end of the source array/string 
+ *     If the number is negative, `limit` number  of items from the end of the source array/string
  *     are copied. The `limit` will be trimmed if it exceeds `array.length`
  * @returns {Array|string} A new sub-array or substring of length `limit` or less if input array
  *     had less than `limit` elements.
@@ -11420,7 +11420,7 @@ var uppercaseFilter = valueFn(uppercase);
 function limitToFilter(){
   return function(input, limit) {
     if (!isArray(input) && !isString(input)) return input;
-    
+
     limit = int(limit);
 
     if (isString(input)) {
@@ -14558,7 +14558,7 @@ var ngIncludeDirective = ['$http', '$templateCache', '$anchorScroll', '$compile'
           var thisChangeId = ++changeCounter;
 
           if (src) {
-            $http.get(src, {cache: $templateCache}).success(function(response) {
+            $http.get(src, {cache: $templateCache, headers: {Accept: 'x-angular-template'}}).success(function(response) {
               if (thisChangeId !== changeCounter) return;
 
               if (childScope) childScope.$destroy();
