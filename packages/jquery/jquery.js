@@ -1555,6 +1555,7 @@ jQuery.extend({
 			// the code to shortcut on the same path as a DOM node with no cache
 			id = isNode ? elem[ internalKey ] : elem[ internalKey ] && internalKey;
 
+
 		// Avoid doing any more work than we need to when trying to get data on an
 		// object that has no data at all
 		if ( (!id || !cache[id] || (!pvt && !cache[id].data)) && getByName && data === undefined ) {
