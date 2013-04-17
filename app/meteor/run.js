@@ -497,7 +497,7 @@ var kill_server = function (handle) {
 
       var oldcwd = process.cwd();
       process.chdir(app_dir);
-      watcher = new DependencyWatcher(deps_info, app_dir, function () {        
+      watcher = new DependencyWatcher(deps_info, app_dir, function () {
         if (Status.crashing)
           log_to_clients({'system': "=> Modified -- restarting."}, env.METEOR_SUBAPP_NAME);
         Status.reset();
@@ -517,6 +517,9 @@ var kill_server = function (handle) {
 
     console.log(env.METEOR_SUBAPP_NAME, 'start bundle', +new Date());
     var child = spawn('meteor', ['bundle'], {cwd: app_dir});
+    child.stderr.on('data', function(data) {
+      console.log(data.toString());
+    });
     child.on('close', function(code) {
       if(code !== 0) {
         console.log('EXITING bundling error');

@@ -563,5 +563,3 @@
 		return ret;
 	}]);
 })(typeof window === 'undefined' ? global : window);
-
-
