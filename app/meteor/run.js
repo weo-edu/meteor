@@ -518,13 +518,11 @@ var kill_server = function (handle) {
     console.log(env.METEOR_SUBAPP_NAME, 'start bundle', +new Date());
     var child = spawn('meteor', ['bundle'], {cwd: app_dir});
     child.stderr.on('data', function(data) {
-      console.log(data.toString());
+      errors.push(data);
     });
     child.on('close', function(code) {
-      if(code !== 0) {
-        console.log('EXITING bundling error');
-        return;
-      }
+      if(code !== 0)
+        errors.push('EXITING bundling error');
 
       console.log(env.METEOR_SUBAPP_NAME, 'end bundle', +new Date());
 
@@ -594,11 +592,11 @@ var kill_server = function (handle) {
 
       // launch test bundle and server if needed.
       if (test_bundle_opts) {
-        var errors =
+        var test_errors =
           bundler.bundle(app_dir, test_bundle_path, test_bundle_opts);
-        if (errors) {
+        if (test_errors) {
           log_to_clients({system: "Errors prevented test server from starting:"}, env.METEOR_SUBAPP_NAME);
-          _.each(errors, function (e) {
+          _.each(test_errors, function (e) {
             log_to_clients({system: e}, env.METEOR_SUBAPP_NAME);
           });
           files.rm_recursive(test_bundle_path);
