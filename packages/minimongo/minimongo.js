@@ -324,7 +324,7 @@ _.extend(LocalCollection.Cursor.prototype, {
     if (!options._suppress_initial && !self.collection.paused) {
       _.each(query.results, function (doc, i) {
         var fields = EJSON.clone(doc);
-        delete fields._id;
+        //delete fields._id;
         if (ordered)
           query.addedBefore(doc._id, fields, null);
         query.added(doc._id, fields);
@@ -339,7 +339,7 @@ _.extend(LocalCollection.Cursor.prototype, {
           delete self.collection.queries[qid];
           delete self.queries[qid];
         }
-          
+
       }
     });
 
@@ -628,7 +628,7 @@ LocalCollection.prototype._modifyAndNotify = function (
 
 LocalCollection._insertInResults = function (query, doc) {
   var fields = EJSON.clone(doc);
-  delete fields._id;
+  //delete fields._id;
   if (query.ordered) {
     if (!query.sort_f) {
       query.addedBefore(doc._id, fields, null);

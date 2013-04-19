@@ -13,4 +13,5 @@ TAGS
 *.log
 *.out
 *.o
+*.d
 *.node
