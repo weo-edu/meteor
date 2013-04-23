@@ -128,7 +128,10 @@ Commands.push({
     var bundle_path = path.join(app_dir, '.meteor', 'local', 'build');
 
     var ret = bundler.bundle(app_dir, bundle_path, bundle_opts);
-    if(ret) console.error('bundling errors', ret);
+    if(ret) {
+      console.error('bundling errors', ret);
+      process.exit(1);
+    }
   }
 });
 
@@ -171,10 +174,10 @@ Commands.push({
     }
 
     var app_dir = path.resolve(require_project("run", true)); // app or package
-    var bundle_opts = { 
+    var bundle_opts = {
       no_bundle: new_argv.nobundle,
-      no_minify: !new_argv.production, 
-      symlink_dev_bundle: true 
+      no_minify: !new_argv.production,
+      symlink_dev_bundle: true
     };
     require(path.join(__dirname, 'run.js')).run(app_dir, bundle_opts, new_argv.port);
   }
@@ -757,10 +760,10 @@ Commands.push({
         env.MONGO_URL = mongo_url;
 
         var app_dir = path.join(process.cwd(), app.dir); // app or package
-        var bundle_opts = { 
+        var bundle_opts = {
           no_bundle: new_argv.nobundle,
-          no_minify: !new_argv.production, 
-          symlink_dev_bundle: true 
+          no_minify: !new_argv.production,
+          symlink_dev_bundle: true
         };
         setTimeout(function() {
           require(path.join(__dirname, 'run.js')).run(app_dir, bundle_opts, app.port, env);
@@ -792,7 +795,7 @@ Commands.push({
     function getAppForReq(req) {
       var name = u.getAppFromPath(req.url);
       var app = nameToApp(name);
-      if(name && ! app) 
+      if(name && ! app)
         return null;
 
       if(! app && req.headers.referer !== undefined) {
@@ -807,7 +810,7 @@ Commands.push({
 
         app = nameToApp(u.getAppFromPath(refpath));
       }
-      
+
       app = app || cachedRoot;
       return app;
     }
