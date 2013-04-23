@@ -173,7 +173,7 @@
 			}
 
 
-			scopedCollection.leftJoin = function(selector, options, collection2, on) {
+			scopedCollection.leftJoin = function(selector, options, on, collection2,  selector2) {
 				var results = [];
 				var docs = {};
 				var callbacks = {
@@ -215,7 +215,8 @@
 				var cursor = collection.find.call(scopedCollection, selector, options);
 				var handle = cursor.observe(callbacks);
 
-				var handle2 = collections[collection2].find({}).observe({
+				console.log('collection2', collection2);
+				var handle2 = collections[collection2].find(selector2 || {}).observe({
 					added: function(document) {
 						scope.$throttledSafeApply(function() {
 							var joinVal = u.get(document, on[1]);
@@ -585,6 +586,7 @@
 
 			args.push(function() {
 				handle && handle.emit('ready');
+				fn();
 			});
 
 			handle = Meteor.subscribe.apply(Meteor, args);
