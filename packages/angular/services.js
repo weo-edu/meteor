@@ -40,6 +40,7 @@
 
 			var cleanup = [];
 			var collection = collections[name];
+
 			if (! scope || Meteor.isServer)
 				return collection;
 
@@ -66,6 +67,21 @@
 					cleanup.push(handle);
 				}
 				return sel;
+			}
+
+			function setupResultProto(resultProto, cursor, stop) {
+				resultProto.$cursor = cursor;
+				resultProto.$stop = stop,
+				resultProto.$subscribe = function() {
+					var self = this;
+					var subscription = scope.$subscribe.apply(scope, _.toArray(arguments));
+					self.$onReady = subscription.onReady;
+					self.$stop = function() {
+						stop();
+						subscription.stop();
+					}
+					return this;
+				}
 			}
 
 
@@ -102,12 +118,11 @@
 				selector = monitor(selector, results, options, callbacks);
 
 				var cursor = collection.find.call(scopedCollection, selector, options);
-
 				var handle = cursor.observe(callbacks);
-				cleanup.push(_.bind(handle.stop, handle));
-				scope.$on('$destroy', _.bind(scopedCollection.stop, scopedCollection));
+				var stop = _.bind(handle.stop, handle)
+				cleanup.push(stop);
 				results.__proto__ = Object.create(results.__proto__);
-				results.__proto__.$cursor = cursor;
+				setupResultProto(results.__proto__, cursor, stop);
 				return results;
 			}
 
@@ -150,10 +165,90 @@
 		      }
 				});
 
-				cleanup.push(_.bind(handle.stop, handle));
-				scope.$on('$destroy', _.bind(scopedCollection.stop, scopedCollection));
-				result.__proto__ = {$cursor: cursor};
+				var stop = _.bind(handle.stop, handle);
+				cleanup.push(stop);
+				result.__proto__ = {};
+				setupResultProto(result.__proto__, cursor, stop);
 				return result;
+			}
+
+
+			scopedCollection.leftJoin = function(selector, options, on, collection2,  selector2) {
+				var results = [];
+				var docs = {};
+				var callbacks = {
+					addedAt: function(document, atIndex) {
+		        scope.$throttledSafeApply(function() {
+		        	var doc = {};
+		        	doc[name] = document;
+
+		        	var joinVal = u.get(document, on[0]);
+		        	doc._id = joinVal
+		        	hashKeyWrap(doc);
+		        	docs[joinVal] = doc;
+
+		        	var selector = {};
+		        	selector[on[1]] = joinVal;
+		        	doc[collection2] = collections[collection2].findOne(selector);
+		          results.splice(atIndex, 0, doc);
+		        });
+		      },
+		      changedAt: function(newDocument, oldDocument, atIndex) {
+		      	scope.$throttledSafeApply(function() {
+		      		results[atIndex][name] = newDocument;
+		      	});
+		      },
+		      movedTo: function(document, oldIndex, newIndex) {
+		      	scope.$throttledSafeApply(function() {
+		      		var doc = docs[u.get(document, on[0])];
+		      		results.splice(oldIndex, 1);
+		      		results.splice(newIndex, 0, doc);
+		      	});
+		      },
+		      removedAt: function(oldDocument, atIndex) {
+		      	scope.$throttledSafeApply(function() {
+		      		results.splice(atIndex, 1);
+		      		delete docs[u.get(document, on[0])];
+		      	});
+		      }
+				};
+				var cursor = collection.find.call(scopedCollection, selector, options);
+				var handle = cursor.observe(callbacks);
+
+				console.log('collection2', collection2);
+				var handle2 = collections[collection2].find(selector2 || {}).observe({
+					added: function(document) {
+						scope.$throttledSafeApply(function() {
+							var joinVal = u.get(document, on[1]);
+							if (docs[joinVal])
+								docs[joinVal][collection2] = document;
+						});
+					},
+					changed: function(newDocument) {
+						scope.$throttledSafeApply(function() {
+							var joinVal = u.get(newDocument, on[1]);
+							if (docs[joinVal])
+								docs[joinVal][collection2] = newDocument;
+						});
+					},
+					removed: function(oldDocument) {
+						scope.$throttledSafeApply(function() {
+							var joinVal = u.get(oldDocument, on[1]);
+							if (docs[joinVal])
+								delete docs[joinVal][collection2];
+						});
+					}
+				});
+
+
+				function stop() {
+					handle.stop();
+					handle2.stop();
+				}
+				cleanup.push(stop);
+				results.__proto__ = Object.create(results.__proto__);
+				setupResultProto(results.__proto__, cursor, stop);
+				return results;
 			}
 
 			scopedCollection.stop = function() {
@@ -161,6 +256,9 @@
 				cleanup = [];
 				collection.stop && collection.stop();
 			}
+
+			scope.$on('$destroy', _.bind(scopedCollection.stop, scopedCollection));
+
 			return scopedCollection;
 		}
 
@@ -483,21 +581,24 @@
 	meteorModule.factory('$meteor', ['$rootScope', '$collection', function($rootScope, $collection) {
 		function subscribe() {
 			var args = _.toArray(arguments);
-			var handle = {loading: true};
+			var handle;
 			var fn = _.isFunction(_.last(args)) ? args.pop() : _.identity;
 
 			args.push(function() {
-				$rootScope.$throttledSafeApply(function() {
-					handle.loading = false;
-					fn();
-				});
+				handle && handle.emit('ready');
+				fn();
 			});
 
-			var _handle = Meteor.subscribe.apply(Meteor, args);
-			handle.stop = _handle.stop;
+			handle = Meteor.subscribe.apply(Meteor, args);
+			handle.__proto__ = new Emitter();
+			Emitter.call(handle);
+
 			this.$on && this.$on('$destroy', function() {
 				handle.stop();
 			});
+			handle.onReady = function(fn) {
+				handle.on('ready', fn);
+			}
 			return handle;
 		}
 
