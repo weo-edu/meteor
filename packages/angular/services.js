@@ -215,7 +215,6 @@
 				var cursor = collection.find.call(scopedCollection, selector, options);
 				var handle = cursor.observe(callbacks);
 
-				console.log('collection2', collection2);
 				var handle2 = collections[collection2].find(selector2 || {}).observe({
 					added: function(document) {
 						scope.$throttledSafeApply(function() {

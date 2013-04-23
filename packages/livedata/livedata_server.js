@@ -985,6 +985,12 @@ _.extend(Meteor._LivedataSubscription.prototype, {
 
   addedString: function(collectionName, string) {
     var self = this;
+
+    if(self._deactivated)
+      return;
+    id = JSON.parse(string).id;
+    id = self._idFilter.idStringify(id);
+    Meteor._ensure(self._documents, collectionName)[id] = true;
     self._session.send({
       msg: 'addeds',
       collection: collectionName,
