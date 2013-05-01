@@ -539,6 +539,7 @@ Meteor.Collection.prototype._defineMutationMethods = function() {
             // complex selector).
             self._collection[method].apply(
               self._collection, _.toArray(arguments));
+            Meteor.Collection.emitter && Meteor.Collection.emitter.emit('mutation', self._name, method, _.toArray(arguments));
             return;
           }
 
@@ -560,10 +561,12 @@ Meteor.Collection.prototype._defineMutationMethods = function() {
                   '_validated' + method.charAt(0).toUpperCase() + method.slice(1);
             var argsWithUserId = [this.userId].concat(_.toArray(arguments));
             self[validatedMethodName].apply(self, argsWithUserId);
+            Meteor.Collection.emitter && Meteor.Collection.emitter.emit('mutation', self._name, method, _.toArray(arguments));
           } else if (self._isInsecure()) {
             // In insecure mode, allow any mutation (with a simple selector).
             self._collection[method].apply(
               self._collection, _.toArray(arguments));
+            Meteor.Collection.emitter && Meteor.Collection.emitter.emit('mutation', self._name, method, _.toArray(arguments));
           } else {
             // In secure mode, if we haven't called allow or deny, then nothing
             // is permitted.
