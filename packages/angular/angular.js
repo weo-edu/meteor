@@ -4695,6 +4695,7 @@ function $CompileProvider($provide) {
                 parentSet = parentGet.assign || function() {
                   // reset the change, or we will throw this exception on every $digest
                   lastValue = scope[scopeName] = parentGet(parentScope);
+                  debugger;
                   throw Error(NON_ASSIGNABLE_MODEL_EXPRESSION + attrs[attrName] +
                       ' (directive: ' + newIsolateScopeDirective.name + ')');
                 };
