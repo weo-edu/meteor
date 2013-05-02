@@ -36,7 +36,13 @@
 		var collections = {users: Meteor.users};
 		function maker(name, scope, local) {
 			var Collection = local ? LocalCollection : Meteor.Collection;
-			collections[name] = collections[name] || new Collection(name);
+			if(Meteor.isClient) {
+				collections[name] = collections[name]
+					|| Meteor.default_connection._stores[name]
+					|| new Collection(name);
+			} else {
+				collections[name] = collections[name] || new Collection(name);
+			}
 
 			var cleanup = [];
 			var collection = collections[name];

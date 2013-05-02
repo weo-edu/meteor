@@ -15,5 +15,5 @@ TAGS
 *.o
 *.d
 *.node
-*.gypi
 *.mk
+*.gypi

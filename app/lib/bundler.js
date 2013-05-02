@@ -178,7 +178,6 @@ _.extend(PackageInstance.prototype, {
   get_source_handler: function (extension) {
     var self = this;
     var candidates = [];
-
     if (extension in self.pkg.extensions)
       candidates.push(self.pkg.extensions[extension]);
 
@@ -225,12 +224,10 @@ _.extend(PackageInstance.prototype, {
       });
       return;
     }
-
     handler(self.bundle.api,
             path.join(self.pkg.source_root, rel_path),
             path.join(self.pkg.serve_root, rel_path),
             where);
-
     self.dependencies[rel_path] = true;
   }
 });
@@ -239,7 +236,7 @@ _.extend(PackageInstance.prototype, {
 // Bundle
 ///////////////////////////////////////////////////////////////////////////////
 
-var Bundle = function () {
+var Bundle = function (output_path) {
   var self = this;
 
   // Packages being used. Map from a package id to a PackageInstance.
@@ -261,12 +258,25 @@ var Bundle = function () {
   // list of segments of additional HTML for <head>/<body>
   self.head = [];
   self.body = [];
+  self.cache = {};
+  try {
+    self.cache = JSON.parse(fs.readFileSync(path.join(output_path, 'cache.json')), 'utf8');
+  } catch(e) {
+  }
+
 
   // list of errors encountered while bundling. array of string.
   self.errors = [];
 
   // the API available from register_extension handlers
   self.api = {
+    build_path: output_path,
+    cache: function(file, hash) {
+      if(hash) {
+        self.cache[file] = hash;
+      }
+      return self.cache[file];
+    },
     /**
      * This is the ultimate low-level API to add data to the bundle.
      *
@@ -508,7 +518,7 @@ _.extend(Bundle.prototype, {
   },
 
   // dev_bundle_mode should be "skip", "symlink", or "copy"
-  write_to_directory: function (output_path, project_dir, dev_bundle_mode, subapp, dontRm) {
+  write_to_directory: function (output_path, project_dir, dev_bundle_mode, subapp, dontRm, ignore_files) {
     var self = this;
     var app_json = {};
     var dependencies_json = {core: [], app: [], packages: {}};
@@ -649,6 +659,8 @@ _.extend(Bundle.prototype, {
                      JSON.stringify(dependencies_json));
     fs.writeFileSync(path.join(build_path, 'js.json'),
                      JSON.stringify(self.js));
+    fs.writeFileSync(path.join(build_path, 'cache.json'),
+                     JSON.stringify(self.cache));
     // --- Move into place ---
 
     // XXX cleaner error handling (no exceptions)
@@ -688,11 +700,24 @@ _.extend(Bundle.prototype, {
 exports.bundle = function (project_dir, output_path, options) {
   options = options || {};
   try {
+    var start = +new Date;
+    console.log('bundle start');
     // Create a bundle, add the project
     packages.flush();
-    var bundle = new Bundle;
-    var project = packages.get_for_dir(project_dir, ignore_files);
+    var bundle = new Bundle(output_path);
+    var ignore = ignore_files;
+
+    try {
+      var exclude = fs.readFileSync(path.join(project_dir, '.meteor', 'exclude'), 'utf8');
+      ignore = ignore.concat(_.map(exclude.split('\n'), function(line) {
+        return new RegExp(line);
+      }));
+    } catch(e) {
+    }
+
+    var project = packages.get_for_dir(project_dir, ignore);
     bundle.use(project);
+
     // Include tests if requested
     if (options.include_tests) {
       // in the future, let use specify the driver, instead of hardcoding?
@@ -709,8 +734,10 @@ exports.bundle = function (project_dir, output_path, options) {
     var dev_bundle_mode =
           options.skip_dev_bundle ? "skip" : (
             options.symlink_dev_bundle ? "symlink" : "copy");
-    bundle.write_to_directory(output_path, project_dir, dev_bundle_mode, options.subapp, options.dont_rm);
+    bundle.write_to_directory(output_path, project_dir, dev_bundle_mode,
+      options.subapp, options.dont_rm, ignore);
 
+    console.log('bundle end', +new Date - start);
     if (bundle.errors.length)
       return bundle.errors;
   } catch (err) {

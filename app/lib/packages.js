@@ -156,7 +156,6 @@ _.extend(Package.prototype, {
   // the head of the list.
   _scan_for_sources: function (api, ignore_files) {
     var self = this;
-
     // find everything in tree, sorted depth-first alphabetically.
     var file_list = files.file_list_sync(self.source_root,
                                          api.registered_extensions());
@@ -166,7 +165,6 @@ _.extend(Package.prototype, {
       });
     });
     file_list.sort(files.sort);
-
     // XXX HUGE HACK --
     // push html (template) files ahead of everything else. this is
     // important because the user wants to be able to say
@@ -249,9 +247,9 @@ var packages = module.exports = {
   // get a package that represents a particular directory on disk,
   // which might be an app, a package, or even a collection of
   // packages.
-  get_for_dir: function (project_dir) {
+  get_for_dir: function (project_dir, ignore_files) {
     if (files.is_app_dir(project_dir))
-      return packages.get_for_app(project_dir);
+      return packages.get_for_app(project_dir, ignore_files);
     else if (files.is_package_dir(project_dir))
       // this will need to change when packages are stored in more
       // than one place
@@ -279,7 +277,7 @@ var packages = module.exports = {
           ret[name] = packages.get(name);
       });
     })
-    
+
     return ret;
   },
 
