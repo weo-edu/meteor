@@ -50,14 +50,12 @@
 			if (! scope || Meteor.isServer)
 				return collection;
 
-			function evalSelector(sel) {
+
+			function normalizeSelector(sel) {
 				if(u.hasFunctions(sel)) {
-					var o = sel;
-					sel = function() {
-						return u.evalObj(_.clone(o, true));
+					return function() {
+						return u.evalObj(_.clone(sel, true));
 					};
-				} else if (_.isFunction(sel)) {
-					sel = sel();
 				}
 				return sel;
 			}
@@ -94,13 +92,12 @@
 			}
 
 
-
-
-
 			var scopedCollection = Object.create(collection);
 
 			scopedCollection.cursor = function(selector, options, onChange) {
-				var cursor = collection.find.call(scopedCollection, evalSelector(selector), options);
+				selector = normalizeSelector(selector);
+				var cursor = collection.find.call(scopedCollection,
+					_.isFunction(selector) ? selector() : selector, options);
 				watchSelector(selector, cursor, onChange);
 
 
