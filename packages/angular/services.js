@@ -50,29 +50,32 @@
 			if (! scope || Meteor.isServer)
 				return collection;
 
-			function monitor(sel, results, options, callbacks) {
+			function evalSelector(sel) {
 				if(u.hasFunctions(sel)) {
 					var o = sel;
 					sel = function() {
 						return u.evalObj(_.clone(o, true));
 					};
+				} else if (_.isFunction(sel)) {
+					sel = sel();
 				}
+				return sel;
+			}
 
+			function watchSelector(sel, cursor, onChange) {
 				if(_.isFunction(sel)) {
 					//	JSON stringify/parse are used to skirt around the fact
 					//	that angular's deep equality checker skips keys with $'s
 					//	on them, which minimongo also uses.  XXX Slow?
 					var fn = _.compose(JSON.stringify, sel);
 					var handle = scope.$watch(fn, function(s) {
-						if(s && results.$cursor) {
-							callbacks && callbacks.flush && callbacks.flush();
-							results.$cursor.replaceSelector(JSON.parse(s));
+						if(s && cursor) {
+							onChange && onChange();
+							cursor.replaceSelector(JSON.parse(s));
 						}
 					}, true);
-					sel = sel();
 					cleanup.push(handle);
 				}
-				return sel;
 			}
 
 			function setupResultProto(resultProto, cursor, stop) {
@@ -92,7 +95,26 @@
 
 
 
+
+
 			var scopedCollection = Object.create(collection);
+
+			scopedCollection.cursor = function(selector, options, onChange) {
+				var cursor = collection.find.call(scopedCollection, evalSelector(selector), options);
+				watchSelector(selector, cursor, onChange);
+
+
+				var observeChanges = cursor.observeChanges;
+				cursor.observeChanges = function(callbacks) {
+					var handle = observeChanges.call(cursor, callbacks);
+					var stop = _.bind(handle.stop, handle);
+					cleanup.push(stop);
+					return handle;
+				};
+
+				return cursor;
+			};
+
 			scopedCollection.find = function(selector, options) {
 				var results = [];
 				var callbacks = {
@@ -121,20 +143,19 @@
 				if(options && options.batch)
 					callbacks = u.batched(callbacks, options.batch.changes, options.batch.per, null, 'added');
 
-				selector = monitor(selector, results, options, callbacks);
+				var cursor = this.cursor(selector, options, callbacks.flush);
+				cursor.observe(callbacks);
 
-				var cursor = collection.find.call(scopedCollection, selector, options);
-				var handle = cursor.observe(callbacks);
-				var stop = _.bind(handle.stop, handle)
-				cleanup.push(stop);
 				results.__proto__ = Object.create(results.__proto__);
 				setupResultProto(results.__proto__, cursor, stop);
 				return results;
 			}
 
+
+
 			scopedCollection.findOne = function(selector, options , result) {
 				result = result || {};
-				selector = monitor(selector, result, options);
+
 
 				function clearExtend(fields) {
 					if (! fields) {
@@ -152,8 +173,10 @@
 				options = options || {};
 				options.limit = 1;
 
-				var cursor = collection.find.call(scopedCollection, selector, options);
-				var handle = cursor.observeChanges({
+
+				var cursor = this.cursor(selector, options);
+
+				cursor.observeChanges({
 					addedBefore: function(id, fields) {
 						scope.$throttledSafeApply(function() {
 		          clearExtend(fields);
@@ -171,8 +194,6 @@
 		      }
 				});
 
-				var stop = _.bind(handle.stop, handle);
-				cleanup.push(stop);
 				result.__proto__ = {};
 				setupResultProto(result.__proto__, cursor, stop);
 				return result;
