@@ -591,6 +591,19 @@
 		}
 
 		$rootScope.__proto__.$subscribe = $meteor.subscribe;
+		$rootScope.__proto__.$autosubscribe = function(name, fn, objectEquality) {
+			var self = this,
+				last = null,
+				next = null;
+			return self.$watch(fn, function(args) {
+				if(args !== undefined) {
+  				next = self.$subscribe.apply(self, [name].concat(args));
+  				last && last.stop();
+  				last = next;
+  				last = null;
+				}
+			}, objectEquality);
+		};
 
 		$rootScope.__proto__.$collection = function(name) {
 			return $collection(name, this);
