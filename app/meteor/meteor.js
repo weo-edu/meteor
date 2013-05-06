@@ -91,7 +91,6 @@ Commands.push({
       .boolean('production')
       .boolean('recursive')
       .describe('production', 'Bundle for production mode');
-
     if(opt.argv.recursive) {
       var success = true;
       var num = 0;
@@ -131,7 +130,8 @@ Commands.push({
     if(ret) {
       console.error('bundling errors', ret);
       process.exit(1);
-    }
+    } else
+      process.exit(0);
   }
 });
 

@@ -515,7 +515,8 @@ var kill_server = function (handle) {
     var errors = [];
     var ignore = [];
 
-    console.log(env.METEOR_SUBAPP_NAME, 'start bundle', +new Date());
+    var startBundle = +new Date;
+    console.log(env.METEOR_SUBAPP_NAME, 'start bundle');
     var child = spawn('meteor', ['bundle'], {cwd: app_dir});
     child.stderr.on('data', function(data) {
       errors.push(data);
@@ -524,7 +525,7 @@ var kill_server = function (handle) {
       if(code !== 0)
         errors.push('EXITING bundling error');
 
-      console.log(env.METEOR_SUBAPP_NAME, 'end bundle', +new Date());
+      console.log(env.METEOR_SUBAPP_NAME, 'end bundle', +new Date - startBundle);
 
       if (server_handle) {
         //  If this is a restart, don't delete the

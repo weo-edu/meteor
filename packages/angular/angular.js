@@ -8120,8 +8120,8 @@ function $RouteProvider(){
               $location.url(next.redirectTo(next.pathParams, $location.path(), $location.search()))
                        .replace();
             }
+            scope.$emit('$routeRedirect', next, last);
           }
-          scope.$emit('$routeRedirect', next, last);
         }
 
         $q.when(next).
