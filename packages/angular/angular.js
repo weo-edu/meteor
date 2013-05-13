@@ -4695,7 +4695,6 @@ function $CompileProvider($provide) {
                 parentSet = parentGet.assign || function() {
                   // reset the change, or we will throw this exception on every $digest
                   lastValue = scope[scopeName] = parentGet(parentScope);
-                  debugger;
                   throw Error(NON_ASSIGNABLE_MODEL_EXPRESSION + attrs[attrName] +
                       ' (directive: ' + newIsolateScopeDirective.name + ')');
                 };
@@ -8407,6 +8406,7 @@ function $RootScopeProvider(){
       $new: function(isolate) {
         var Child,
             child;
+
         if (isFunction(isolate)) {
           // TODO: remove at some point
           throw Error('API-CHANGE: Use $controller to instantiate controllers.');
@@ -8433,6 +8433,19 @@ function $RootScopeProvider(){
         } else {
           this.$$childHead = this.$$childTail = child;
         }
+
+        // Help out chrome's GC
+        child.$on('$destroy', function() {
+          if(Child)
+            Child.prototype = null;
+          // Async so that the $broadcast('$destroy') can traverse the rest
+          setTimeout(function() {
+            child.__proto__ = {};
+            for(var i in child)
+              child[i] = null;
+            child = null;
+          });
+        });
         return child;
       },
 
@@ -8849,8 +8862,10 @@ function $RootScopeProvider(){
         // we can't destroy the root scope or a scope that has been already destroyed
         if ($rootScope == this || this.$$destroyed) return;
         var parent = this.$parent;
+
         this.$broadcast('$destroy');
         this.$$destroyed = true;
+
         if (parent.$$childHead == this) parent.$$childHead = this.$$nextSibling;
         if (parent.$$childTail == this) parent.$$childTail = this.$$prevSibling;
         if (this.$$prevSibling) this.$$prevSibling.$$nextSibling = this.$$nextSibling;

@@ -44,7 +44,7 @@
 				collections[name] = collections[name] || new Collection(name);
 			}
 
-			var cleanup = [];
+			var cleanup = u.cleanupQueue();
 			var collection = collections[name];
 
 			if (! scope || Meteor.isServer)
@@ -72,11 +72,7 @@
 							cursor.replaceSelector(JSON.parse(s));
 						}
 					}, true);
-					cleanup.push(handle);
-					return function() {
-						cleanup = _.without(cleanup, handle);
-						handle();
-					};
+					return cleanup.add(handle);
 				}
 
 				return _.identity;
@@ -84,18 +80,21 @@
 
 			function setupResultProto(resultProto, cursor, stop) {
 				resultProto.$cursor = cursor;
-				resultProto.$stop = stop;
+				resultProto.$stop = cleanup.add(function() {
+					stop();
+					resultProto.$cursor = null;
+					resultProto.$stop = null;
+					resultProto.$subscribe = null;
+				});
 
 				resultProto.$subscribe = function() {
 					var subscription = scope.$subscribe.apply(scope, _.toArray(arguments));
 					resultProto.$onReady = subscription.onReady;
-					resultProto.$stop = function() {
-						stop();
+					resultProto.$stop = cleanup.add(_.wrap(resultProto.$stop, function(fn) {
+						fn();
 						subscription.stop();
-						resultProto.$cursor = null;
-						resultProto.$stop = null;
 						resultProto.$onReady = null;
-					};
+					}));
 					return this;
 				}
 			}
@@ -106,27 +105,20 @@
 			scopedCollection.cursor = function(selector, options, onChange) {
 				selector = normalizeSelector(selector);
 				var cursor = collection.find(_.isFunction(selector) ? selector() : selector, options);
-				var stopWatch = watchSelector(selector, cursor, onChange);
-				function stop() {
-					stopWatch();
-					cleanup = _.without(cleanup, stop);
-				}
-				cleanup.push(stop);
+				cursor.stop = cleanup.add(
+					watchSelector(selector, cursor, onChange));
 
 				var observeChanges = cursor.observeChanges;
 				cursor.observeChanges = function(callbacks) {
 					var handle = observeChanges.call(cursor, callbacks);
-					handle.stop = _.wrap(handle.stop, function stopObserveChanges(fn) {
-						stop();
+					handle.stop = cleanup.add(_.wrap(handle.stop, function stopObserveChanges(fn) {
+						cursor.stop();
 						fn.apply(handle);
-						cleanup = _.without(cleanup, stopObserveChanges);
-					});
-					cleanup.push(_.bind(handle.stop, handle));
+					}));
 					return handle;
 				};
 
 				cursor.__proto__ = Object.create(cursor.__proto__);
-				cursor.stop = stop;
 				return cursor;
 			};
 
@@ -161,13 +153,12 @@
 				var cursor = this.cursor(selector, options, callbacks.flush);
 				var handle = cursor.observe(callbacks);
 
-				results.__proto__ = Object.create(results.__proto__);
-				setupResultProto(results.__proto__, cursor, function() {
+				var stopFind = cleanup.add(function() {
 					handle.stop();
 					cursor.stop();
-					results.__proto__.$subscribe = null;
-					results.__proto__.$stop = null;
 				});
+				results.__proto__ = Object.create(results.__proto__);
+				setupResultProto(results.__proto__, cursor, stopFind);
 				return results;
 			}
 
@@ -212,16 +203,12 @@
 		      }
 				});
 
-				function stopFindOne() {
+				var stopFindOne = cleanup.add(function() {
 					handle.stop();
 					cursor.stop();
-					result.__proto__.$subscribe = null;
-					result.__proto__.$stop = null;
 					scope = null;
-					cleanup = _.without(cleanup, stopFindOne);
-				}
+				});
 				result.__proto__ = {};
-				cleanup.push(stopFindOne);
 				setupResultProto(result.__proto__, cursor, stopFindOne);
 				return result;
 			}
@@ -304,27 +291,24 @@
 				var handle2 = collections[collection2].find(selector2 || {})
 					.observe(leftJoinRightCallbacks(results, docs, collection2, on));
 
-				function stop() {
+				var stop = cleanup.add(function() {
 					handle.stop();
 					handle2.stop();
-					cleanup = _.without(cleanup, stop);
-					results.__proto__.$subscribe = null;
-					results.__proto__.$stop = null;
-				}
+					results.__proto__ = {};
+				});
 
-				cleanup.push(stop);
 				results.__proto__ = Object.create(results.__proto__);
 				setupResultProto(results.__proto__, cursor, stop);
 				return results;
 			}
 
 			scopedCollection.stop = function stopCollection() {
-				_.each(cleanup, u.coerce);
-				cleanup = [];
-				off();
+				cleanup.run();
 			};
 
-			var off = scope.$on('$destroy', _.bind(scopedCollection.stop, scopedCollection));
+			cleanup.add(
+				scope.$on('$destroy', _.bind(scopedCollection.stop, scopedCollection)));
+
 			return scopedCollection;
 		}
 
@@ -483,11 +467,11 @@
 				joinCollection.remove(doc.query());
 			}
 
-			var cleanup = [];
+			var cleanup = u.cleanupQueue();
 			function setupCursors(cursors) {
 				_.each(cursors, function(cursor) {
 					var cursorCollection = maker.union(cursor);
-					cleanup.push(_.bind(cursorCollection.stop, cursorCollection));
+					cleanup.add(_.bind(cursorCollection.stop, cursorCollection));
 					collectionsByName[cursor.collection._name] = cursorCollection;
 					cursorCollection._name = cursor.collection._name;
 				});
@@ -505,7 +489,7 @@
 							remove(doc, cursor.collection);
 						}
 					});
-					cleanup.push(_.bind(handle.stop, handle));
+					cleanup.add(_.bind(handle.stop, handle));
 				});
 			}
 
@@ -521,12 +505,11 @@
 				});
 			}
 			joinCollection.stop = function joinCollectionStop() {
-				_.each(cleanup, u.coerce);
-				cleanup = [];
+				cleanup.run();
 			}
 
 			scope && scope.$on('$destroy', function() {
-				_.each(cleanup, u.coerce);
+				cleanup.run();
 				joinCollection.stop && joinCollection.stop();
 			});
 			return maker(id, scope, true);
@@ -641,7 +624,7 @@
   				next = self.$subscribe.apply(self, [name].concat(args));
   				last && last.stop();
   				last = next;
-  				last = null;
+  				//last = null;
 				}
 			}, objectEquality);
 		};
@@ -672,7 +655,6 @@
 
 			var oldStop = _.bind(handle.stop, handle);
 			handle.onReady = _.bind(handle.on, handle, 'ready');
-			var off = this.$on && this.$on('$destroy', oldStop);
 			handle.stop = function() {
 				handle.stopped = true;
 				off && off();
@@ -681,6 +663,7 @@
 				handle = null;
 				oldStop = null;
 			};
+			var off = this.$on && this.$on('$destroy', handle.stop);
 			return handle;
 		}
 
