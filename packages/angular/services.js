@@ -147,8 +147,12 @@
 		      	});
 		      }
 				};
-				if(options && options.batch)
-					callbacks = u.batched(callbacks, options.batch.changes, options.batch.per, null, 'added');
+
+				if(options && options.batch) {
+					var batch = options.batch;
+					callbacks = u.batched(callbacks, batch.changes,
+						batch.per, batch.after, null, 'addedAt');
+				}
 
 				var cursor = this.cursor(selector, options, callbacks.flush);
 				var handle = cursor.observe(callbacks);
@@ -156,6 +160,8 @@
 				var stopFind = cleanup.add(function() {
 					handle.stop();
 					cursor.stop();
+					if(options && options.batch)
+						callbacks.stop();
 				});
 				results.__proto__ = Object.create(results.__proto__);
 				setupResultProto(results.__proto__, cursor, stopFind);
