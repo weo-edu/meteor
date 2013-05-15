@@ -32,7 +32,7 @@
 		return _.keys(doc).length > 1;
 	}
 
-	meteorModule.factory('$collection', function() {
+	meteorModule.factory('$collection', function meteorCollectionService() {
 		var collections = {users: Meteor.users};
 		function maker(name, scope, local) {
 			var Collection = local ? LocalCollection : Meteor.Collection;
@@ -86,7 +86,7 @@
 					self.$stop = function() {
 						stop();
 						subscription.stop();
-					}
+					};
 					return this;
 				}
 			}
@@ -267,25 +267,27 @@
 				function stop() {
 					handle.stop();
 					handle2.stop();
+					cleanup = _.without(cleanup, stop);
 				}
+
 				cleanup.push(stop);
+				window.cleanup = cleanup;
 				results.__proto__ = Object.create(results.__proto__);
 				setupResultProto(results.__proto__, cursor, stop);
 				return results;
 			}
 
-			scopedCollection.stop = function() {
+			scopedCollection.stop = function stopCollection() {
 				_.each(cleanup, u.coerce);
 				cleanup = [];
 				collection.stop && collection.stop();
 			}
 
 			scope.$on('$destroy', _.bind(scopedCollection.stop, scopedCollection));
-
 			return scopedCollection;
 		}
 
-		maker.union = function() {
+		maker.union = function makerUnion() {
 			var id = Meteor.uuid();
 			var cursors = _.toArray(arguments);
 			var collection = maker(id, null, true);
@@ -304,14 +306,14 @@
 				}));
 			});
 
-			collection.stop = function() {
+			collection.stop = function joinCollStop() {
 				_.invoke(handles, 'stop');
 				delete collections[id];
 			}
 			return collection;
 		}
 
-		maker.join = function(options, scope) {
+		maker.join = function makerJoin(options, scope) {
 			var id = Meteor.uuid();
 			var joinCollection = maker(id, null, true);
 			var collectionsByName = _.clone(collections);
@@ -479,7 +481,7 @@
 					setupCursors(cursors);
 				});
 			}
-			joinCollection.stop = function() {
+			joinCollection.stop = function joinCollectionStop() {
 				_.each(cleanup, u.coerce);
 				cleanup = [];
 			}
