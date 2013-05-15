@@ -211,7 +211,7 @@ Meteor._LivedataConnection = function (url, options) {
       self._livedata_datas(msg);
     else if (msg.msg === 'nosub')
       self._livedata_nosub(msg);
-    else if (msg.msg === 'result') 
+    else if (msg.msg === 'result')
       self._livedata_result(msg);
     else if (msg.msg === 'error')
       self._livedata_error(msg);

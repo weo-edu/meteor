@@ -44,7 +44,7 @@
 				collections[name] = collections[name] || new Collection(name);
 			}
 
-			var cleanup = [];
+			var cleanup = u.cleanupQueue();
 			var collection = collections[name];
 
 			if (! scope || Meteor.isServer)
@@ -72,21 +72,29 @@
 							cursor.replaceSelector(JSON.parse(s));
 						}
 					}, true);
-					cleanup.push(handle);
+					return cleanup.add(handle);
 				}
+
+				return _.identity;
 			}
 
 			function setupResultProto(resultProto, cursor, stop) {
 				resultProto.$cursor = cursor;
-				resultProto.$stop = stop,
+				resultProto.$stop = cleanup.add(function() {
+					stop();
+					resultProto.$cursor = null;
+					resultProto.$stop = null;
+					resultProto.$subscribe = null;
+				});
+
 				resultProto.$subscribe = function() {
-					var self = this;
 					var subscription = scope.$subscribe.apply(scope, _.toArray(arguments));
-					self.$onReady = subscription.onReady;
-					self.$stop = function() {
-						stop();
+					resultProto.$onReady = subscription.onReady;
+					resultProto.$stop = cleanup.add(_.wrap(resultProto.$stop, function(fn) {
+						fn();
 						subscription.stop();
-					};
+						resultProto.$onReady = null;
+					}));
 					return this;
 				}
 			}
@@ -96,19 +104,21 @@
 
 			scopedCollection.cursor = function(selector, options, onChange) {
 				selector = normalizeSelector(selector);
-				var cursor = collection.find.call(scopedCollection,
-					_.isFunction(selector) ? selector() : selector, options);
-				watchSelector(selector, cursor, onChange);
-
+				var cursor = collection.find(_.isFunction(selector) ? selector() : selector, options);
+				cursor.stop = cleanup.add(
+					watchSelector(selector, cursor, onChange));
 
 				var observeChanges = cursor.observeChanges;
 				cursor.observeChanges = function(callbacks) {
 					var handle = observeChanges.call(cursor, callbacks);
-					var stop = _.bind(handle.stop, handle);
-					cleanup.push(stop);
+					handle.stop = cleanup.add(_.wrap(handle.stop, function stopObserveChanges(fn) {
+						cursor.stop();
+						fn.apply(handle);
+					}));
 					return handle;
 				};
 
+				cursor.__proto__ = Object.create(cursor.__proto__);
 				return cursor;
 			};
 
@@ -141,10 +151,14 @@
 					callbacks = u.batched(callbacks, options.batch.changes, options.batch.per, null, 'added');
 
 				var cursor = this.cursor(selector, options, callbacks.flush);
-				cursor.observe(callbacks);
+				var handle = cursor.observe(callbacks);
 
+				var stopFind = cleanup.add(function() {
+					handle.stop();
+					cursor.stop();
+				});
 				results.__proto__ = Object.create(results.__proto__);
-				setupResultProto(results.__proto__, cursor, stop);
+				setupResultProto(results.__proto__, cursor, stopFind);
 				return results;
 			}
 
@@ -152,7 +166,6 @@
 
 			scopedCollection.findOne = function(selector, options , result) {
 				result = result || {};
-
 
 				function clearExtend(fields) {
 					if (! fields) {
@@ -172,8 +185,7 @@
 
 
 				var cursor = this.cursor(selector, options);
-
-				cursor.observeChanges({
+				var handle = cursor.observeChanges({
 					addedBefore: function(id, fields) {
 						scope.$throttledSafeApply(function() {
 		          clearExtend(fields);
@@ -191,16 +203,23 @@
 		      }
 				});
 
+				var stopFindOne = cleanup.add(function() {
+					handle.stop();
+					cursor.stop();
+					scope = null;
+				});
 				result.__proto__ = {};
-				setupResultProto(result.__proto__, cursor, stop);
+				setupResultProto(result.__proto__, cursor, stopFindOne);
 				return result;
 			}
 
 
-			scopedCollection.leftJoin = function(selector, options, on, collection2,  selector2) {
-				var results = [];
-				var docs = {};
-				var callbacks = {
+			/*
+				Move these callbacks outside of the .leftJoin function
+				to avoid putting them inside that closure
+			*/
+			function leftJoinLeftCallbacks(results, docs, collection2, on) {
+				return {
 					addedAt: function(document, atIndex) {
 		        scope.$throttledSafeApply(function() {
 		        	var doc = {};
@@ -236,10 +255,10 @@
 		      	});
 		      }
 				};
-				var cursor = collection.find.call(scopedCollection, selector, options);
-				var handle = cursor.observe(callbacks);
+			}
 
-				var handle2 = collections[collection2].find(selector2 || {}).observe({
+			function leftJoinRightCallbacks(results, docs, collection2, on) {
+				return {
 					added: function(document) {
 						scope.$throttledSafeApply(function() {
 							var joinVal = u.get(document, on[1]);
@@ -261,29 +280,35 @@
 								delete docs[joinVal][collection2];
 						});
 					}
-				});
+				};
+			}
 
+			scopedCollection.leftJoin = function(selector, options, on, collection2,  selector2) {
+				var results = [];
+				var docs = {};
+				var cursor = collection.find(selector, options);
+				var handle = cursor.observe(leftJoinLeftCallbacks(results, docs, collection2, on));
+				var handle2 = collections[collection2].find(selector2 || {})
+					.observe(leftJoinRightCallbacks(results, docs, collection2, on));
 
-				function stop() {
+				var stop = cleanup.add(function() {
 					handle.stop();
 					handle2.stop();
-					cleanup = _.without(cleanup, stop);
-				}
+					results.__proto__ = {};
+				});
 
-				cleanup.push(stop);
-				window.cleanup = cleanup;
 				results.__proto__ = Object.create(results.__proto__);
 				setupResultProto(results.__proto__, cursor, stop);
 				return results;
 			}
 
 			scopedCollection.stop = function stopCollection() {
-				_.each(cleanup, u.coerce);
-				cleanup = [];
-				collection.stop && collection.stop();
-			}
+				cleanup.run();
+			};
 
-			scope.$on('$destroy', _.bind(scopedCollection.stop, scopedCollection));
+			cleanup.add(
+				scope.$on('$destroy', _.bind(scopedCollection.stop, scopedCollection)));
+
 			return scopedCollection;
 		}
 
@@ -442,13 +467,11 @@
 				joinCollection.remove(doc.query());
 			}
 
-			var cleanup = [];
+			var cleanup = u.cleanupQueue();
 			function setupCursors(cursors) {
 				_.each(cursors, function(cursor) {
 					var cursorCollection = maker.union(cursor);
-					cleanup.push(function() {
-						cursorCollection.stop();
-					});
+					cleanup.add(_.bind(cursorCollection.stop, cursorCollection));
 					collectionsByName[cursor.collection._name] = cursorCollection;
 					cursorCollection._name = cursor.collection._name;
 				});
@@ -466,7 +489,7 @@
 							remove(doc, cursor.collection);
 						}
 					});
-					cleanup.push(_.bind(handle.stop, handle));
+					cleanup.add(_.bind(handle.stop, handle));
 				});
 			}
 
@@ -482,12 +505,11 @@
 				});
 			}
 			joinCollection.stop = function joinCollectionStop() {
-				_.each(cleanup, u.coerce);
-				cleanup = [];
+				cleanup.run();
 			}
 
 			scope && scope.$on('$destroy', function() {
-				_.each(cleanup, u.coerce);
+				cleanup.run();
 				joinCollection.stop && joinCollection.stop();
 			});
 			return maker(id, scope, true);
@@ -602,7 +624,7 @@
   				next = self.$subscribe.apply(self, [name].concat(args));
   				last && last.stop();
   				last = next;
-  				last = null;
+  				//last = null;
 				}
 			}, objectEquality);
 		};
@@ -628,15 +650,20 @@
 			});
 
 			handle = Meteor.subscribe.apply(Meteor, args);
-			handle.__proto__ = new Emitter();
+			handle.__proto__ = Emitter.prototype;
 			Emitter.call(handle);
 
-			this.$on && this.$on('$destroy', function() {
-				handle.stop();
-			});
-			handle.onReady = function(fn) {
-				handle.on('ready', fn);
-			}
+			var oldStop = _.bind(handle.stop, handle);
+			handle.onReady = _.bind(handle.on, handle, 'ready');
+			handle.stop = function() {
+				handle.stopped = true;
+				off && off();
+				oldStop();
+				handle.onReady = null;
+				handle = null;
+				oldStop = null;
+			};
+			var off = this.$on && this.$on('$destroy', handle.stop);
 			return handle;
 		}
 

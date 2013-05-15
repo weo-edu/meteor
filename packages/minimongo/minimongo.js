@@ -338,8 +338,10 @@ _.extend(LocalCollection.Cursor.prototype, {
         if (self.reactive) {
           delete self.collection.queries[qid];
           delete self.queries[qid];
+          // GC Hints
+          query = null;
+          handle = null;
         }
-
       }
     });
 
