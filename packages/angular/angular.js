@@ -5813,6 +5813,7 @@ function LocationHashbangInHtml5Url(url, hashPrefix, appBaseUrl, baseExtra) {
 
 
   this.$$rewriteAppUrl = function(absoluteLinkUrl) {
+    console.log('url', absoluteLinkUrl);
     if (absoluteLinkUrl.indexOf(appBaseUrl) == 0) {
       return appBaseUrl + baseExtra + '#' + hashPrefix  + absoluteLinkUrl.substr(appBaseUrl.length);
     }
