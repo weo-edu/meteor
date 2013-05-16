@@ -188,8 +188,8 @@ _.extend(Meteor._SessionCollectionView.prototype, {
     var self = this;
     var docView = self.documents[id];
     if (!docView) {
-      var err = new Error("Removed nonexistent document " + id);
-      throw err;
+     var err = new Error("Removed nonexistent document " + id);
+     throw err;
     }
     delete docView.existsIn[subscriptionHandle];
     if (_.isEmpty(docView.existsIn)) {
@@ -901,6 +901,7 @@ _.extend(Meteor._LivedataSubscription.prototype, {
       self.ready();
     } else if(res && '_publish' in res) {
       res._publish(self);
+      self.ready();
     }
   },
 
@@ -981,21 +982,6 @@ _.extend(Meteor._LivedataSubscription.prototype, {
     id = self._idFilter.idStringify(id);
     Meteor._ensure(self._documents, collectionName)[id] = true;
     self._session.added(self._subscriptionHandle, collectionName, id, fields);
-  },
-
-  addedString: function(collectionName, string) {
-    var self = this;
-
-    if(self._deactivated)
-      return;
-    id = JSON.parse(string).id;
-    id = self._idFilter.idStringify(id);
-    Meteor._ensure(self._documents, collectionName)[id] = true;
-    self._session.send({
-      msg: 'addeds',
-      collection: collectionName,
-      fields: string
-    });
   },
 
   changed: function (collectionName, id, fields) {
