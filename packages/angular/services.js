@@ -611,7 +611,7 @@
 		$rootScope.__proto__.$when = function(expr, fn) {
 			var handle = this.$watch(expr, function(val) {
 				if(!! val) {
-					fn(val);
+					fn && fn(val);
 					handle();
 				}
 			});
