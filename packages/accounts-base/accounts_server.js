@@ -324,8 +324,8 @@
 
     Meteor.users.update({'services.resume.loginTokens.when' : {$lt: cutoff}}, {
       $pull: {
-        'services.resume.loginTokens.when': {
-          $lt: cutoff
+        'services.resume.loginTokens': {
+          when: {$lt: cutoff}
         }
       }
     }, {multi: true});
