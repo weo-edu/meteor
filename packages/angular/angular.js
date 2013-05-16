@@ -5813,6 +5813,7 @@ function LocationHashbangInHtml5Url(url, hashPrefix, appBaseUrl, baseExtra) {
 
 
   this.$$rewriteAppUrl = function(absoluteLinkUrl) {
+    console.log('url', absoluteLinkUrl);
     if (absoluteLinkUrl.indexOf(appBaseUrl) == 0) {
       return appBaseUrl + baseExtra + '#' + hashPrefix  + absoluteLinkUrl.substr(appBaseUrl.length);
     }
@@ -8442,7 +8443,7 @@ function $RootScopeProvider(){
           setTimeout(function() {
             child.__proto__ = {};
             for(var i in child)
-              child[i] = null;
+              delete child[i];
             child = null;
           });
         });
