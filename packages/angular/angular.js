@@ -847,6 +847,11 @@ function toKeyValue(obj) {
   return parts.length ? parts.join('&') : '';
 }
 
+var queryString = {
+  parse: parseKeyValue,
+  stringify: toKeyValue
+};
+
 
 /**
  * We need our custom method because encodeURIComponent is too aggressive and doesn't follow
@@ -5531,7 +5536,7 @@ function LocationUrl(url, pathPrefix, appBaseUrl) {
     }
 
     this.$$path = decodeURIComponent(match.path.substr(pathPrefix.length));
-    this.$$search = parseKeyValue(match.search);
+    this.$$search = queryString.parse(match.search);
     this.$$hash = match.hash && decodeURIComponent(match.hash) || '';
 
     this.$$compose();
@@ -5542,7 +5547,7 @@ function LocationUrl(url, pathPrefix, appBaseUrl) {
    * @private
    */
   this.$$compose = function() {
-    var search = toKeyValue(this.$$search),
+    var search = queryString.stringify(this.$$search),
         hash = this.$$hash ? '#' + encodeUriSegment(this.$$hash) : '';
 
     this.$$url = encodePath(this.$$path) + (search ? '?' + search : '') + hash;
@@ -5594,7 +5599,7 @@ function LocationHashbangUrl(url, hashPrefix, appBaseUrl) {
       this.$$path = '';
     }
 
-    this.$$search = parseKeyValue(match[3]);
+    this.$$search = queryString.parse(match[3]);
     this.$$hash = match[5] && decodeURIComponent(match[5]) || '';
 
     this.$$compose();
@@ -5605,7 +5610,7 @@ function LocationHashbangUrl(url, hashPrefix, appBaseUrl) {
    * @private
    */
   this.$$compose = function() {
-    var search = toKeyValue(this.$$search),
+    var search = queryString.stringify(this.$$search),
         hash = this.$$hash ? '#' + encodeUriSegment(this.$$hash) : '';
 
     this.$$url = encodePath(this.$$path) + (search ? '?' + search : '') + hash;
@@ -5767,7 +5772,7 @@ LocationUrl.prototype = {
         this.$$search[search] = paramValue;
       }
     } else {
-      this.$$search = isString(search) ? parseKeyValue(search) : search;
+      this.$$search = isString(search) ? queryString.parse(search) : search;
     }
 
     this.$$compose();
@@ -5914,6 +5919,19 @@ function $LocationProvider(){
       return html5Mode;
     }
   };
+
+  /**
+   * @ngdoc property
+   * @name ng.$locationProvider#queryString
+   * @methodOf ng.$locationProvider
+   * @description
+   * Custom query string encoding and decoding.
+   * @param {function} encode query string encoder
+   * @param {function} decode query string decoder
+   */
+  this.queryString = function(qs) {
+    queryString = qs;
+  }
 
   this.$get = ['$rootScope', '$browser', '$sniffer', '$rootElement',
       function( $rootScope,   $browser,   $sniffer,   $rootElement) {
