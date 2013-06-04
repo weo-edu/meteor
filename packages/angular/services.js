@@ -711,19 +711,17 @@
 
 		var ret = {
 			subscribe: subscribe,
-			call: _.bind(Meteor.call, Meteor),
-			apply: _.bind(Meteor.apply, Meteor),
+			call: Meteor.call && _.bind(Meteor.call, Meteor),
+			apply: Meteor.apply && _.bind(Meteor.apply, Meteor),
 			user: user,
 			isClient: Meteor.isClient,
 			isServer: Meteor.isServer,
-			setTimeout: _.bind(Meteor.setTimeout, Meteor),
-			setInterval: _.bind(Meteor.setInterval, Meteor),
-			clearTimeout: _.bind(Meteor.clearTimeout, Meteor),
-			clearInterval: _.bind(Meteor.clearInterval, Meteor),
-			Collection: _.bind(Meteor.Collection, Meteor),
-			defer: _.bind(Meteor.defer, Meteor),
-			loginWithPassword: _.bind(Meteor.loginWithPassword, Meteor),
-			logout: _.bind(Meteor.logout, Meteor),
+			setTimeout: Meteor.setTimeout && _.bind(Meteor.setTimeout, Meteor),
+			setInterval: Meteor.setInterval && _.bind(Meteor.setInterval, Meteor),
+			clearTimeout: Meteor.clearTimeout && _.bind(Meteor.clearTimeout, Meteor),
+			clearInterval: Meteor.clearInterval && _.bind(Meteor.clearInterval, Meteor),
+			Collection: Meteor.Collection && _.bind(Meteor.Collection, Meteor),
+			defer: Meteor.defer && _.bind(Meteor.defer, Meteor),
 			methods: function(module, methods) {
 				var namespaced = {};
 				if(arguments.length === 1)
@@ -758,6 +756,8 @@
 			}
 		};
 		if(Meteor.isClient && Meteor.default_connection) {
+			ret.logout = _.bind(Meteor.logout, Meteor);
+			ret.loginWithPassword = _.bind(Meteor.loginWithPassword, Meteor);
 			ret.status = _.bind(Meteor.default_connection.status, Meteor.default_connection);
 			ret.userId = _.bind(Meteor.default_connection.userIdAsync, Meteor.default_connection);
 			ret.reconnect = _.bind(Meteor.reconnect, Meteor);
