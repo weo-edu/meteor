@@ -8459,6 +8459,8 @@ function $RootScopeProvider(){
             Child.prototype = null;
           // Async so that the $broadcast('$destroy') can traverse the rest
           setTimeout(function() {
+            if (child === null)
+              return;
             child.__proto__ = {};
             for(var i in child)
               delete child[i];
