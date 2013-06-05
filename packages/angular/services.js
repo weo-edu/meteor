@@ -21,10 +21,13 @@
 	function hashFn() {
 		return this._id;
 	}
-	var hashWrap = {$$hashKey: hashFn};
+
 	function hashKeyWrap(o) {
-		if(! o.$$hashKey)
+		var hashWrap = {$$hashKey: hashFn};
+		if(! o.$$hashKey) {
+			hashWrap.__proto__ = o.__proto__;
 			o.__proto__ = hashWrap;
+		}
 		return o;
 	}
 
@@ -104,7 +107,11 @@
 
 			scopedCollection.cursor = function(selector, options, onChange) {
 				selector = normalizeSelector(selector);
-				var cursor = collection.find(_.isFunction(selector) ? selector() : selector, options);
+				var cursor = collection.find(_.isFunction(selector)
+					? selector()
+					: selector, options
+				);
+
 				cursor.stop = cleanup.add(
 					watchSelector(selector, cursor, onChange));
 
@@ -123,6 +130,7 @@
 			};
 
 			scopedCollection.find = function(selector, options) {
+				var self = this;
 				var results = [];
 				var callbacks = {
 					addedAt: function(document, atIndex) {
@@ -148,7 +156,8 @@
 		      }
 				};
 
-				if(options && options.batch) {
+				options = options || {};
+				if(options.batch) {
 					var batch = options.batch;
 					callbacks = u.batched(callbacks, batch.changes,
 						batch.per, batch.after, null, 'addedAt');
@@ -171,6 +180,7 @@
 
 
 			scopedCollection.findOne = function(selector, options , result) {
+				var self = this;
 				result = result || {};
 
 				function clearExtend(fields) {
@@ -189,20 +199,27 @@
 				options = options || {};
 				options.limit = 1;
 
-
+				var proto = {};
 				var cursor = this.cursor(selector, options);
-				var handle = cursor.observeChanges({
-					addedBefore: function(id, fields) {
+				var handle = cursor.observe({
+					addedAt: function(doc) {
+						// Don't assign to result.__proto__
+						// use the saved proto variable, otherwise
+						// we risk creating an infinitely long
+						// prototype chain as objects are added
+						// and removed.
+						doc.__proto__ = proto;
+						result.__proto__ = doc.__proto__;
 						scope.$throttledSafeApply(function() {
-		          clearExtend(fields);
+		          clearExtend(doc);
 		        });
 		      },
-		      changed: function(id, fields) {
+		      changedAt: function(doc) {
 	      		scope.$throttledSafeApply(function() {
-		      		clearExtend(fields);
+		      		clearExtend(doc);
 		      	});
 		      },
-		      removed: function(id) {
+		      removedAt: function(doc) {
 	      		scope.$throttledSafeApply(function() {
 		      		clearExtend();
 		      	});
@@ -214,8 +231,9 @@
 					cursor.stop();
 					scope = null;
 				});
-				result.__proto__ = {};
-				setupResultProto(result.__proto__, cursor, stopFindOne);
+
+				result.__proto__ = proto;
+				setupResultProto(proto, cursor, stopFindOne);
 				return result;
 			}
 
@@ -693,26 +711,39 @@
 
 		var ret = {
 			subscribe: subscribe,
-			call: _.bind(Meteor.call, Meteor),
-			apply: _.bind(Meteor.apply, Meteor),
+			call: Meteor.call && _.bind(Meteor.call, Meteor),
+			apply: Meteor.apply && _.bind(Meteor.apply, Meteor),
 			user: user,
 			isClient: Meteor.isClient,
 			isServer: Meteor.isServer,
-			setTimeout: _.bind(Meteor.setTimeout, Meteor),
-			setInterval: _.bind(Meteor.setInterval, Meteor),
-			clearTimeout: _.bind(Meteor.clearTimeout, Meteor),
-			clearInterval: _.bind(Meteor.clearInterval, Meteor),
-			Collection: _.bind(Meteor.Collection, Meteor),
-			defer: _.bind(Meteor.defer, Meteor),
-			loginWithPassword: _.bind(Meteor.loginWithPassword, Meteor),
-			logout: _.bind(Meteor.logout, Meteor),
+			setTimeout: Meteor.setTimeout && _.bind(Meteor.setTimeout, Meteor),
+			setInterval: Meteor.setInterval && _.bind(Meteor.setInterval, Meteor),
+			clearTimeout: Meteor.clearTimeout && _.bind(Meteor.clearTimeout, Meteor),
+			clearInterval: Meteor.clearInterval && _.bind(Meteor.clearInterval, Meteor),
+			Collection: Meteor.Collection && _.bind(Meteor.Collection, Meteor),
+			defer: Meteor.defer && _.bind(Meteor.defer, Meteor),
 			methods: function(module, methods) {
 				var namespaced = {};
 				if(arguments.length === 1)
 					namespaced = module;
 				else {
 					_.each(methods, function(val, key) {
-						namespaced[module+'.'+key] = val;
+						var path = module+'.'+key;
+						// XXX Hack to work around angular re-running
+						// our .run blocks in tests
+						if(Meteor.isClient) {
+							// Ugh, meteor uses different naming conventions for
+							// the server and client.
+							if(Meteor.default_connection._methodHandlers
+								&& Meteor.default_connection._methodHandlers[path])
+								delete Meteor.default_connection._methodHandlers[path];
+						} else {
+							if(Meteor.default_server.method_handlers
+								&& Meteor.default_server.method_handlers[path])
+								delete Meteor.default_server.method_handlers[path];
+						}
+
+						namespaced[path] = val;
 					});
 				}
 
@@ -725,6 +756,8 @@
 			}
 		};
 		if(Meteor.isClient && Meteor.default_connection) {
+			ret.logout = _.bind(Meteor.logout, Meteor);
+			ret.loginWithPassword = _.bind(Meteor.loginWithPassword, Meteor);
 			ret.status = _.bind(Meteor.default_connection.status, Meteor.default_connection);
 			ret.userId = _.bind(Meteor.default_connection.userIdAsync, Meteor.default_connection);
 			ret.reconnect = _.bind(Meteor.reconnect, Meteor);
