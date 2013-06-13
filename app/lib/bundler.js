@@ -343,6 +343,7 @@ var Bundle = function (output_path) {
           if (w !== "client")
             throw new Error("HTML segments can only go to the client");
           self[options.type].push(data);
+          self[options.type+'Attrs'] = options.attrs;
         } else if (options.type === "static") {
           self.files[w][options.path] = data;
         } else {
@@ -496,6 +497,7 @@ _.extend(Bundle.prototype, {
       scripts: self.js.client,
       head_extra: self.head.join('\n'),
       body_extra: self.body.join('\n'),
+      body_attrs: self.bodyAttrs,
       stylesheets: self.css
     });
   },
