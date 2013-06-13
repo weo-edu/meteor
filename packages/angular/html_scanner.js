@@ -130,8 +130,17 @@ var html_scanner = {
         throw parseError("Attributes on <head> not supported");
       results.head += contents;
     } else if (tag === "body") {
-      if (hasAttribs)
-        throw parseError("Attributes on <body> not supported");
+      //if (hasAttribs)
+      //  throw parseError("Attributes on <body> not supported");
+      results.bodyAttrs = [];
+      for(var k in attribs) {
+        if(attribs.hasOwnProperty(k)) {
+          results.bodyAttrs.push({
+            name: k,
+            val: attribs[k]
+          });
+        }
+      }
       results.body += contents;
     } else if (tag === 'template') {
       var name = attribs.name;
