@@ -46,7 +46,6 @@ Handlebars.to_json_ast = function (code) {
   // Recreate Handlebars.Exception to properly report error messages
   // and stack traces. (https://github.com/wycats/handlebars.js/issues/226)
   makeHandlebarsExceptionsVisible(req);
-
   var identifier = function (node) {
     if (node.type !== "ID")
       throw new Error("got ast node " + node.type + " for identifier");

@@ -129,7 +129,6 @@ var html_scanner = {
       results.head += contents;
       return;
     }
-
     // <body> or <template>
     var code = 'Handlebars.json_ast_to_func(' +
           JSON.stringify(Handlebars.to_json_ast(contents)) + ')';
