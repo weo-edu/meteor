@@ -35,7 +35,7 @@
     var userId = Meteor.userId();
     if (!userId)
       return null;
-    
+
     return Meteor.users.findOne({username: userId}) || {username: userId};
   };
 

@@ -168,7 +168,8 @@
     });
 
     try {
-      result.id = Meteor.users.insert(fullUser);
+      Meteor.users.insert(fullUser);
+      result.id = user.username;
     } catch (e) {
       // XXX string parsing sucks, maybe
       // https://jira.mongodb.org/browse/SERVER-3069 will get fixed one day

@@ -602,7 +602,14 @@
 			var fn = args.shift();
 			var defer = $q.defer();
 
+			var destroyed = false;
+			self.$on('$destroy', function() {
+				destroyed = true;
+			});
+
 			args.push(function() {
+				if (destroyed)
+					return;
 				var cbArgs = _.toArray(arguments);
 				var err = cbArgs.shift();
 				self.$throttledSafeApply(function() {
