@@ -44,7 +44,8 @@
         bundle.add_resource({
           type: "body",
           data: results.body,
-          where: where
+          where: where,
+          attrs: results.bodyAttrs
         });
       var js = '';
 
@@ -62,7 +63,7 @@
       });
 
       if (js) {
-        
+
         serve_path = path_part + "template." + basename + ".js";
 
       	bundle.add_resource({

@@ -13,7 +13,7 @@
 
 {{{head_extra}}}
 </head>
-<body>
+<body {{#each body_attrs}} {{this.name}}="{{this.val}}" {{/each}}>
 {{{body_extra}}}
 </body>
 </html>
