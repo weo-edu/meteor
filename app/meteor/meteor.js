@@ -118,15 +118,15 @@ Commands.push({
       return;
     }
     var new_argv = opt.argv;
+    var bundler = require(path.join(__dirname, '..', 'lib', 'bundler.js'));
+    var app_dir = path.resolve(require_project('run', true));
+    var bundle_path = path.join(app_dir, '.meteor', 'local', 'build');
     var bundle_opts = {
       no_minify: ! new_argv.production,
       skip_dev_bundle: true,
       include_tests: ! files.is_app_dir(app_dir)
     };
-    var bundler = require(path.join(__dirname, '..', 'lib', 'bundler.js'));
-    var app_dir = path.resolve(require_project('run', true));
-    var bundle_path = path.join(app_dir, '.meteor', 'local', 'build');
-
+    
     var ret = bundler.bundle(app_dir, bundle_path, bundle_opts);
     if(ret) {
       console.error.apply(console, ['bundling errors'].concat(ret));
