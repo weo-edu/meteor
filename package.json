@@ -26,7 +26,8 @@
     "uglify-js": "*",
     "useragent": "*",
     "weo-http-proxy": "git://github.com/weo-edu/node-http-proxy.git",
-    "di": "0.0.1"
+    "di": "0.0.1",
+    "marked": "~0.2.9"
   },
   "version": "0.1.0"
 }

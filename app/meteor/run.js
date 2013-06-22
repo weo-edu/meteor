@@ -516,7 +516,7 @@ var kill_server = function (handle) {
     var ignore = [];
 
     var startBundle = +new Date;
-    console.log(env.METEOR_SUBAPP_NAME, 'start bundle');
+    console.log(env.METEOR_SUBAPP_NAME, 'start bundle', app_dir);
     var child = spawn('meteor', ['bundle'], {cwd: app_dir});
     child.stderr.on('data', function(data) {
       errors.push(data);
