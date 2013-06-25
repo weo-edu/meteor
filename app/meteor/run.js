@@ -322,6 +322,7 @@ var start_proxy = function (request_queue, outer_port, inner_port, callback) {
     } else if (Status.listening) {
       // server is listening. things are hunky dory!
       proxy.proxyRequest(req, res, {
+        target: {maxSockets: 10000},
         host: '127.0.0.1', port: inner_port
       });
     } else {
@@ -329,6 +330,7 @@ var start_proxy = function (request_queue, outer_port, inner_port, callback) {
       var buffer = httpProxy.buffer(req);
       request_queue.push(function () {
         proxy.proxyRequest(req, res, {
+          target: {maxSockets: 10000},
           host: '127.0.0.1', port: inner_port,
           buffer: buffer
         });

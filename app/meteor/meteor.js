@@ -833,8 +833,15 @@ Commands.push({
     });
 
     function proxyReq(req, res) {
-      p.proxy.proxyRequest(req, res, {host: this.host, port: this.port});
+      // XXX This is wrong, we shouldn't have to set this so high.
+      // why aren't our sockets being destroyed?
+      p.proxy.proxyRequest(req, res, {
+        target: {maxSockets: 10000},
+        host: this.host, 
+        port: this.port
+      });
     }
+
     function proxyWsReq(req, socket, head) {
       p.proxy.proxyWebSocketRequest(req, socket, head, {host: this.host, port: this.port});
     }
