@@ -184,16 +184,26 @@
 				result = result || {};
 
 				function clearExtend(fields) {
-					if (! fields) {
+					/*if (! fields) {
 						for(var key in result) {
 							if(result.hasOwnProperty(key))
 								delete result[key];
 						}
 					} else {
-						for(var key in fields) {
-							result[key] = fields[key];
-						}
-					}
+						_.each(fields, function(val, key) {
+							result[key] = val;
+						});
+						_.each(result, function(val, key) {
+							if(! fields.hasOwnProperty(key))
+								delete result[key];
+						});
+					}*/
+					_.each(result, function(val, key) {
+						delete result[key];
+					});
+					_.each(fields, function(val, key) {
+						result[key] = val;
+					});
 				}
 
 				options = options || {};
@@ -602,7 +612,14 @@
 			var fn = args.shift();
 			var defer = $q.defer();
 
+			var destroyed = false;
+			self.$on('$destroy', function() {
+				destroyed = true;
+			});
+
 			args.push(function() {
+				if (destroyed)
+					return;
 				var cbArgs = _.toArray(arguments);
 				var err = cbArgs.shift();
 				self.$throttledSafeApply(function() {

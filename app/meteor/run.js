@@ -322,6 +322,7 @@ var start_proxy = function (request_queue, outer_port, inner_port, callback) {
     } else if (Status.listening) {
       // server is listening. things are hunky dory!
       proxy.proxyRequest(req, res, {
+        target: {maxSockets: 10000},
         host: '127.0.0.1', port: inner_port
       });
     } else {
@@ -329,6 +330,7 @@ var start_proxy = function (request_queue, outer_port, inner_port, callback) {
       var buffer = httpProxy.buffer(req);
       request_queue.push(function () {
         proxy.proxyRequest(req, res, {
+          target: {maxSockets: 10000},
           host: '127.0.0.1', port: inner_port,
           buffer: buffer
         });
@@ -516,7 +518,7 @@ var kill_server = function (handle) {
     var ignore = [];
 
     var startBundle = +new Date;
-    console.log(env.METEOR_SUBAPP_NAME, 'start bundle');
+    console.log(env.METEOR_SUBAPP_NAME, 'start bundle', app_dir);
     var child = spawn('meteor', ['bundle'], {cwd: app_dir});
     child.stderr.on('data', function(data) {
       errors.push(data);
