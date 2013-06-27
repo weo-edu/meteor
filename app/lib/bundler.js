@@ -725,7 +725,7 @@ exports.bundle = function (project_dir, output_path, options) {
       // in the future, let use specify the driver, instead of hardcoding?
       bundle.include_tests(project);
       var inst = bundle._get_instance(project);
-      if (inst.api.test_in_browser) bundle.use(packages.get('test-in-browser'));
+      //if (inst.api.test_in_browser) bundle.use(packages.get('test-in-browser'));
 
     }
 
