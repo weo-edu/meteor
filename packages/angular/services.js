@@ -756,6 +756,7 @@
 			}
 		};
 		if(Meteor.isClient && Meteor.default_connection) {
+			console.log('Meteor', Meteor.logout, Meteor);
 			ret.logout = _.bind(Meteor.logout, Meteor);
 			ret.loginWithPassword = _.bind(Meteor.loginWithPassword, Meteor);
 			ret.status = _.bind(Meteor.default_connection.status, Meteor.default_connection);
