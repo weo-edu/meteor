@@ -15,8 +15,8 @@ Package.on_use(function (api) {
 });
 
 Package.on_test(function (api) {
-  api.use('stream', ['client', 'server']);
+  /*api.use('stream', ['client', 'server']);
   api.use('http', 'client');
   api.use('test-helpers', 'client');
-  api.add_files(['stream_tests.js'], 'client');
+  api.add_files(['stream_tests.js'], 'client');*/
 });

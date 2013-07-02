@@ -10,6 +10,6 @@ Package.on_use(function (api) {
 });
 
 Package.on_test(function (api) {
-  api.use('srp', ['client', 'server']);
-  api.add_files(['srp_tests.js'], ['client', 'server']);
+  /*api.use('srp', ['client', 'server']);
+  api.add_files(['srp_tests.js'], ['client', 'server']);*/
 });

@@ -147,6 +147,7 @@ var PackageInstance = function (pkg, bundle) {
     // use. Like use in that it can take either the package name or a
     // package object, and can take an array.
     include_tests: function (names) {
+      console.log('names', names);
       if (!(names instanceof Array))
         names = [names];
 
@@ -236,7 +237,7 @@ _.extend(PackageInstance.prototype, {
 // Bundle
 ///////////////////////////////////////////////////////////////////////////////
 
-var Bundle = function (output_path) {
+var Bundle = function (output_path, include_tests) {
   var self = this;
 
   // Packages being used. Map from a package id to a PackageInstance.
@@ -244,6 +245,7 @@ var Bundle = function (output_path) {
 
   // Packages that have had tests included. Map from package id to instance
   self.tests_included = {};
+  self.should_include_tests = include_tests;
 
   // map from environment, to list of filenames
   self.js = {client: [], server: []};
@@ -403,6 +405,9 @@ _.extend(Bundle.prototype, {
     // what the current code will do)
     if (pkg.on_use_handler)
       pkg.on_use_handler(inst.api, where);
+
+    if (self.should_include_tests)
+      self.include_tests(pkg);
   },
 
   include_tests: function (pkg) {
@@ -706,7 +711,7 @@ exports.bundle = function (project_dir, output_path, options) {
     console.log('bundle start');
     // Create a bundle, add the project
     packages.flush();
-    var bundle = new Bundle(output_path);
+    var bundle = new Bundle(output_path, options.include_tests);
     var ignore = ignore_files;
 
     try {
@@ -721,13 +726,13 @@ exports.bundle = function (project_dir, output_path, options) {
     bundle.use(project);
 
     // Include tests if requested
-    if (options.include_tests) {
+    /*if (options.include_tests) {
       // in the future, let use specify the driver, instead of hardcoding?
       bundle.include_tests(project);
       var inst = bundle._get_instance(project);
       //if (inst.api.test_in_browser) bundle.use(packages.get('test-in-browser'));
 
-    }
+    }*/
 
     // Minify, if requested
     if (!options.no_minify)
