@@ -130,6 +130,7 @@ var html_scanner = {
       return;
     }
     // <body> or <template>
+    console.log('contents', contents);
     var code = 'Handlebars.json_ast_to_func(' +
           JSON.stringify(Handlebars.to_json_ast(contents)) + ')';
 
