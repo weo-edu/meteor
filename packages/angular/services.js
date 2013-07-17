@@ -252,89 +252,115 @@
 				Move these callbacks outside of the .leftJoin function
 				to avoid putting them inside that closure
 			*/
-			function leftJoinLeftCallbacks(results, docs, collection2, on) {
+			function leftJoinLeftCallbacks(results, docs, on) {
 				return {
-					addedAt: function(document, atIndex) {
+					addedAt: function(doc, atIndex) {
 		        scope.$throttledSafeApply(function() {
-		        	var doc = {};
-		        	doc[name] = document;
+		        	var joinVal = on(doc);
+		        	docs[joinVal] = docs[joinVal] || {};
 
-		        	var joinVal = u.get(document, on[0]);
-		        	doc._id = joinVal
-		        	hashKeyWrap(doc);
-		        	docs[joinVal] = doc;
+		        	hashKeyWrap(docs[joinVal]);
+		        	docs[joinVal]._id = joinVal;
+		        	docs[joinVal][name] = doc;
 
-		        	var selector = {};
-		        	selector[on[1]] = joinVal;
-		        	doc[collection2] = collections[collection2].findOne(selector);
-		          results.splice(atIndex, 0, doc);
+		          results.splice(atIndex, 0, docs[joinVal]);
 		        });
 		      },
-		      changedAt: function(newDocument, oldDocument, atIndex) {
+		      changedAt: function(newDoc, oldDoc, atIndex) {
 		      	scope.$throttledSafeApply(function() {
-		      		results[atIndex][name] = newDocument;
+		      		results[atIndex][name] = newDoc;
 		      	});
 		      },
-		      movedTo: function(document, oldIndex, newIndex) {
+		      movedTo: function(doc, oldIndex, newIndex) {
 		      	scope.$throttledSafeApply(function() {
-		      		var doc = docs[u.get(document, on[0])];
 		      		results.splice(oldIndex, 1);
-		      		results.splice(newIndex, 0, doc);
+		      		results.splice(newIndex, 0, docs[on(doc)]);
 		      	});
 		      },
-		      removedAt: function(oldDocument, atIndex) {
+		      removedAt: function(oldDoc, atIndex) {
 		      	scope.$throttledSafeApply(function() {
 		      		results.splice(atIndex, 1);
-		      		delete docs[u.get(document, on[0])];
+		      		delete docs[on(oldDoc)];
 		      	});
 		      }
 				};
 			}
 
-			function leftJoinRightCallbacks(results, docs, collection2, on) {
+			function leftJoinRightCallbacks(docs, collection2, on) {
 				return {
-					added: function(document) {
+					added: function(doc) {
 						scope.$throttledSafeApply(function() {
-							var joinVal = u.get(document, on[1]);
-							if (docs[joinVal])
-								docs[joinVal][collection2] = document;
+							var joinVal = on(doc);
+							docs[joinVal] = docs[joinVal] || {};
+							docs[joinVal][collection2] = doc;
 						});
 					},
-					changed: function(newDocument) {
+					changed: function(newDoc) {
 						scope.$throttledSafeApply(function() {
-							var joinVal = u.get(newDocument, on[1]);
-							if (docs[joinVal])
-								docs[joinVal][collection2] = newDocument;
+							docs[on(newDoc)][collection2] = newDoc;
 						});
 					},
-					removed: function(oldDocument) {
+					removed: function(oldDoc) {
 						scope.$throttledSafeApply(function() {
-							var joinVal = u.get(oldDocument, on[1]);
-							if (docs[joinVal])
-								delete docs[joinVal][collection2];
+							delete docs[on(oldDoc)][collection2];
 						});
 					}
 				};
 			}
 
-			scopedCollection.leftJoin = function(selector, options, on, collection2,  selector2) {
-				var results = [];
-				var docs = {};
-				var cursor = collection.find(selector, options);
-				var handle = cursor.observe(leftJoinLeftCallbacks(results, docs, collection2, on));
-				var handle2 = collections[collection2].find(selector2 || {})
-					.observe(leftJoinRightCallbacks(results, docs, collection2, on));
+			scopedCollection.leftJoin = function(selector, options, on, rightName, rightCursor) {
+				function getter(prop) {
+					return _.isFunction(prop)
+						? prop
+						: function(o) { return u.get(o, prop); };
+				}
 
-				var stop = cleanup.add(function() {
+				rightCursor = rightCursor.$cursor || rightCursor;
+
+				var leftCursor = collection.find(selector, options)
+					, docs = {}
+					, results = []
+					, handles = [
+					leftCursor.observe(leftJoinLeftCallbacks(results, docs, getter(on[0]))),
+					rightCursor.observe(leftJoinRightCallbacks(docs, rightName, getter(on[1])))
+				];
+
+				results.__proto__ = Object.create(results.__proto__);
+				setupResultProto(results.__proto__, leftCursor, cleanup.add(function() {
+					_.invoke(handles, 'stop');
+					handles = undefined;
+					results.__proto__ = {};
+				}));
+
+				return results;
+			};
+
+/*			scopedCollection.leftJoin = function(selector, options, on, collection2,  selector2, options2) {
+				function getter(prop) {
+					return _.isFunction(prop)
+						? prop
+						: function(o) { return u.get(o, prop); };
+				}
+
+				var results = []
+					, docs = {}
+					, handles = []
+					, cursor = collection.find(selector, options);
+
+				handles.push(cursor.observe(leftJoinCallbacks(results, docs, getter(on[0]))));
+				handles.push(maker(collection2, scope).find(selector2,)
+					, handle = cursor.observe(leftJoinLeftCallbacks(results, docs, getter(on[0])))
+					, handle2 = collections[collection2].find(selector2 || {}, options2)
+							.observe(leftJoinRightCallbacks(docs, collection2, getter(on[1])));
+
+				results.__proto__ = Object.create(results.__proto__);
+				setupResultProto(results.__proto__, cursor, cleanup.add(function() {
 					handle.stop();
 					handle2.stop();
 					results.__proto__ = {};
 				});
-
-				results.__proto__ = Object.create(results.__proto__);
-				setupResultProto(results.__proto__, cursor, stop);
 				return results;
-			}
+			}*/
 
 			scopedCollection.stop = function stopCollection() {
 				cleanup.run();
