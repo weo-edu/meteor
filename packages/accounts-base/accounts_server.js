@@ -9,7 +9,6 @@
     //   If unsuccessful (for example, if the user closed the oauth login popup),
     //     returns null
     login: function(options) {
-      console.log('login', options);
       var result = tryAllLoginHandlers(options);
       if (result !== null)
         this.setUserId(result.name);
