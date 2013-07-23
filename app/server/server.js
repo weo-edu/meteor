@@ -1,6 +1,6 @@
 if(process.env.NODETIME_API_KEY) {
   var dontProfile = ['app!common', 'app!dock'];
-  
+
   if(dontProfile.indexOf(process.env.METEOR_SUBAPP_NAME) === -1) {
     require('nodetime').profile({
       appName: process.env.METEOR_SUBAPP_NAME,
@@ -43,7 +43,8 @@ var init_keepalive = function () {
   process.stdin.on('data', function (data) {
     keepalive_count = 0;
   });
-
+express.static.mime.define({'text/plain': ['md']});
+express.static.mime.define({'application/font-woff': ['woff']});
   process.stdin.resume();
 
   setInterval(function () {
@@ -120,9 +121,9 @@ var run = function () {
 
   // start up app
   __meteor_bootstrap__ = {
-    require: require, 
-    startup_hooks: [], 
-    app: app, 
+    require: require,
+    startup_hooks: [],
+    app: app,
     io: io,
     env: process.env,
     bundle_dir: bundle_dir
