@@ -11,8 +11,7 @@
     login: function(options) {
       var result = tryAllLoginHandlers(options);
       if (result !== null)
-        this.setUserId(result.name);
-
+        this.setUserId(result.name || result.id);
       return result;
     },
 
