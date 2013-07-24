@@ -43,8 +43,6 @@ var init_keepalive = function () {
   process.stdin.on('data', function (data) {
     keepalive_count = 0;
   });
-express.static.mime.define({'text/plain': ['md']});
-express.static.mime.define({'application/font-woff': ['woff']});
   process.stdin.resume();
 
   setInterval(function () {
