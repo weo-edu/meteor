@@ -288,7 +288,11 @@ EJSON.equals = function (a, b, options) {
   }
 };
 
-EJSON.clone = function (v) {
+EJSON.clone = function (v, depth) {
+  if(depth > 100)
+    debugger;
+
+  depth = depth || 0;
   var ret;
   if (typeof v !== "object")
     return v;
@@ -306,7 +310,7 @@ EJSON.clone = function (v) {
   if (_.isArray(v)) {
     ret = v.slice(0);
     for (var i = 0; i < v.length; i++)
-      ret[i] = EJSON.clone(ret[i]);
+      ret[i] = EJSON.clone(ret[i], depth + 1);
     return ret;
   }
   // handle general user-defined typed Objects if they have a clone method
@@ -316,7 +320,7 @@ EJSON.clone = function (v) {
   // handle other objects
   ret = {};
   _.each(v, function (value, key) {
-    ret[key] = EJSON.clone(value);
+    ret[key] = EJSON.clone(value, depth + 1);
   });
   return ret;
 };

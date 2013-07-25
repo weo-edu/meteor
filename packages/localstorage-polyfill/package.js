@@ -9,8 +9,8 @@ Package.on_use(function (api) {
 });
 
 Package.on_test(function (api) {
-  api.use('localstorage-polyfill', 'client');
+  /*api.use('localstorage-polyfill', 'client');
   api.use('tinytest');
 
-  api.add_files('localstorage_polyfill_tests.js', 'client');
+  api.add_files('localstorage_polyfill_tests.js', 'client');*/
 });

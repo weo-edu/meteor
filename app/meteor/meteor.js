@@ -90,6 +90,7 @@ Commands.push({
     var opt = require('optimist')
       .boolean('production')
       .boolean('recursive')
+      .boolean('test')
       .describe('production', 'Bundle for production mode');
     if(opt.argv.recursive) {
       var success = true;
@@ -125,8 +126,10 @@ Commands.push({
     var bundle_opts = {
       no_minify: ! new_argv.production,
       skip_dev_bundle: true,
-      include_tests: ! files.is_app_dir(app_dir)
+      include_tests: ! files.is_app_dir(app_dir) || opt.argv.test
     };
+
+    console.log(bundle_opts);
 
     var ret = bundler.bundle(app_dir, bundle_path, bundle_opts);
     if(ret) {
@@ -838,7 +841,7 @@ Commands.push({
       // why aren't our sockets being destroyed?
       p.proxy.proxyRequest(req, res, {
         target: {maxSockets: 10000},
-        host: this.host, 
+        host: this.host,
         port: this.port
       });
     }

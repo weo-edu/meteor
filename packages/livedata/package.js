@@ -4,7 +4,8 @@ Package.describe({
 });
 
 Package.on_use(function (api) {
-  api.use(['streamio', 'random']);
+  console.log('use livedata');
+  api.use(['streamio', 'random'], ['client', 'server']);
   api.use(['ejson', 'json', 'underscore', 'deps', 'logging', 'reload'], ['client', 'server']);
 
   // livedata_connection.js uses a Minimongo collection internally to
@@ -26,7 +27,7 @@ Package.on_use(function (api) {
 });
 
 Package.on_test(function (api) {
-  api.use('livedata', ['client', 'server']);
+  /*api.use('livedata', ['client', 'server']);
   api.use('mongo-livedata', ['client', 'server']);
   api.use('test-helpers', ['client', 'server']);
   api.use('tinytest');
@@ -35,5 +36,5 @@ Package.on_test(function (api) {
   api.add_files('livedata_tests.js', ['client', 'server']);
   api.add_files('livedata_test_service.js', ['client', 'server']);
   api.add_files('session_view_tests.js', ['server']);
-  api.add_files('crossbar_tests.js', ['server']);
+  api.add_files('crossbar_tests.js', ['server']);*/
 });

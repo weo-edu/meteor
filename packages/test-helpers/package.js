@@ -27,7 +27,6 @@ Package.on_use(function (api, where) {
 });
 
 Package.on_test(function (api) {
-  api.use('tinytest');
   api.use('test-helpers');
   api.add_files('try_all_permutations_test.js', 'client');
 });

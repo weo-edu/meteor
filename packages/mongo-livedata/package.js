@@ -23,10 +23,8 @@ Package.on_use(function (api) {
 });
 
 Package.on_test(function (api) {
-  api.use('mongo-livedata');
-  api.use('tinytest');
-  api.use('test-helpers');
+  /*api.use('mongo-livedata');
   api.add_files('mongo_livedata_tests.js', ['client', 'server']);
   api.add_files('allow_tests.js', ['client', 'server']);
-  api.add_files('observe_changes_tests.js', ['client', 'server']);
+  api.add_files('observe_changes_tests.js', ['client', 'server']);*/
 });
