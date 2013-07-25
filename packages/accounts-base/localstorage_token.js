@@ -6,9 +6,11 @@
   // Call this from the top level of the test file for any test that does
   // logging in and out, to protect multiple tabs running the same tests
   // simultaneously from interfering with each others' localStorage.
-  Accounts._isolateLoginTokenForTest = function () {
-    loginTokenKey = loginTokenKey + Random.id();
-    userIdKey = userIdKey + Random.id();
+  Accounts._isolateLoginTokenForTest = function (id) {
+    id = id || Random.id();
+    loginTokenKey = loginTokenKey + id;
+    userIdKey = userIdKey + id;
+    return id;
   };
 
   Accounts._storeLoginToken = function(userId, token) {
@@ -69,7 +71,8 @@
       userCallback: callback});
   };
 
-  if (!Accounts._preventAutoLogin) {
+
+  Meteor.startLogin = function() {
     // Immediately try to log in via local storage, so that any DDP
     // messages are sent after we have established our user account
     var token = Accounts._storedLoginToken();
@@ -85,11 +88,13 @@
         }
       });
     }
+    Accounts._lastLoginTokenWhenPolled = token;
+    setInterval(Accounts._pollStoredLoginToken, 3000);
   }
 
   // Poll local storage every 3 seconds to login if someone logged in in
   // another tab
-  Accounts._lastLoginTokenWhenPolled = token;
+
   Accounts._pollStoredLoginToken = function() {
     if (Accounts._preventAutoLogin)
       return;
@@ -113,6 +118,6 @@
     Accounts._pollStoredLoginToken();
   };
 
-  setInterval(Accounts._pollStoredLoginToken, 3000);
+
 })();
 

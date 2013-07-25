@@ -5,9 +5,11 @@
     return Meteor.default_connection.userId();
   };
 
+  var lastAuthCall = 0;
   var loggingIn = false;
   var loggingInCallbacks = [];
   var loggingInDeps = new Deps.Dependency;
+  var disableLogin = false;
 
   // This is mostly just called within this file, but Meteor.loginWithPassword
   // also uses it to make loggingIn() be true during the beginPasswordExchange
@@ -29,6 +31,10 @@
     cb && loggingInCallbacks.push(cb);
     return loggingIn;
   }
+  Meteor.disableLogin = function(value) {
+    disableLogin = value;
+  }
+
 
   // This calls userId, which is reactive.
   Meteor.user = function () {
@@ -62,6 +68,8 @@
   // - userCallback: Will be called with no arguments once the user is fully
   //                 logged in, or with the error on error.
   Accounts.callLoginMethod = function (options) {
+    lastAuthCall++;
+    var call = lastAuthCall;
     options = _.extend({
       methodName: 'login',
       methodArguments: [],
@@ -121,7 +129,9 @@
       // above). The onReconnect will try to log in using the token, and *it*
       // will call userCallback via its own version of this
       // loggedInAndDataReadyCallback. So we don't have to do anything here.
-      if (reconnected)
+
+      //XXX would be better if checked args as well
+      if (reconnected || lastAuthCall !== call || disableLogin)
         return;
 
       // Note that we need to call this even if _suppressLoggingIn is true,
@@ -156,18 +166,27 @@
   };
 
   Accounts._makeClientLoggedOut = function() {
+    lastAuthCall ++;
     Accounts._unstoreLoginToken();
     Meteor.default_connection.setUserId(null);
     Meteor.default_connection.onReconnect = null;
   };
 
   Accounts._makeClientLoggedIn = function(userId, token) {
+    lastAuthCall++;
     Accounts._storeLoginToken(userId, token);
     Meteor.default_connection.setUserId(userId);
   };
 
   Meteor.logout = function (callback) {
+    lastAuthCall++;
+    var call = lastAuthCall;
     Meteor.apply('logout', [], {wait: true}, function(error, result) {
+
+      // XXX should callbacks be called
+      if (lastAuthCall !== call)
+        return;
+
       if (error) {
         callback && callback(error);
       } else {
