@@ -574,6 +574,7 @@ Meteor.Collection.prototype._defineMutationMethods = function() {
           }
         } catch (e) {
           if (e.name === 'MongoError' || e.name === 'MinimongoError') {
+            console.log('mongoerror', e);
             throw new Meteor.Error(409, e.toString());
           } else {
             throw e;
