@@ -754,32 +754,38 @@ Commands.push({
       })();
     }
 
+    var appReady = _.after(_.size(meteors), _.once(function() {
+      if(process.send)
+        process.send('ready');
+      console.log('all subapps ready');
+    }));
+
     console.log('Initializing subapps...', meteors);
+    var childProcesses = {};
     var mongo_url = process.env.MONGO_URL || "mongodb://127.0.0.1:" + mongo_port + "/meteor";
-    var childProcesses = (function spawnSubapps(){
-      var children = [];
-      _.each(meteors,function(app, appName) {
-        var env = _.clone(process.env);
-        env.METEOR_SUBAPP_PREFIX = subapp_prefix;
-        env.METEOR_SUBAPP_NAME = appName;
-        env.MONGO_URL = mongo_url;
+    _.each(meteors, function(app, appName) {
+      var env = _.clone(process.env);
+      env.METEOR_SUBAPP_PREFIX = subapp_prefix;
+      env.METEOR_SUBAPP_NAME = appName;
+      env.MONGO_URL = mongo_url;
 
-        var app_dir = path.join(process.cwd(), app.dir); // app or package
-        var bundle_opts = {
-          no_bundle: new_argv.nobundle,
-          no_minify: !new_argv.production,
-          symlink_dev_bundle: true
-        };
-        setTimeout(function() {
-          require(path.join(__dirname, 'run.js')).run(app_dir, bundle_opts, app.port, env);
-        }, 0);
-      });
-    })();
+      var app_dir = path.join(process.cwd(), app.dir); // app or package
+      var bundle_opts = {
+        no_bundle: new_argv.nobundle,
+        no_minify: !new_argv.production,
+        symlink_dev_bundle: true
+      };
+      setTimeout(function() {
+        require(path.join(__dirname, 'run.js')).run(app_dir, bundle_opts, app.port, env,
+          function(handle) {
+            childProcesses[app_dir] = handle.proc;
+            appReady();
+          });
+      }, 0);
+    });
 
-    //  Make sure we don't leave a bunch of headless subapps hanging around
-    //  if our router dies.
     process.on('uncaughtException', function(e) {
-      _.invoke(childProcesses, 'kill');
+      _.invoke(_.values(childProcesses), 'kill');
       console.error(e.stack);
       process.exit();
     });
