@@ -784,7 +784,10 @@ Commands.push({
       }, 0);
     });
 
-    process.on('uncaughtException', function(e) {
+    process.on('exit', function() {
+      _.invoke(_.values(childProcesses), 'kill');
+    })
+    .on('uncaughtException', function(e) {
       _.invoke(_.values(childProcesses), 'kill');
       console.error(e.stack);
       process.exit();
