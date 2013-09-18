@@ -1143,20 +1143,9 @@ _.extend(Meteor._LivedataConnection.prototype, {
     // Process "sub ready" messages. "sub ready" messages don't take effect
     // until all current server documents have been flushed to the local
     // database. We can use a write fence to implement this.
-    var karmaWnd = window;
-    while(karmaWnd !== karmaWnd.parent) {
-      karmaWnd = karmaWnd.parent;
-      if(karmaWnd.karma)
-        break;
-    }
-
     _.each(msg.subs, function (subId) {
-      karmaWnd.console.log('_process_ready for ', subId,
-        self._subscriptions[subId] &&self._subscriptions[subId].name);
       self._runWhenAllServerDocsAreFlushed(function () {
         var subRecord = self._subscriptions[subId];
-        karmaWnd.console.log('runWhenAllServerDocsAreFlushed for ',
-          subId, subRecord && subRecord.name);
         // Did we already unsubscribe?
         if (!subRecord)
           return;
