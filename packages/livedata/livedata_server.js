@@ -1277,7 +1277,7 @@ _.extend(Meteor._LivedataServer.prototype, {
     // Run the handler
     var handler = self.method_handlers[name];
     if (!handler)
-      var exception = new Meteor.Error(404, "Method not found");
+      var exception = new Meteor.Error(404, "Method not found", name);
     else {
       // If this is a method call from within another method, get the
       // user state from the outer method, otherwise don't allow
