@@ -11,6 +11,7 @@ var html_scanner = {
     var rest = contents;
     var index = 0;
 
+    console.log('contents', contents, source_name);
     var advance = function(amount) {
       rest = rest.substring(amount);
       index += amount;

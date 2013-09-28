@@ -392,8 +392,9 @@ _.extend(Meteor._LivedataSession.prototype, {
 
     if (self.userId) {
       Fiber(function() {
+        var cached = self.userId;
         _.each(Meteor._user_disconnected_callbacks, function(cb) {
-          cb(self.userId);
+          cb(cached);
         });
       }).run();
     }
