@@ -391,8 +391,8 @@ _.extend(Meteor._LivedataSession.prototype, {
       socket.meteor_session = null;
 
     if (self.userId) {
+      var cached = self.userId;
       Fiber(function() {
-        var cached = self.userId;
         _.each(Meteor._user_disconnected_callbacks, function(cb) {
           cb(cached);
         });
@@ -658,12 +658,13 @@ _.extend(Meteor._LivedataSession.prototype, {
   _setUserId: function(userId) {
     var self = this;
     if (userId !== self.userId) {
+      // XXX Hack: If one of the callbacks contains a fiber.wait()
+      // self.userId can be set to null before the next callback
+      // is called
+      var cached = self.userId;
+      
       Fiber(function() {
-        if (self.userId) {
-          // XXX Hack: If one of the callbacks contains a fiber.wait()
-          // self.userId can be set to null before the next callback
-          // is called
-          var cached = self.userId;
+        if (cached) {
           _.each(Meteor._user_disconnected_callbacks, function(cb) {
             cb(cached);
           });

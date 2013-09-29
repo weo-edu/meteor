@@ -317,7 +317,7 @@
   });
 
   var tokenLifetime = (24*60*60*10)*1000
-    , cleanInterval = (60*5)*1000;
+    , cleanInterval = (60*30)*1000;
   Meteor.setInterval(function() {
     var now = +new Date
       , cutoff = now - tokenLifetime;
