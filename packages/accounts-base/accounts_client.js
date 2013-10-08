@@ -68,7 +68,7 @@
   // - userCallback: Will be called with no arguments once the user is fully
   //                 logged in, or with the error on error.
   Accounts.callLoginMethod = function (options) {
-    console.log('callLoginMethod');
+    console.log('callLoginMethod', options);
     lastAuthCall++;
     var call = lastAuthCall;
     options = _.extend({
@@ -104,6 +104,7 @@
         Meteor.default_connection.onReconnect = null;
       } else {
         Meteor.default_connection.onReconnect = function() {
+          console.log('onReconnect');
           reconnected = true;
           Accounts.callLoginMethod({
             methodArguments: [{resume: result.token}],

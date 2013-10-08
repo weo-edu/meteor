@@ -66,6 +66,7 @@
   // Login with a Meteor access token
   //
   Meteor.loginWithToken = function (token, callback) {
+    console.log('loginWithToken');
     Accounts.callLoginMethod({
       methodArguments: [{resume: token}],
       userCallback: callback});
