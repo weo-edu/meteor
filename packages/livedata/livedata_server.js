@@ -663,17 +663,16 @@ _.extend(Meteor._LivedataSession.prototype, {
       // is called
       var cached = self.userId;
 
-        if (cached) {
-          _.each(Meteor._user_disconnected_callbacks, function(cb) {
-            cb(cached);
-          });
-        }
-        if (userId) {
-          _.each(Meteor._user_connected_callbacks, function(cb) {
-            cb(userId);
-          });
-        }
-      }).run();
+      if (cached) {
+        _.each(Meteor._user_disconnected_callbacks, function(cb) {
+          cb(cached);
+        });
+      }
+      if (userId) {
+        _.each(Meteor._user_connected_callbacks, function(cb) {
+          cb(userId);
+        });
+      }
     }
 
     // Prevent newly-created universal subscriptions from being added to our
