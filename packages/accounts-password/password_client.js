@@ -8,7 +8,6 @@
     // strip old password, replacing with the verifier object
     delete options.password;
     options.srp = verifier;
-    console.log('createUser');
     Accounts.callLoginMethod({
       methodName: 'createUser',
       methodArguments: [options],
@@ -49,7 +48,6 @@
       }
 
       var response = srp.respondToChallenge(result);
-      console.log('beginPasswordExchange cb');
       Accounts.callLoginMethod({
         methodArguments: [{srp: response}],
         validateResult: function (result) {
@@ -150,7 +148,6 @@
   Accounts.verifyEmail = function(token, callback) {
     if (!token)
       throw new Error("Need to pass token");
-    console.log('verifyEmail');
     Accounts.callLoginMethod({
       methodName: 'verifyEmail',
       methodArguments: [token],

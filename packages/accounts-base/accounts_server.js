@@ -16,9 +16,7 @@
     },
 
     logout: function() {
-      console.time('logout handler');
       this.setUserId(null);
-      console.timeEnd('logout handler');
     }
   });
 
