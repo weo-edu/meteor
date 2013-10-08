@@ -181,8 +181,11 @@
   Meteor.logout = function (callback) {
     lastAuthCall++;
     var call = lastAuthCall;
+    console.time('Meteor.logout');
+    console.log('Meteor.logout called');
     Meteor.apply('logout', [], {wait: true}, function(error, result) {
-
+      console.timeEnd('Meteor.logout');
+      console.log('Meteor.logout callback', error, result);
       // XXX should callbacks be called
       if (lastAuthCall !== call)
         return;
