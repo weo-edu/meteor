@@ -1,11 +1,13 @@
 Meteor._user_connected_callbacks = [];
 Meteor.userConnected = function(cb) {
-  Meteor._user_connected_callbacks.push(cb);
+  cb = Fiber(cb);
+  Meteor._user_connected_callbacks.push(cb.run.bind(cb));
 }
 
 Meteor._user_disconnected_callbacks = [];
 Meteor.userDisconnected = function(cb) {
-  Meteor._user_disconnected_callbacks.push(cb);
+  cb = Fiber(cb);
+  Meteor._user_disconnected_callbacks.push(cb.run.bind(cb));
 }
 
 var Fiber = __meteor_bootstrap__.require('fibers');
@@ -392,11 +394,9 @@ _.extend(Meteor._LivedataSession.prototype, {
 
     if (self.userId) {
       var cached = self.userId;
-      Fiber(function() {
-        _.each(Meteor._user_disconnected_callbacks, function(cb) {
-          cb(cached);
-        });
-      }).run();
+      _.each(Meteor._user_disconnected_callbacks, function(cb) {
+        cb(cached);
+      });
     }
   },
 
@@ -662,19 +662,17 @@ _.extend(Meteor._LivedataSession.prototype, {
       // self.userId can be set to null before the next callback
       // is called
       var cached = self.userId;
-      
-      Fiber(function() {
-        if (cached) {
-          _.each(Meteor._user_disconnected_callbacks, function(cb) {
-            cb(cached);
-          });
-        }
-        if (userId) {
-          _.each(Meteor._user_connected_callbacks, function(cb) {
-            cb(userId);
-          });
-        }
-      }).run();
+
+      if (cached) {
+        _.each(Meteor._user_disconnected_callbacks, function(cb) {
+          cb(cached);
+        });
+      }
+      if (userId) {
+        _.each(Meteor._user_connected_callbacks, function(cb) {
+          cb(userId);
+        });
+      }
     }
 
     // Prevent newly-created universal subscriptions from being added to our
