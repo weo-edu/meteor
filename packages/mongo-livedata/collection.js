@@ -554,7 +554,7 @@ Meteor.Collection.prototype._defineMutationMethods = function() {
             if (self._validators[method].allow.length === 0) {
               throw new Meteor.Error(
                 403, "Access denied. No allow validators set on restricted " +
-                  "collection.");
+                  "collection. " + self._name);
             }
 
             var validatedMethodName =
@@ -570,7 +570,7 @@ Meteor.Collection.prototype._defineMutationMethods = function() {
           } else {
             // In secure mode, if we haven't called allow or deny, then nothing
             // is permitted.
-            throw new Meteor.Error(403, "Access denied");
+            throw new Meteor.Error(403, "Access denied " + self._name);
           }
         } catch (e) {
           if (e.name === 'MongoError' || e.name === 'MinimongoError') {
@@ -623,13 +623,13 @@ Meteor.Collection.prototype._validatedInsert = function(userId, doc) {
   if (_.any(self._validators.insert.deny, function(validator) {
     return validator(userId, docToValidate(validator, doc));
   })) {
-    throw new Meteor.Error(403, "Access denied");
+    throw new Meteor.Error(403, "Access denied " + self._name);
   }
   // Any allow returns true means proceed. Throw error if they all fail.
   if (_.all(self._validators.insert.allow, function(validator) {
     return !validator(userId, docToValidate(validator, doc));
   })) {
-    throw new Meteor.Error(403, "Access denied");
+    throw new Meteor.Error(403, "Access denied " + self._name);
   }
 
   self._collection.insert.call(self._collection, doc);
@@ -659,7 +659,7 @@ Meteor.Collection.prototype._validatedUpdate = function(
   _.each(mutator, function (params, op) {
     if (op.charAt(0) !== '$') {
       throw new Meteor.Error(
-        403, "Access denied. In a restricted collection you can only update documents, not replace them. Use a Mongo update operator, such as '$set'.");
+        403, "Access denied. In a restricted collection you can only update documents, not replace them. Use a Mongo update operator, such as '$set'. " + self._name);
     } else {
       _.each(_.keys(params), function (field) {
         // treat dotted fields as if they are replacing their
@@ -698,7 +698,7 @@ Meteor.Collection.prototype._validatedUpdate = function(
                      fields,
                      mutator);
   })) {
-    throw new Meteor.Error(403, "Access denied");
+    throw new Meteor.Error(403, "Access denied " + self._name);
   }
   // Any allow returns true means proceed. Throw error if they all fail.
   if (_.all(self._validators.update.allow, function(validator) {
@@ -709,7 +709,7 @@ Meteor.Collection.prototype._validatedUpdate = function(
                       fields,
                       mutator);
   })) {
-    throw new Meteor.Error(403, "Access denied");
+    throw new Meteor.Error(403, "Access denied " + self._name);
   }
 
   // Back when we supported arbitrary client-provided selectors, we actually
@@ -743,13 +743,13 @@ Meteor.Collection.prototype._validatedRemove = function(userId, selector) {
   if (_.any(self._validators.remove.deny, function(validator) {
     return validator(userId, transformDoc(validator, doc));
   })) {
-    throw new Meteor.Error(403, "Access denied");
+    throw new Meteor.Error(403, "Access denied " + self._name);
   }
   // Any allow returns true means proceed. Throw error if they all fail.
   if (_.all(self._validators.remove.allow, function(validator) {
     return !validator(userId, transformDoc(validator, doc));
   })) {
-    throw new Meteor.Error(403, "Access denied");
+    throw new Meteor.Error(403, "Access denied " + self._name);
   }
 
   // Back when we supported arbitrary client-provided selectors, we actually
