@@ -316,11 +316,10 @@
     }
   });
 
-  var tokenLifetime = (24*60*60*10)*1000
-    , cleanInterval = (60*30)*1000;
+  var tokenLifetime = (24*60*60*1000)*10
+    , cleanInterval = (60*1000)*30;
   Meteor.setInterval(function() {
-    var now = +new Date
-      , cutoff = now - tokenLifetime;
+    var cutoff = (+new Date) - tokenLifetime;
 
     Meteor.users.update({'services.resume.loginTokens.when' : {$lt: cutoff}}, {
       $pull: {
