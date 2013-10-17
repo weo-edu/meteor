@@ -1,13 +1,16 @@
 Meteor._user_connected_callbacks = [];
+
 Meteor.userConnected = function(cb) {
-  cb = Fiber(cb);
-  Meteor._user_connected_callbacks.push(cb.run.bind(cb));
+  Meteor._user_connected_callbacks.push(function(userId) {
+    Fiber.current ? cb(userId) : Fiber(cb).run(userId);
+  });
 }
 
 Meteor._user_disconnected_callbacks = [];
 Meteor.userDisconnected = function(cb) {
-  cb = Fiber(cb);
-  Meteor._user_disconnected_callbacks.push(cb.run.bind(cb));
+  Meteor._user_disconnected_callbacks.push(function(userId) {
+    Fiber.current ? cb(userId) : Fiber(cb).run(userId);
+  });
 }
 
 var Fiber = __meteor_bootstrap__.require('fibers');
