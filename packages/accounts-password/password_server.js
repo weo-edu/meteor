@@ -404,6 +404,7 @@
   // method for create user. Requests come from the client.
   Meteor.methods({
     createUser: function (options) {
+      console.log('createUser called', options.username);
       options = _.clone(options);
       options.generateLoginToken = true;
       if (Accounts._options.forbidClientAccountCreation)
@@ -424,6 +425,7 @@
 
       // client gets logged in as the new user afterwards.
       this.setUserId(result.id);
+      console.log('createUser returning', options.username);
       return result;
     }
   });
