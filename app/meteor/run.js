@@ -4,7 +4,7 @@ var fs = require("fs");
 var path = require("path");
 var spawn = require('child_process').spawn;
 
-var httpProxy = require('weo-http-proxy');
+var httpProxy = require('http-proxy');
 
 var files = require(path.join(__dirname, '..', 'lib', 'files.js'));
 var updater = require(path.join(__dirname, '..', 'lib', 'updater.js'));

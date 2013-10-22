@@ -680,7 +680,7 @@ Commands.push({
     var fs = require('fs'),
       path = require('path'),
       spawn = require('child_process').spawn,
-      httpProxy = require('weo-http-proxy'),
+      httpProxy = require('http-proxy'),
       subapp_prefix = 'app!';
 
     if(argv.prefix)
