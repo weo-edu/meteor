@@ -8,6 +8,7 @@
     // strip old password, replacing with the verifier object
     delete options.password;
     options.srp = verifier;
+    console.log('callLoginMethod createUser');
     Accounts.callLoginMethod({
       methodName: 'createUser',
       methodArguments: [options],
