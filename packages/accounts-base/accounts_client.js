@@ -68,7 +68,6 @@
   // - userCallback: Will be called with no arguments once the user is fully
   //                 logged in, or with the error on error.
   Accounts.callLoginMethod = function (options) {
-    console.log('callLoginMethod', options && options.name);
     lastAuthCall++;
     var call = lastAuthCall;
     options = _.extend({
@@ -125,7 +124,6 @@
     // subscription (and all subscriptions, in fact) are guaranteed to be up to
     // date.
     var loggedInAndDataReadyCallback = function (error, result) {
-      console.log('loggedInAndDataReady', reconnected, lastAuthCall, call, disableLogin);
       // If the login method returns its result but the connection is lost
       // before the data is in the local cache, it'll set an onReconnect (see
       // above). The onReconnect will try to log in using the token, and *it*
@@ -168,7 +166,6 @@
   };
 
   Accounts._makeClientLoggedOut = function() {
-    console.log('makeClientLoggedOut');
     lastAuthCall ++;
     Accounts._unstoreLoginToken();
     Meteor.default_connection.setUserId(null);
@@ -176,18 +173,15 @@
   };
 
   Accounts._makeClientLoggedIn = function(userId, token) {
-    console.log('makeClientLoggedIn');
     lastAuthCall++;
     Accounts._storeLoginToken(userId, token);
     Meteor.default_connection.setUserId(userId);
   };
 
   Meteor.logout = function (callback) {
-    console.log('Meteor.logout');
     lastAuthCall++;
     var call = lastAuthCall;
     Meteor.apply('logout', [], {wait: true}, function(error, result) {
-      console.log('Meteor.logout cb');
       // XXX should callbacks be called
       if (lastAuthCall !== call)
         return;
