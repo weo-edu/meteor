@@ -538,9 +538,9 @@ _.extend(SynchronousCursor.prototype, {
       var doc = self._synchronousNextObject().wait();
       if (!doc || !doc._id) return null;
       doc = replaceTypes(doc, replaceMongoAtomWithMeteor);
+      var strId = Meteor.idStringify(doc._id);
       if (self._transform)
         doc = self._transform(doc);
-      var strId = Meteor.idStringify(doc._id);
       if (self._visitedIds[strId]) continue;
       self._visitedIds[strId] = true;
       return doc;
